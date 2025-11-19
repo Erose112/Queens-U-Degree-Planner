@@ -43,39 +43,6 @@ Before you begin, make sure you have the following installed on your computer:
    - VS Code: https://code.visualstudio.com/
    - Extensions to install: ESLint, Prettier, Python
 
-## Project Structure
-
-After setup, your project will look like this:
-
-```
-queens-course-planner/
-├── frontend/              # React + TypeScript frontend
-│   ├── src/
-│   │   ├── components/    # Reusable UI components
-│   │   ├── pages/         # Page components
-│   │   ├── services/      # API calls
-│   │   ├── hooks/         # Custom React hooks
-│   │   ├── types/         # TypeScript type definitions
-│   │   ├── utils/         # Helper functions
-│   │   ├── context/       # React Context
-│   │   └── assets/        # Images, icons
-│   ├── package.json
-│   └── vite.config.ts
-├── backend/               # Python FastAPI backend
-│   ├── app/
-│   │   ├── main.py        # API entry point
-│   │   ├── database.py    # Database connection
-│   │   ├── models.py      # Database models
-│   │   ├── schemas.py     # Pydantic schemas
-│   │   └── routers/       # API routes
-│   └── requirements.txt
-├── scraper/               # Web scraper
-│   ├── scraper.py         # Main scraper
-│   ├── parser.py          # Parse course data
-│   └── database_loader.py # Load data to DB
-├── .env                   # Environment variables
-└── README.md              # This file
-```
 
 ## Initial Setup
 
