@@ -1,0 +1,314 @@
+{
+  "art-history-conservation": [
+    "art-history-specialization",
+    "computing-creative-arts-specialization-ba-honours",
+    "art-history-major-arts-ba-honours",
+    "art-history-medial-arts-ba-honours",
+    "art-history-general-arts-ba",
+    "art-history-minor-arts"
+  ],
+  "biochemistry": [
+    "biochemistry-specialization-science-bs-honours",
+    "biochemistry-major-science-bs-honours",
+    "biochemistry-general-science-bs",
+    "biochemistry-minor-science"
+  ],
+  "biology": [
+    "biology-specialization",
+    "biology-mathematics-specialization-science-bs-honours",
+    "biology-psychology-specialization-science-bs-honours",
+    "biotechnology-specialization-science-bs-honours",
+    "environmental-biology-specialization-science-bs-honours",
+    "biology-major-science-bs-honours",
+    "biology-general-arts-ba",
+    "biology-general-science-bs",
+    "biology-minor-arts",
+    "biology-minor-science"
+  ],
+  "chemistry": [
+    "chemistry-specialization-science-bs-honours",
+    "environmental-chemistry-specialization-science-bs-honours",
+    "chemistry-major-science-bs-honours",
+    "chemistry-general-arts-ba",
+    "chemistry-general-science-bs",
+    "chemistry-minor-arts",
+    "chemistry-minor-science"
+  ],
+  "classics": [
+    "classics-specialization-arts-ba-honours",
+    "classical-studies-major-arts-ba-honours",
+    "classical-studies-medial-arts-ba-honours",
+    "classical-studies-general-arts-ba",
+    "classical-studies-minor-arts",
+    "greek-major-arts-ba-honours",
+    "greek-medial-arts-ba-honours",
+    "greek-general-arts-ba",
+    "greek-minor-arts",
+    "latin-major-arts-ba-honours",
+    "latin-medial-arts-ba-honours",
+    "latin-general-arts-ba",
+    "latin-minor-arts"
+  ],
+  "computing": [
+    "biomedical-computing-specialization-computing-bc-honours",
+    "cognitive-science-specialization-computing-bc-honours",
+    "computing-creative-arts-specialization-arts-ba-honours",
+    "computing-mathematics-analytics-specialization-computing-bc-honours",
+    "computer-science-specialization-computing-bc-honours",
+    "software-design-specialization-computing-bc-honours",
+    "computing-major-computing-bc-honours",
+    "computing-general-computing-bc",
+    "computing-general-arts",
+    "computing-minor-arts",
+    "computing-minor-science",
+    "data-analytics-certificate"
+  ],
+  "drama-music": [
+    "computing-creative-arts-specialization-arts-ba-honours",
+    "drama-specialization",
+    "drama-major-arts-ba-honours",
+    "drama-medial-arts-ba-honours",
+    "drama-general-arts-ba",
+    "drama-minor-arts",
+    "entrepreneurship-innovation-creativity-certificate",
+    "media-performance-production-specialization-arts-ba-honours",
+    "music-specialization-music-bm",
+    "music-major-arts-ba-honours",
+    "music-medial-arts-ba-honours",
+    "music-general-arts-ba",
+    "music-minor-arts",
+    "music-theatre-general-music-theatre-bmt"
+  ],
+  "economics": [
+    "economics-specialization",
+    "politics-philosophy-economics-specialization-arts-ba-honours",
+    "applied-economics-major-arts-ba-honours",
+    "economics-major-arts-ba-honours",
+    "economics-medial-arts-ba-honours",
+    "economics-general-arts-ba",
+    "economics-minor-arts"
+  ],
+  "employment-relations": [
+    "employment-relations-general-arts-ba",
+    "employment-relations-minor-arts",
+    "employment-relations-certificate"
+  ],
+  "english": [
+    "english-language-literature-specialization",
+    "english-language-literature-major-arts-ba-honours",
+    "english-language-literature-medial-arts-ba-honours",
+    "english-language-literature-general-arts-ba",
+    "english-language-literature-minor-arts"
+  ],
+  "environmental-studies": [
+    "earth-system-science-specialization-science-bs-honours",
+    "environmental-biology-specialization-science-bs-honours",
+    "environmental-chemistry-specialization-science-bs-honours",
+    "environmental-geology-specialization-science-bs-honours",
+    "environmental-life-science-specialization-science-bs-honours",
+    "environmental-science-specialization",
+    "environmental-studies-specialization",
+    "environmental-toxicology-specialization-science-bs-honours",
+    "environmental-science-major-science-bs-honours",
+    "environmental-studies-major-arts-ba-honours",
+    "environmental-studies-medial-arts-ba-honours",
+    "environmental-studies-general-arts-ba",
+    "environmental-studies-minor-arts",
+    "#programstext"
+  ],
+  "film-media": [
+    "computing-creative-arts-specialization-arts-ba-honours",
+    "film-media-specialization",
+    "media-performance-production-specialization-arts-ba-honours",
+    "film-media-major-arts-ba-honours",
+    "film-media-medial-arts-ba-honours",
+    "film-media-general-arts-ba",
+    "film-media-minor-arts",
+    "animation-theory-and-practice-certificate",
+    "media-studies-certificate"
+  ],
+  "fine-art": [
+    "fine-art-visual-art-major-bfa-honours",
+    "fine-art-visual-art-general-bfa"
+  ],
+  "french-studies": [
+    "french-studies-specialization",
+    "french-studies-major-arts-ba-honours",
+    "french-studies-medial-arts-ba-honours",
+    "french-studies-general-arts-ba",
+    "french-studies-minor-arts",
+    "french-professionals-certificate"
+  ],
+  "gender-studies": [
+    "black-studies-general-arts-ba",
+    "black-studies-minor-arts",
+    "gender-studies-specialization",
+    "gender-studies-major-arts-ba-honours",
+    "gender-studies-medial-arts-ba-honours",
+    "gender-studies-general-arts-ba",
+    "gender-studies-minor-arts",
+    "sexual-gender-diversity-certificate"
+  ],
+  "geography-planning": [
+    "earth-system-science-specialization-science-bs-honours",
+    "geography-major-arts-ba-honours",
+    "geography-major-science-bs-honours",
+    "geography-medial-arts-ba-honours",
+    "geography-general-arts-ba",
+    "geography-general-science-bs",
+    "geography-minor-arts",
+    "geography-minor-science",
+    "geographic-information-science-certificate",
+    "urban-planning-studies-certificate"
+  ],
+  "geological-sciences-engineering": [
+    "environmental-geology-specialization-science-bs-honours",
+    "geology-specialization-science-bs-honours",
+    "geology-major-science-bs-honours",
+    "geology-general-arts-ba",
+    "geology-general-science-bs",
+    "geology-minor-arts",
+    "geology-minor-science"
+  ],
+  "global-development-studies": [
+    "global-development-studies-specialization",
+    "global-development-studies-major-arts-ba-honours",
+    "global-development-studies-medial-arts-ba-honours",
+    "global-development-studies-general-arts-ba",
+    "global-development-studies-minor-arts",
+    "global-action-engagement-certificate"
+  ],
+  "history": [
+    "history-specialization",
+    "history-major-arts-ba-honours",
+    "history-medial-arts-ba-honours",
+    "history-general-arts-ba",
+    "history-minor-arts"
+  ],
+  "international-studies": [
+    "international-studies-certificate"
+  ],
+  "jewish-studies": [
+    "jewish-studies-general-arts-ba",
+    "jewish-studies-minor-arts"
+  ],
+  "kinesiology-health-studies": [
+    "health-studies-specialization",
+    "health-studies-major-arts-ba-honours",
+    "health-studies-medial-arts-ba-honours",
+    "health-studies-general-arts-ba",
+    "health-studies-minor-arts",
+    "kinesiology-specialization-science-bs-honours",
+    "kinesiology-general-science-bs",
+    "disability-physical-activity-certificate"
+  ],
+  "languages-literatures-cultures": [
+    "cognitive-science-specialization-computing-bc-honours",
+    "german-studies-medial-arts-ba-honours",
+    "german-studies-general-arts-ba",
+    "german-studies-minor-arts",
+    "hispanic-studies-major-arts-ba-honours",
+    "hispanic-studies-medial-arts-ba-honours",
+    "hispanic-studies-general-arts-ba",
+    "hispanic-studies-minor-arts",
+    "indg-major20",
+    "indg-medial",
+    "indigenous-studies-general-arts-ba",
+    "indigenous-studies-minor-arts",
+    "indigenous-languages-cultures-certificate",
+    "italian-medial-arts-ba-honours",
+    "italian-general-arts-ba",
+    "italian-minor-arts",
+    "literatures-major-ba-honours20",
+    "linguistics-major-arts-ba-honours",
+    "linguistics-general-arts-ba",
+    "linguistics-minor-arts",
+    "mohawk-language-culture-certificate",
+    "spanish-latin-american-studies-general-arts-ba",
+    "spanish-latin-american-studies-minor-arts",
+    "world-language-studies-general-arts-ba",
+    "world-language-studies-minor-arts"
+  ],
+  "liberal-studies": [
+    "liberal-studies-general-arts-ba1",
+    "liberal-studies-minor-arts"
+  ],
+  "life-sciences": [
+    "environmental-life-science-specialization-science-bs-honours",
+    "life-sciences-specialization-science-bs-honours",
+    "life-sciences-major-science-bs-honours",
+    "life-sciences-general-science-bs",
+    "life-sciences-minor-science"
+  ],
+  "mathematics-statistics": [
+    "biology-mathematics-specialization-science-bs-honours",
+    "computing-mathematics-analytics-specialization-computing-bs-honours",
+    "mathematical-physics-specialization-science-bs-honours",
+    "mathematics-specialization",
+    "statistics-specialization",
+    "mathematics-major-science-bs-honours",
+    "mathematics-medial-arts-bs-honours",
+    "mathematics-general-arts-ba",
+    "mathematics-general-science-bs",
+    "mathematics-minor-arts",
+    "mathematics-minor-science",
+    "statistics-major-science-bs-honours",
+    "statistics-medial-arts-ba-honours",
+    "statistics-general-arts-ba",
+    "statistics-general-science-bs",
+    "statistics-minor-arts",
+    "statistics-minor-science"
+  ],
+  "philosophy": [
+    "cognitive-science-specialization-computing-bc-honours",
+    "philosophy-specialization",
+    "politics-philosophy-economics-specialization-arts-ba-honours",
+    "philosophy-ba-honours",
+    "philosophy-medial-ba-honours",
+    "philosophy-general-ba",
+    "philosophy-minor",
+    "#coursestext"
+  ],
+  "physics-engineering-astronomy": [
+    "astrophysics-specialization-science-bs-honours",
+    "mathematical-physics-specialization-science-bs-honours",
+    "physics-specialization-science-bs-honours",
+    "physics-major-science-bs-honours",
+    "physics-general-arts-ba",
+    "physics-general-science-bs",
+    "physics-minor-arts",
+    "physics-minor-science"
+  ],
+  "political-studies": [
+    "politics-philosophy-economics-specialization-arts-ba-honours",
+    "political-studies-specialization",
+    "political-studies-major-arts-ba-honours",
+    "political-studies-medial-arts-ba-honours",
+    "political-studies-general-arts-ba",
+    "political-studies-minor-arts"
+  ],
+  "psychology": [
+    "biology-psychology-specialization-science-bs-honours",
+    "cognitive-science-specialization-computing-bc-honours",
+    "psychology-specialization-arts",
+    "psychology-specialization-science",
+    "psychology-major-arts-ba-honours",
+    "psychology-major-science-bs-honours",
+    "psychology-medial-arts-ba-honours",
+    "psychology-general-arts-ba",
+    "psychology-minor-arts"
+  ],
+  "religious-studies": [
+    "religious-studies-major-arts-ba-honours",
+    "religious-studies-medial-arts-ba-honours",
+    "religious-studies-general-arts-ba",
+    "religious-studies-minor-arts"
+  ],
+  "sociology": [
+    "sociology-specialization",
+    "sociology-major-arts-ba-honours",
+    "sociology-medial-arts-ba-honours",
+    "sociology-general-arts-ba",
+    "sociology-minor-arts"
+  ]
+}

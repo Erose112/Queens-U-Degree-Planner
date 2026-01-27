@@ -101,10 +101,14 @@ def parse_requirements(requirement_line):
 
 def extract_data(url):
     response = requests.get(url, timeout=10)
+    print(response.status_code)
+    print(response.headers)
+    print(response.text[:100])
     if response.status_code == 200:
         print("Request was successful (Status 200 OK)")
     else:
         print(f"Request failed with status code: {response.status_code}")
+        return []
 
     soup = BeautifulSoup(response.text, 'lxml')
 
@@ -113,7 +117,7 @@ def extract_data(url):
 
     for block in course_blocks:
         course_info = safe_find(block, "div", "cols noindent").split("\xa0\xa0")
-        requirment_info = parse_requirements(safe_find(block, "span", "text detail-requirements margin--default"))
+        requirment_info = parse_requirements(safe_find(block, "span", "text detail-requirements margin--default") or "")
 
         data = {
             "course_code": course_info[0],
@@ -132,25 +136,31 @@ def extract_data(url):
 
 def clean_data(all_courses):
     df = pd.DataFrame(all_courses)
+
+    # If no courses were extracted, avoid indexing into an empty DataFrame
+    if df.empty:
+        print("No course data found; skipping DataFrame cleaning.")
+        return df
+
     for col in df.select_dtypes(include=['object']).columns:
         df[col] = (df[col].str.strip()
                         .str.replace("\xa0", " ")
                         .str.replace(r"[\n\r]+", " ", regex=True)
                         .str.replace(r"\s+", " ", regex=True)
                         .str.strip())
-    
-    print(df.loc[0,:])
+
+    # Safely show the first row for debugging
+    print(df.iloc[0, :])
     return df
-    
 
 
 
-def main():
+
+def scrape_artsci_courses():
 
     degree_info = []
     art_sci_degrees =  [
-        'ANAT', 'ANIM',
-        # 'ANSH', 'ARAB', 'ARTH', 'ARIN', 'ASCX', 'ASTR',
+        'ANAT', 'ANIM', 'ANSH', 'ARAB', 'ARTH', 'ARIN', 'ASCX', 'ASTR',
         # 'BADR', 'BCHM', 'BIOL', 'BLCK', 'CANC', 'CRSS', 'CHEM', 'CHIN',
         # 'CLST', 'COGS', 'CISC', 'COCA', 'COMP', 'CWRI', 'DISC',
         # 'DRAM', 'DDHT', 'ECON', 'EMPR', 'ENGL', 'ENIN', 'ENSC', 'FILM',
@@ -174,7 +184,9 @@ def main():
     for info in degree_info:
         print(info)
 
+    return degree_info
+
 
 
 if __name__ == "__main__":
-    main()
+    scrape_artsci_courses()
