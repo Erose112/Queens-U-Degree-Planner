@@ -1,8 +1,10 @@
 import re
 import time
 import requests
+from requests.exceptions import RequestException
 from bs4 import BeautifulSoup
 import pandas as pd
+
 
 
 def safe_find(soup, tag, class_name):
@@ -44,6 +46,7 @@ def parse_requirements(requirement_line):
       - finds section headers flexibly (various hyphen/space/case)
       - slices text between headers instead of removing matches
       - extracts course-logic from each section
+      - converts square brackets to parentheses
     """
     result = {
         'prerequisites': '',
@@ -53,6 +56,9 @@ def parse_requirements(requirement_line):
 
     # Remove "Requirements:" prefix if present
     text = re.sub(r'^\s*Requirements?\s*:\s*', '', requirement_line, flags=re.IGNORECASE).strip()
+    
+    # Convert square brackets to parentheses
+    text = text.replace('[', '(').replace(']', ')')
 
     # Combined header pattern with flexible variants and optional plural 's'
     header_pattern = re.compile(
@@ -99,36 +105,40 @@ def parse_requirements(requirement_line):
 
 
 
-def extract_data(url):
-    response = requests.get(url, timeout=10)
-    print(response.status_code)
-    print(response.headers)
-    print(response.text[:100])
-    if response.status_code == 200:
-        print("Request was successful (Status 200 OK)")
-    else:
-        print(f"Request failed with status code: {response.status_code}")
+def extract_data(url, session):
+    try:
+        response = session.get(url, timeout=10)
+        print(response.status_code)
+
+        if response.status_code == 200:
+            print("Request was successful (Status 200 OK)")
+        else:
+            print(f"Request failed with status code: {response.status_code}")
+            return []
+
+        soup = BeautifulSoup(response.text, 'lxml')
+
+        courses = []
+        course_blocks = soup.find_all("div", class_="courseblock")
+
+        for block in course_blocks:
+            course_info = safe_find(block, "div", "cols noindent").split("\xa0\xa0")
+            requirment_info = parse_requirements(safe_find(block, "span", "text detail-requirements margin--default") or "")
+
+            data = {
+                "course_code": course_info[0],
+                "title": course_info[1],
+                "credits": int(float(course_info[2].split(" ")[1])),
+                "course_desc": safe_find(block, "div", "courseblockextra noindent"),
+                "clo": safe_find(block, "span", "text detail-cim_los margin--default"),
+            }
+
+            data.update(requirment_info)
+            courses.append(data)
+
+    except RequestException as e:
+        print(f"Error extracting data from {url}: {e}")
         return []
-
-    soup = BeautifulSoup(response.text, 'lxml')
-
-    courses = []
-    course_blocks = soup.find_all("div", class_="courseblock")
-
-    for block in course_blocks:
-        course_info = safe_find(block, "div", "cols noindent").split("\xa0\xa0")
-        requirment_info = parse_requirements(safe_find(block, "span", "text detail-requirements margin--default") or "")
-
-        data = {
-            "course_code": course_info[0],
-            "title": course_info[1],
-            "credits": int(float(course_info[2].split(" ")[1])),
-            "course_desc": safe_find(block, "div", "courseblockextra noindent"),
-            "clo": safe_find(block, "span", "text detail-cim_los margin--default"),
-        }
-
-        data.update(requirment_info)
-        courses.append(data)
 
     return courses
 
@@ -155,12 +165,26 @@ def clean_data(all_courses):
 
 
 
-
 def scrape_artsci_courses():
+    # Create a session with proper headers
+    session = requests.Session()
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Cache-Control': 'max-age=0',
+    })
 
     degree_info = []
     art_sci_degrees =  [
-        'ANAT', 'ANIM', 'ANSH', 'ARAB', 'ARTH', 'ARIN', 'ASCX', 'ASTR',
+        'ANAT', 
+        # 'ANIM', 'ANSH', 'ARAB', 'ARTH', 'ARIN', 'ASCX', 'ASTR',
         # 'BADR', 'BCHM', 'BIOL', 'BLCK', 'CANC', 'CRSS', 'CHEM', 'CHIN',
         # 'CLST', 'COGS', 'CISC', 'COCA', 'COMP', 'CWRI', 'DISC',
         # 'DRAM', 'DDHT', 'ECON', 'EMPR', 'ENGL', 'ENIN', 'ENSC', 'FILM',
@@ -175,7 +199,7 @@ def scrape_artsci_courses():
 
     for degree in art_sci_degrees:
         url = "https://www.queensu.ca/academic-calendar/arts-science/course-descriptions/" + degree.lower() + "/"
-        df = clean_data(extract_data(url))
+        df = clean_data(extract_data(url, session))
         degree_info.append(df)
 
         if len(degree_info) != len(art_sci_degrees):
