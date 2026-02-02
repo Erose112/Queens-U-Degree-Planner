@@ -1,0 +1,1 @@
+from app.services.prerequisite_parser import parse_prerequisites
