@@ -20,6 +20,11 @@ def extract_course_codes(soup_element):
 
 
 def extract_data(url, session):
+    """
+    Data is stored:
+    faculty_abbr: The abbreviation of the faculty (e.g., "ARTH")
+    course_number: The number of the course (e.g., "116")
+    """
     try:
         response = session.get(url, timeout=10)
 
@@ -90,6 +95,9 @@ def scrape_program_courses():
         'Sec-Fetch-Site': 'none',
         'Cache-Control': 'max-age=0',
     })
+
+    ###
+    # All program links are stored in queens_programs.json
 
     base_dir = Path(__file__).parent
     with open(base_dir / "queens_programs.json", "r", encoding="utf-8") as f:

@@ -106,6 +106,18 @@ def parse_requirements(requirement_line):
 
 
 def extract_data(url, session):
+    """
+    Data is stored:
+
+    course_code: "AAAA 000"
+    title: TEXT
+    credits: int
+    course_desc TEXT
+    clo: TEXT
+    prerequisites: String of course codes
+    exclusions: String of course codes
+    one_way_exclusions: String of course codes
+    """
     try:
         response = session.get(url, timeout=10)
         print(response.status_code)
@@ -180,6 +192,8 @@ def scrape_artsci_courses():
         'Sec-Fetch-Site': 'none',
         'Cache-Control': 'max-age=0',
     })
+
+    # All Courses 
 
     degree_info = []
     art_sci_degrees =  [
