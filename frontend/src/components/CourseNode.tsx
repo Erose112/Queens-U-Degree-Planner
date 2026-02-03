@@ -4,6 +4,11 @@ import { Handle, Position } from '@xyflow/react';
 import type { CourseNodeData } from '../types';
 import { CourseStatus } from '../types';
 
+/**
+ * Node for a course.
+ * @param data - The data for the course.
+ * @returns A course node.
+ */
 export const CourseNode = memo(({ data }: NodeProps<Node<CourseNodeData, 'course'>>) => {
   const { course } = data;
   const isCompleted = course.status === CourseStatus.COMPLETED;

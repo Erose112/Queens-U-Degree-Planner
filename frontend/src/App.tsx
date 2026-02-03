@@ -1,4 +1,5 @@
-// src/App.tsx
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import './App.css'
 
 import { useState, useMemo } from 'react';
 import {
@@ -33,7 +34,9 @@ const edgeTypes: EdgeTypes = {
 };
 
 export default function App() {
+  //////////////////////////////////////////////////////////////////////////////////////////////////
   // Example data - replace this with data from your backend
+  //////////////////////////////////////////////////////////////////////////////////////////////////
   const coursePlan: CoursePlan = {
     id: '1',
     programName: 'Computing, Mathematics and Analytics',
@@ -165,6 +168,10 @@ export default function App() {
   const [nodes] = useState(initialNodes);
   const [edges] = useState(initialEdges);
 
+  //Return the React Flow component
+  //This is the main component that renders the course plan.
+  //It should be moved to a separate file in the future.
+  //And should be changed to a static image.
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
       <ReactFlow
