@@ -3,6 +3,11 @@ import type { Node, NodeProps } from '@xyflow/react';
 import type { YearBarNodeData } from '../types';
 import { YEAR_BAR_WIDTH } from '../utils/coursePlanLayout';
 
+
+/**
+ * Currently creates a Node for each year in the course plan.
+ * However since i eventually want the graph to be a static image, this may not be necessary.
+ */
 export const YearBarNode = memo(({ data }: NodeProps<Node<YearBarNodeData, 'yearBar'>>) => {
   const { year, height } = data as YearBarNodeData;
   return (

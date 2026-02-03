@@ -3,6 +3,12 @@ import type { NodeProps } from '@xyflow/react';
 import { Handle, Position } from '@xyflow/react';
 import type { CourseChoiceNodeData } from '../types';
 
+/**
+ * Node for a course choice.
+ * @param data - The data for the course choice.
+ * @returns A course choice node.
+ * Currently don't think this code is necessary since the course choice isn't implemented yet.
+ */
 export const CourseChoiceNode = memo(({ data }: NodeProps<import('@xyflow/react').Node<CourseChoiceNodeData, 'courseChoice'>>) => {
   const { choice } = data;
 

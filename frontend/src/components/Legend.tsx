@@ -1,7 +1,10 @@
 // src/components/course-plan/Legend.tsx
 
-import { ConnectionType, CourseStatus } from '../types';
-
+/**
+ * Legend for the course plan.
+ * @returns A legend for the course plan.
+ * Potentially not necessary if the graph is a static image.
+ */
 export const Legend = () => {
   return (
     <div className="bg-white border-2 border-gray-300 rounded-lg p-3 shadow-md text-xs">
