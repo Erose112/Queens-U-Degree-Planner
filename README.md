@@ -2,494 +2,306 @@
 
 A web application to help Queen's University students plan their course schedules by scraping course data, analyzing prerequisites and exclusions, and generating personalized course plans.
 
-## Table of Contents
+## Features
 
-- [Prerequisites](#prerequisites)
-- [Project Structure](#project-structure)
-- [Initial Setup](#initial-setup)
-- [Frontend Setup (React + TypeScript)](#frontend-setup-react--typescript)
-- [Backend Setup (Python FastAPI)](#backend-setup-python-fastapi)
-- [Database Setup (MySQL)](#database-setup-mysql)
-- [Scraper Setup](#scraper-setup)
-- [Running the Application](#running-the-application)
-- [Common Issues](#common-issues)
-- [Next Steps](#next-steps)
+- 📚 Browse Queen's University course catalog
+- 🔍 Search and filter courses by subject, level, and requirements
+- 📊 Visualize prerequisite chains and course dependencies
+- 📅 Plan your academic path across multiple semesters
+- ✅ Validate course selections against prerequisites and exclusions
+
+## Tech Stack
+
+- **Frontend**: React + TypeScript + Vite + Tailwind CSS
+- **Backend**: Python FastAPI
+- **Database**: MySQL
+- **Web Scraping**: BeautifulSoup4
 
 ## Prerequisites
 
-Before you begin, make sure you have the following installed on your computer:
+Make sure you have the following installed:
 
-### Required Software
+- **Node.js** (v18 or higher) - [Download](https://nodejs.org/)
+- **Python** (v3.9 or higher) - [Download](https://www.python.org/downloads/)
+- **MySQL** (v8.0 or higher) - [Download](https://dev.mysql.com/downloads/mysql/) or use [XAMPP](https://www.apachefriends.org/)
+- **Git** - [Download](https://git-scm.com/downloads)
 
-1. **Node.js** (v18 or higher)
-   - Download from: https://nodejs.org/
-   - Verify installation: Open terminal and run `node --version`
+## Quick Start
 
-2. **Python** (v3.9 or higher)
-   - Download from: https://www.python.org/downloads/
-   - Verify installation: Run `python --version` or `python3 --version`
-   - **Windows users**: Make sure to check "Add Python to PATH" during installation
+### 1. Clone the Repository
 
-3. **MySQL** (v8.0 or higher)
-   - Download from: https://dev.mysql.com/downloads/mysql/
-   - Or use MySQL Workbench: https://dev.mysql.com/downloads/workbench/
-   - Alternative: Use XAMPP (includes MySQL): https://www.apachefriends.org/
-
-4. **Git** (for version control)
-   - Download from: https://git-scm.com/downloads
-   - Verify installation: Run `git --version`
-
-5. **Code Editor** (recommended)
-   - VS Code: https://code.visualstudio.com/
-   - Extensions to install: ESLint, Prettier, Python
-
-## Project Structure
-
-After setup, your project will look like this:
-
-```
-queens-course-planner/
-├── frontend/              # React + TypeScript frontend
-│   ├── src/
-│   │   ├── components/    # Reusable UI components
-│   │   ├── pages/         # Page components
-│   │   ├── services/      # API calls
-│   │   ├── hooks/         # Custom React hooks
-│   │   ├── types/         # TypeScript type definitions
-│   │   ├── utils/         # Helper functions
-│   │   ├── context/       # React Context
-│   │   └── assets/        # Images, icons
-│   ├── package.json
-│   └── vite.config.ts
-├── backend/               # Python FastAPI backend
-│   ├── app/
-│   │   ├── main.py        # API entry point
-│   │   ├── database.py    # Database connection
-│   │   ├── models.py      # Database models
-│   │   ├── schemas.py     # Pydantic schemas
-│   │   └── routers/       # API routes
-│   └── requirements.txt
-├── scraper/               # Web scraper
-│   ├── scraper.py         # Main scraper
-│   ├── parser.py          # Parse course data
-│   └── database_loader.py # Load data to DB
-├── .env                   # Environment variables
-└── README.md              # This file
-```
-
-## Initial Setup
-
-### 1. Create Project Directory
-
-**Windows (PowerShell or Command Prompt):**
 ```bash
-cd C:\
-mkdir Development
-cd Development
-mkdir queens-course-planner
+git clone https://github.com/yourusername/queens-course-planner.git
 cd queens-course-planner
 ```
 
-**Mac/Linux:**
-```bash
-mkdir -p ~/Development/queens-course-planner
-cd ~/Development/queens-course-planner
-```
+### 2. Set Up Environment Variables
 
-### 2. Initialize Git Repository (Optional but Recommended)
+Create a `.env` file in the root directory:
 
 ```bash
-git init
+# Windows
+copy .env.example .env
+
+# Mac/Linux
+cp .env.example .env
 ```
 
-### 3. Create Environment File
+Edit `.env` and update with your MySQL credentials:
 
-Create a file named `.env` in the root directory:
-
-**Windows:**
-```bash
-type nul > .env
-```
-
-**Mac/Linux:**
-```bash
-touch .env
-```
-
-Add the following content to `.env`:
-```
-DATABASE_URL=mysql://root:password@localhost:3306/queens_courses
+```env
+DATABASE_URL=mysql://root:your_password@localhost:3306/queens_courses
 API_URL=http://localhost:8000
 VITE_API_URL=http://localhost:8000
 ```
 
-**Important**: Replace `root:password` with your actual MySQL username and password.
+**Important**: Replace `your_password` with your actual MySQL password.
 
-## Frontend Setup (React + TypeScript)
+### 3. Set Up the Database
 
-### 1. Create Vite Project
+Start MySQL (if using XAMPP, start it from the control panel).
 
-```bash
-npm create vite@latest frontend -- --template react-ts
-```
-
-### 2. Navigate to Frontend Directory
+Create the database:
 
 ```bash
-cd frontend
-```
+# Windows
+mysql -u root -p
 
-### 3. Install Dependencies
-
-```bash
-# Install base dependencies
-npm install
-
-# Install additional packages
-npm install react-router-dom axios zustand @tanstack/react-query reactflow react-hook-form lucide-react date-fns
-
-# Install dev dependencies
-npm install -D tailwindcss postcss autoprefixer @types/react-router-dom
-```
-
-### 4. Initialize Tailwind CSS
-
-```bash
-npx tailwindcss init -p
-```
-
-Update `tailwind.config.js`:
-```javascript
-/** @type {import('tailwindcss').Config} */
-export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-}
-```
-
-Update `src/index.css`:
-```css
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-```
-
-### 5. Create Project Structure
-
-**Windows:**
-```bash
-mkdir src\components src\pages src\services src\hooks src\utils src\context src\assets src\types
-```
-
-**Mac/Linux:**
-```bash
-mkdir -p src/{components,pages,services,hooks,utils,context,assets,types}
-```
-
-### 6. Create Environment File
-
-Create `frontend/.env`:
-
-**Windows:**
-```bash
-type nul > .env
-```
-
-**Mac/Linux:**
-```bash
-touch .env
-```
-
-Add:
-```
-VITE_API_URL=http://localhost:8000
-```
-
-### 7. Test Frontend
-
-```bash
-npm run dev
-```
-
-Visit http://localhost:5173 - you should see the Vite + React welcome page!
-
-Press `Ctrl+C` to stop the server when done.
-
-## Backend Setup (Python FastAPI)
-
-### 1. Navigate Back to Root
-
-```bash
-cd ..
-# You should now be in queens-course-planner/
-```
-
-### 2. Create Backend Directory
-
-```bash
-mkdir backend
-cd backend
-```
-
-### 3. Create Virtual Environment
-
-**Windows:**
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
-
-**Mac/Linux:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-You should see `(venv)` in your terminal prompt.
-
-### 4. Install Python Dependencies
-
-```bash
-pip install fastapi uvicorn sqlalchemy pymysql python-dotenv pydantic
-```
-
-### 5. Create Requirements File
-
-```bash
-pip freeze > requirements.txt
-```
-
-### 6. Create Backend Structure
-
-**Windows:**
-```bash
-mkdir app
-cd app
-type nul > __init__.py
-type nul > main.py
-type nul > database.py
-type nul > models.py
-type nul > schemas.py
-type nul > crud.py
-mkdir routers
-cd routers
-type nul > __init__.py
-type nul > courses.py
-type nul > students.py
-type nul > plans.py
-cd ..\..
-```
-
-**Mac/Linux:**
-```bash
-mkdir -p app/routers
-touch app/{__init__.py,main.py,database.py,models.py,schemas.py,crud.py}
-touch app/routers/{__init__.py,courses.py,students.py,plans.py}
-```
-
-### 7. Create Basic API Entry Point
-
-Open `app/main.py` and add:
-
-```python
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI(title="Queen's Course Planner API")
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.get("/")
-def read_root():
-    return {"message": "Queen's Course Planner API"}
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
-```
-
-### 8. Test Backend
-
-```bash
-uvicorn app.main:app --reload
-```
-
-Visit http://localhost:8000 - you should see `{"message": "Queen's Course Planner API"}`
-
-Visit http://localhost:8000/docs - you should see the FastAPI interactive documentation!
-
-Press `Ctrl+C` to stop the server.
-
-## Database Setup (MySQL)
-
-### 1. Start MySQL
-
-**If using XAMPP:**
-- Open XAMPP Control Panel
-- Start Apache and MySQL
-
-**If using standalone MySQL:**
-- MySQL should be running as a service
-
-### 2. Create Database
-
-Open MySQL Workbench or your MySQL client and run:
-
-```sql
-CREATE DATABASE queens_courses;
-```
-
-Or from command line:
-
-**Windows:**
-```bash
+# Mac/Linux
 mysql -u root -p
 ```
 
-**Mac/Linux:**
-```bash
-mysql -u root -p
-```
+Then run these SQL commands:
 
-Then run:
 ```sql
 CREATE DATABASE queens_courses;
 USE queens_courses;
+
+-- Create courses table
+CREATE TABLE courses (
+    course_id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    course_code VARCHAR(50) NOT NULL,
+    title TEXT,
+    credits INTEGER,
+    course_desc TEXT,
+    clo TEXT
+);
+
+-- Create prerequisite sets table
+CREATE TABLE prerequisite_sets (
+    set_id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    course_id INTEGER NOT NULL,
+    min_required INTEGER,
+    set_description TEXT,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id)
+);
+
+-- Create prerequisite set courses table
+CREATE TABLE prerequisite_set_courses (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    set_id INTEGER NOT NULL,
+    required_course_id INTEGER NOT NULL,
+    FOREIGN KEY (set_id) REFERENCES prerequisite_sets(set_id),
+    FOREIGN KEY (required_course_id) REFERENCES courses(course_id),
+    UNIQUE(set_id, required_course_id)
+);
+
+-- Create indexes
+CREATE INDEX idx_prereq_sets_course ON prerequisite_sets(course_id);
+CREATE INDEX idx_prereq_set_courses_set ON prerequisite_set_courses(set_id);
+CREATE INDEX idx_prereq_set_courses_required ON prerequisite_set_courses(required_course_id);
 ```
 
-### 3. Verify Connection
+Type `exit` to leave MySQL.
 
-Make sure your `.env` file has the correct database credentials:
-```
-DATABASE_URL=mysql://root:your_password@localhost:3306/queens_courses
-```
+### 4. Install Dependencies
 
-## 🕷️ Scraper Setup
-
-### 1. Navigate Back to Root
+**Frontend:**
 
 ```bash
+cd frontend
+npm install
 cd ..
-# You should be in queens-course-planner/
 ```
 
-### 2. Create Scraper Directory
+**Backend:**
 
-```bash
-mkdir scraper
-cd scraper
-```
-
-### 3. Create Virtual Environment (if separate from backend)
-
-**If you want to use the same venv as backend:**
-- Skip this step, just activate the backend venv
-
-**If you want a separate venv:**
 ```bash
 # Windows
 python -m venv venv
 venv\Scripts\activate
+pip install -r requirements.txt
 
 # Mac/Linux
 python3 -m venv venv
 source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### 4. Install Scraper Dependencies
+### 5. Run the Application
 
-```bash
-pip install requests beautifulsoup4 pandas sqlalchemy pymysql python-dotenv lxml
-```
-
-### 5. Create Scraper Files
-
-**Windows:**
-```bash
-type nul > scraper.py
-type nul > parser.py
-type nul > database_loader.py
-```
-
-**Mac/Linux:**
-```bash
-touch scraper.py parser.py database_loader.py
-```
-
-## 🏃Running the Application
-
-### Full Development Setup (3 Terminals)
+You'll need **three separate terminal windows/tabs**:
 
 **Terminal 1 - Frontend:**
+
 ```bash
-cd C:\Development\queens-course-planner\frontend
+cd frontend
 npm run dev
 ```
 
 **Terminal 2 - Backend:**
-```bash
-cd C:\Development\queens-course-planner\backend
-# Windows:
-venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
 
+```bash
+# Windows
+cd backend
+venv\Scripts\activate
+uvicorn app.main:app --reload
+
+# Mac/Linux
+cd backend
+source venv/bin/activate
 uvicorn app.main:app --reload
 ```
 
-**Terminal 3 - For commands/scraper:**
+**Terminal 3 - Scraper (Optional):**
+
 ```bash
-cd C:\Development\queens-course-planner\scraper
-# Activate venv if separate
-# Run scraper when ready
+cd scraper
+# Activate venv if needed
 python scraper.py
 ```
 
-### Access Points
+### 6. Access the Application
 
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
+- **API Documentation**: http://localhost:8000/docs
 
+## Project Structure
 
-## Helpful Resources
+```
+queens-course-planner/
+├── frontend/               # React + TypeScript frontend
+│   ├── src/
+│   │   ├── components/    # React components
+│   │   ├── pages/         # Page components
+│   │   ├── hooks/         # Custom React hooks
+│   │   └── utils/         # Utility functions
+│   └── package.json
+├── backend/               # FastAPI backend
+│   ├── app/
+│   │   ├── routers/       # API route handlers
+│   │   ├── main.py        # FastAPI app entry point
+│   │   ├── database.py    # Database connection
+│   │   ├── models.py      # SQLAlchemy models
+│   │   ├── schemas.py     # Pydantic schemas
+│   │   └── crud.py        # Database operations
+│   └── requirements.txt
+├── scraper/               # Web scraping scripts
+│   └── scraper.py
+└── .env                   # Environment variables (create this)
+```
 
-- **Vite Documentation**: https://vitejs.dev/
-- **React Documentation**: https://react.dev/
-- **TypeScript Documentation**: https://www.typescriptlang.org/docs/
-- **FastAPI Documentation**: https://fastapi.tiangolo.com/
-- **Tailwind CSS**: https://tailwindcss.com/docs
-- **SQLAlchemy**: https://docs.sqlalchemy.org/
+## Common Issues
+
+### Port Already in Use
+
+If you see "port already in use" errors:
+
+- **Frontend (5173)**: Change port in `frontend/vite.config.ts`
+- **Backend (8000)**: Run `uvicorn app.main:app --reload --port 8001`
+- **MySQL (3306)**: Check if another MySQL instance is running
+
+### MySQL Connection Failed
+
+- Verify MySQL is running
+- Check username and password in `.env`
+- Ensure database `queens_courses` exists
+- Try: `mysql -u root -p` to test connection
+
+### Module Not Found (Python)
+
+Make sure you've activated the virtual environment:
+
+```bash
+# Windows
+venv\Scripts\activate
+
+# Mac/Linux
+source venv/bin/activate
+```
+
+### Module Not Found (Node)
+
+```bash
+cd frontend
+npm install
+```
+
+## API Endpoints
+
+Once the backend is running, visit http://localhost:8000/docs for interactive API documentation.
+
+Key endpoints:
+- `GET /api/courses` - Get all courses
+- `GET /api/courses/{course_id}` - Get specific course
+- `GET /api/courses/{course_id}/prerequisites` - Get prerequisites
+- `POST /api/plans` - Create a course plan
+- `GET /api/plans/{plan_id}` - Get a specific plan
+
+## Development
+
+### Running Tests
+
+```bash
+# Frontend
+cd frontend
+npm test
+
+# Backend
+cd backend
+pytest
+```
+
+### Code Style
+
+This project uses:
+- **Frontend**: ESLint + Prettier
+- **Backend**: Black + Flake8
 
 ## Contributing
 
-This is a student project for Queen's University. If you'd like to contribute:
+This is a student project for Queen's University. Contributions are welcome!
+
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## License
-
-This project is for educational purposes.
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## Legal Notice
 
 This project scrapes publicly available course data from Queen's University. Please:
 - Respect the university's terms of service
 - Check `robots.txt` before scraping
-- Add delays between requests
+- Add appropriate delays between requests
 - Consider contacting Queen's IT for official data access
+
+## License
+
+This project is for educational purposes.
+
+## Resources
+
+- [Vite Documentation](https://vitejs.dev/)
+- [React Documentation](https://react.dev/)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [Tailwind CSS](https://tailwindcss.com/docs)
+- [SQLAlchemy](https://docs.sqlalchemy.org/)
+
+## Support
+
+If you encounter any issues:
+1. Check the [Common Issues](#common-issues) section
+2. Open an issue on GitHub
+3. Contact the maintainers
