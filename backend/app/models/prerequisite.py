@@ -1,29 +1,30 @@
 from sqlalchemy import (
     Column, Integer, Text, ForeignKey, UniqueConstraint
 )
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
-Base = declarative_base()
+from app.models.base import Base
 
 class PrerequisiteSet(Base):
     """
-    The logic behind determining prerequisites for a course.
+    One “requirement group” for a course. Multiple sets for the same course
+    mean AND: the student must satisfy set1 AND set2 AND …
 
-    set_id: The unique identifier for the prerequisite set
-    course_id: The course that has the prerequisites
+    set_id: Unique identifier for this set
+    course_id: The course that has these prerequisites
     min_required:
-      - NULL → ALL required (AND)
-      - 1    → OR
-      - 2+   → at least N courses
-    set_description: A description of the prerequisite set
+      - NULL → must take ALL courses in this set (AND within set)
+      - 1    → must take at least 1 course in this set (OR within set)
+      - 2+   → must take at least N courses in this set
+
+    Example: "CSC148 AND (CSC165 OR CSC240)" → two sets: one with [CSC148],
+    one with [CSC165, CSC240] and min_required=1.
     """
     __tablename__ = "prerequisite_sets"
 
     set_id = Column(Integer, primary_key=True, autoincrement=True)
-    course_id = Column(Integer, ForeignKey('courses.course_id'), nullable=False)
+    course_id = Column(Integer, ForeignKey('courses.course_id'), nullable=False, index=True)
     min_required = Column(Integer, nullable=True)
-    set_description = Column(Text)
 
     # Relationships
     course = relationship("Course", back_populates="prerequisite_sets")

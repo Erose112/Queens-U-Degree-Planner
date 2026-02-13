@@ -1,15 +1,13 @@
-from typing import Any
 import os
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, ProgrammingError
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
-
-from app.scrapers.course_scraper import scrape_artsci_courses
-from app.scrapers.program_scraper import scrape_program_courses
 from app.models.course import Course
 from app.models.exclusion import Exclusion
+from app.models.prerequisite import PrerequisiteSet, PrerequisiteSetCourse
+from app.models.program import Program, Program_Courses
 from app.services.prerequisite_parser import parse_prerequisites
 
 load_dotenv()
@@ -47,19 +45,53 @@ def _parse_course_code_list(text):
     return codes
 
 
+def _exclusion_exists(session, course_id: int, excluded_course_id: int) -> bool:
+    """True if an exclusion (course_id, excluded_course_id) is already in the session or DB."""
+    return session.query(Exclusion).filter_by(
+        course_id=course_id,
+        excluded_course_id=excluded_course_id,
+    ).first() is not None
+
+
+def _add_exclusion_if_new(session, course_id: int, excluded_course_id: int, one_way: int) -> None:
+    """Add one exclusion row only if it does not already exist (avoids duplicate key)."""
+    if course_id == excluded_course_id:
+        return
+    if _exclusion_exists(session, course_id, excluded_course_id):
+        return
+    session.add(Exclusion(
+        course_id=course_id,
+        excluded_course_id=excluded_course_id,
+        one_way=one_way,
+    ))
+
+
 
 def write_all_courses_to_mysql(all_course_info):
     # Open a session
     with Session(engine) as session:
         try:
-            # Clear existing data
+            #Clear existing data (child tables first to satisfy foreign keys)
+            session.query(Exclusion).delete()
+            session.query(PrerequisiteSetCourse).delete()
+            session.query(PrerequisiteSet).delete()
+            try:
+                session.query(Program_Courses).delete()
+            except ProgrammingError:
+                # program_courses table may not exist yet
+                pass
             session.query(Course).delete()
+            session.commit()
+
+            # Reset AUTO_INCREMENT so new rows get IDs starting from 1
+            for table in ("exclusions", "prerequisite_set_courses", "prerequisite_sets", "courses"):
+                session.execute(text(f"ALTER TABLE {table} AUTO_INCREMENT = 1"))
             session.commit()
 
             # Insert courses
             course_objects = []
             for degree_df in all_course_info:
-                for _, row in degree_df.iterrows():
+                for index, row in degree_df.iterrows():
 
                     ## Converts df to Course object
 
@@ -88,16 +120,18 @@ def write_all_courses_to_mysql(all_course_info):
             # Example: "CSC148 and (CSC165 or CSC240)" becomes multiple PrerequisiteSet records
             for degree_df in all_course_info:
                 for index, row in degree_df.iterrows():
-                    # Normalize course code (remove spaces, uppercase)
                     course_code = row['course_code'].replace(" ", "").upper()
-                    course_id = course_lookup[course_code]
+                    course_id = course_lookup.get(course_code)
+                    if course_id is None:
+                        continue  # Skip if course not in lookup (e.g. duplicate code)
 
-                    # Parse prerequisite text if it exists
                     prereq_text = row.get('prerequisites', "")
                     if prereq_text:
-                        # Convert prerequisite string into database objects
-                        prereq_sets = parse_prerequisites(prereq_text, course_lookup, course_id)
-                        session.add_all(prereq_sets)
+                        prereq_sets = parse_prerequisites(
+                            prereq_text, course_lookup, course_id
+                        )
+                        if prereq_sets:
+                            session.add_all(prereq_sets)
 
 
             # Process both regular exclusions and one-way exclusions
@@ -106,38 +140,28 @@ def write_all_courses_to_mysql(all_course_info):
                     # Normalize course code
                     course_code = row['course_code'].replace(" ", "").upper()
                     course_id = course_lookup.get(course_code)
-                    
+
                     # Skip if course not found in lookup
                     if course_id is None:
                         continue
 
-                    # Process Regular Exclusions
-                    # Example: CSC148 excludes CSC108 (and vice versa)
+                    # Process Regular Exclusions (mutual: A and B exclude each other)
+                    # Store both directions so "B excludes A" is true when "A excludes B" is.
                     exclusion_codes = _parse_course_code_list(row.get('exclusions', ''))
                     for excluded_code in exclusion_codes:
                         excluded_id = course_lookup.get(excluded_code)
-                        
-                        # Only add if the excluded course exists and isn't the same course
-                        if excluded_id is not None and excluded_id != course_id:
-                            session.add(Exclusion(
-                                course_id=course_id,
-                                excluded_course_id=excluded_id,
-                                one_way=0  # 0 = mutual exclusion
-                            ))
+                        if excluded_id is None or excluded_id == course_id:
+                            continue
+                        _add_exclusion_if_new(session, course_id, excluded_id, one_way=0)
+                        _add_exclusion_if_new(session, excluded_id, course_id, one_way=0)
 
-                    # Process One-Way Exclusions
-                    # Example: CSC148 excludes CSC108, but CSC108 doesn't exclude CSC148
+                    # Process One-Way Exclusions (only this course excludes the other)
                     one_way_codes = _parse_course_code_list(row.get('one_way_exclusion', ''))
                     for excluded_code in one_way_codes:
                         excluded_id = course_lookup.get(excluded_code)
-                        
-                        # Only add if the excluded course exists and isn't the same course
-                        if excluded_id is not None and excluded_id != course_id:
-                            session.add(Exclusion(
-                                course_id=course_id,
-                                excluded_course_id=excluded_id,
-                                one_way=1  # 1 = one-way exclusion
-                            ))
+                        if excluded_id is None or excluded_id == course_id:
+                            continue
+                        _add_exclusion_if_new(session, course_id, excluded_id, one_way=1)
 
 
             session.commit()
@@ -149,29 +173,55 @@ def write_all_courses_to_mysql(all_course_info):
 
 
 
-# This is old code that writes all programs to the database.
-# However it doesnt write in Foreign Key relationships.
-def write_all_programs_to_mysql():
-    all_program_info = scrape_program_courses()
-
-    try:
-        # Clear existing data before inserting new data
-        with engine.connect() as conn:
-            conn.execute(text("DELETE FROM programs"))
-            conn.commit()
-
-        for degree_df in enumerate[Any](all_program_info):
+def write_all_programs_to_mysql(all_program_info):
+    with Session(engine) as session:
+        try:
+            # Clear existing data (child table first to satisfy foreign keys)
             try:
-                degree_df.to_sql(
-                    name='programs',
-                    con=engine,
-                    if_exists='append',
-                    index=False,
-                    chunksize=1000
-                )
-            except SQLAlchemyError as e:
-                print(f"Error writing to database: {e}")
-                raise
+                session.query(Program_Courses).delete()
+            except ProgrammingError:
+                # program_courses table may not exist yet
+                pass
+            session.query(Program).delete()
+            session.commit()
 
-    finally:
-        engine.dispose()
+            # Reset AUTO_INCREMENT so new rows get IDs starting from 1
+            session.execute(text("ALTER TABLE programs AUTO_INCREMENT = 1"))
+            session.commit()
+
+
+            programs_dict = {}  # Track unique programs by program_name
+            program_courses_objects = []
+
+            for index, row in all_program_info.iterrows():
+                program_name = row["program"]
+                course_code = row["faculty_abbr"] + row["course_number"]
+
+                # Create program only once per unique program_name
+                if program_name not in programs_dict:
+                    program = Program(program_name=program_name)
+                    programs_dict[program_name] = program
+                    session.add(program)
+
+
+                course_id = (
+                    session.query(Course.course_id)
+                    .filter(Course.course_code == course_code)
+                    .scalar()
+                )
+                if course_id is not None:
+                    program_courses_objects.append(
+                        Program_Courses(
+                            programs=programs_dict[program_name],
+                            course_id=course_id,
+                        )
+                    )
+
+            session.add_all(program_courses_objects)
+            session.commit()
+
+
+        except SQLAlchemyError as e:
+            session.rollback()
+            print(f"Error writing to database: {e}")
+            raise

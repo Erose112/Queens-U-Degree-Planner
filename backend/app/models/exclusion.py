@@ -1,10 +1,9 @@
 from sqlalchemy import (
     Column, Integer, ForeignKey, UniqueConstraint
 )
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
-Base = declarative_base()
+from app.models.base import Base
 
 class Exclusion(Base):
     """

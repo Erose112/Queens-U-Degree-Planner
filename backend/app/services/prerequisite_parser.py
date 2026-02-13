@@ -1,8 +1,8 @@
 from enum import Enum, auto
-from app.models.prerequisite import PrerequisiteSet, PrerequisiteSetCourse
-
+from itertools import product
 import re
 
+from app.models.prerequisite import PrerequisiteSet, PrerequisiteSetCourse
 
 
 class TokenType(Enum):
@@ -167,6 +167,48 @@ class Parser:
 
 
 
+def _distribute_or_over_and(node) -> Node:
+    """
+    Rewrite OR-over-AND to AND-of-ORs using the distributive law so the result
+    fits the schema (AND of sets, OR within each set).
+    E.g. A OR (B AND C) → (A OR B) AND (A OR C).
+    """
+    if isinstance(node, CourseNode):
+        return node
+    if isinstance(node, AndNode):
+        return AndNode([_distribute_or_over_and(c) for c in node.children])
+    if isinstance(node, OrNode):
+        children = [_distribute_or_over_and(c) for c in node.children]
+        and_terms = [c for c in children if isinstance(c, AndNode)]
+        non_and = [c for c in children if not isinstance(c, AndNode)]
+        if not and_terms:
+            return OrNode(children)
+        # (non_and OR and_1 OR and_2 OR ...) → AND of (non_and OR pick from each and_term)
+        factors = []
+        for combo in product(*[and_term.children for and_term in and_terms]):
+            factor = OrNode(non_and + list(combo))
+            factors.append(_distribute_or_over_and(factor))
+        return AndNode(factors)
+    return node
+
+
+def _collect_course_codes(node) -> list[str]:
+    """Recursively collect all course codes from a node (for OR flattening)."""
+    if isinstance(node, CourseNode):
+        return [node.code]
+    if isinstance(node, OrNode):
+        codes = []
+        for child in node.children:
+            codes.extend(_collect_course_codes(child))
+        return codes
+    if isinstance(node, AndNode):
+        codes = []
+        for child in node.children:
+            codes.extend(_collect_course_codes(child))
+        return codes
+    return []
+
+
 def ast_to_prerequisite_sets(
     node,
     course_id: int,
@@ -196,29 +238,29 @@ def ast_to_prerequisite_sets(
     # CASE 1: Single Course Requirement
     # If this is just one course (e.g., "Must take CSC148")
     if isinstance(node, CourseNode):
-        # Create a set with min_required=None, meaning ALL courses in the set are required
+        rid = course_lookup.get(node.code)
+        if rid is None:
+            return []  # Course not in catalog; skip this prereq
         ps = PrerequisiteSet(course_id=course_id, min_required=None)
-        
-        # Add this single course to the set
-        ps.required_courses.append(
-            PrerequisiteSetCourse(required_course_id=course_lookup[node.code])
-        )
+        ps.required_courses.append(PrerequisiteSetCourse(required_course_id=rid))
         return [ps]
 
     # CASE 2: OR Logic (At Least One Required)
-    # If this is an OR condition (e.g., "Take CSC148 OR CSC165")
+    # e.g. "CSC148 OR CSC165" → one set with min_required=1 and both courses.
+    # "A OR (B AND C)" is rewritten to (A OR B) AND (A OR C) before we get here.
     if isinstance(node, OrNode):
-        # Create a set with min_required=1, meaning at least 1 course from this set
         ps = PrerequisiteSet(course_id=course_id, min_required=1)
-        
-        # Add all the course options to this single set
+        seen = set()
         for child in node.children:
-            if isinstance(child, CourseNode):
-                ps.required_courses.append(
-                    PrerequisiteSetCourse(
-                        required_course_id=course_lookup[child.code]
+            for code in _collect_course_codes(child):
+                rid = course_lookup.get(code)
+                if rid is not None and rid not in seen:
+                    seen.add(rid)
+                    ps.required_courses.append(
+                        PrerequisiteSetCourse(required_course_id=rid)
                     )
-                )
+        if not ps.required_courses:
+            return []
         return [ps]
 
     # CASE 3: AND Logic (All Required)
@@ -251,6 +293,8 @@ def parse_prerequisites(
     try:
         parser = Parser(tokens)
         ast = parser.parse()
+        # Rewrite A OR (B AND C) → (A OR B) AND (A OR C) so we can store it
+        ast = _distribute_or_over_and(ast)
         return ast_to_prerequisite_sets(ast, course_id, course_lookup)
     except (ValueError, KeyError, TypeError):
         # Unparseable or unknown course in prereq text — skip this course's prereqs

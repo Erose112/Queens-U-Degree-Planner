@@ -1,4 +1,5 @@
 import time
+import re
 import json
 from pathlib import Path
 import requests
@@ -19,11 +20,28 @@ def extract_course_codes(soup_element):
 
 
 
-def extract_data(url, session):
+def get_degree_type(program):
+    degrees = ["major, minor, specialization, general"]
+    program = program.lower()
+
+    for degree in degrees:
+        if degree.lower() in program:
+            return degree
+
+
+
+def extract_data(url, session, program):
     """
-    Data is stored:
-    faculty_abbr: The abbreviation of the faculty (e.g., "ARTH")
-    course_number: The number of the course (e.g., "116")
+    Extracts academic program data including sections and courses.
+    
+    Returns a dictionary with:
+    - program_name
+    - program_type
+    - total_credits
+    - sections: list of sections, each containing:
+        - section_id
+        - section_credits
+        - courses: list of course codes
     """
     try:
         response = session.get(url, timeout=10)
@@ -32,55 +50,87 @@ def extract_data(url, session):
             print("Request was successful (Status 200 OK)")
         else:
             print(f"Request failed with status code: {response.status_code}")
-            return []
+            return {}
 
         soup = BeautifulSoup(response.text, 'lxml')
-        all_courses = []
 
-        # Extract from course cells
-        course_cells = soup.find_all("td", class_="codecol")
-        for cell in course_cells:
-            course_codes = extract_course_codes(cell)
-            for code in course_codes:
-                # Split "ARTH 116" into department and number
-                parts = code.split()
-                if len(parts) == 2:
-                    data = {
-                        "faculty_abbr": parts[0],    # e.g., "ARTH"
-                        "course_number": parts[1]     # e.g., "116"
-                    }
-                    all_courses.append(data)
+        program_data = {
+            "program_name": program,
+            "program_type": get_degree_type(program),
+            "total_credits": 0,
+            "sections": []
+        }
 
-        # Extract from block indents
-        block_indents = soup.find_all("div", class_="blockindent")
-        for block in block_indents:
-            course_codes = extract_course_codes(block)
-            for code in course_codes:
-                parts = code.split()
-                if len(parts) == 2:
-                    data = {
-                        "faculty_abbr": parts[0],
-                        "course_number": parts[1]
-                    }
-                    all_courses.append(data)
+        # Get total credits required for 'plan' or 'program'
+        for strong_tag in soup.find_all("strong"):
+            if strong_tag.text == "Plan":
+                match = re.search(r'\d+', str(strong_tag.next_sibling))
+                if match:
+                    program_data["total_credits"] = int(match.group())
+                    break
 
-        # Remove duplicates
-        seen = set()
-        unique_courses = []
-        for course in all_courses:
-            key = (course["faculty_abbr"], course["course_number"])
-            if key not in seen:
-                seen.add(key)
-                unique_courses.append(course)
+        # Find all rows in the table
+        all_rows = soup.find_all("tr", class_=lambda x: x and ("even" in x or "odd" in x))
+        
+        current_section: dict = {}
+        section_counter = 0
+        
+        for row in all_rows:
+            # Check if this is a section header
+            if "areaheader" in row.get("class", []):
+                # Save previous section if it exists and has courses
+                if current_section and current_section.get("courses"):
+                    program_data["sections"].append(current_section)
+                    section_counter += 1
+                
+                # Get section credits (if specified)
+                hours_td = row.find("td", class_="hourscol")
+                section_credits = 0
+                if hours_td and hours_td.text.strip():
+                    try:
+                        section_credits = float(hours_td.text.strip())
+                    except ValueError:
+                        section_credits = 0
+                
+                # Start new section
+                current_section = {
+                    "section_id": section_counter + 1,
+                    "section_credits": section_credits,
+                    "courses": []
+                }
+            
+            # Check if this is a course row
+            else:
+                code_td = row.find("td", class_="codecol")
+                if code_td and current_section:
+                    # Find ALL course links in this row (including nested ones)
+                    all_course_links = code_td.find_all("a", class_="bubblelink code")
+                    
+                    for code_link in all_course_links:
+                        course_code = code_link.get_text(strip=True)
+                        
+                        # Remove non-breaking spaces and format as BIOL102
+                        if course_code:
+                            course_code = course_code.replace('\xa0', '').replace(' ', '')
+                            if course_code not in current_section["courses"]:  # Avoid duplicates
+                                current_section["courses"].append(course_code)
+        
+        # Don't forget to add the last section
+        if current_section and current_section.get("courses"):
+            program_data["sections"].append(current_section)
+        
+        return program_data
 
-    except RequestException as e:
-        print(f"Error extracting data from {url}: {e}")
-
-    return unique_courses
+    except Exception as e:
+        print(f"Error extracting data: {e}")
+        return {}
 
 
 
 def scrape_program_courses():
+    """
+    Returns a df containing all program data.
+    """
     # Create a session with proper headers
     session = requests.Session()
     session.headers.update({
@@ -98,9 +148,10 @@ def scrape_program_courses():
 
     ###
     # All program links are stored in queens_programs.json
+    # Test run is in queens_programs_test.json
 
     base_dir = Path(__file__).parent
-    with open(base_dir / "queens_programs.json", "r", encoding="utf-8") as f:
+    with open(base_dir / "queens_programs_test.json", "r", encoding="utf-8") as f:
         url_program_links = json.load(f)
 
     all_program_courses = []
@@ -112,19 +163,19 @@ def scrape_program_courses():
                 continue
 
             url = f"https://www.queensu.ca/academic-calendar/arts-science/schools-departments-programs/{faculty}/{program}"
+
             print(f"\nScraping: {url}")
 
-            courses = extract_data(url, session)
+            program_data = extract_data(url, session, program)
+            all_program_courses.append(program_data)
+            time.sleep(10)
 
-            if courses:
-                for course in courses:
-                    course['program'] = program
-                    all_program_courses.append(course)
-
-                time.sleep(10)
-
+    pd.set_option('display.max_rows', None)
     df = pd.DataFrame(all_program_courses)
-    print(df)
+
+    sections = df["sections"]
+    for section in sections:
+        print(section)
     return df
 
 

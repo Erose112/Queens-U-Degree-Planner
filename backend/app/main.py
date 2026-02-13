@@ -4,8 +4,14 @@ from app.database import write_all_courses_to_mysql
 from app.database import write_all_programs_to_mysql
 
 
-all_course_data = scrape_artsci_courses()
-###all_program_data = scrape_program_courses()
 
-write_all_courses_to_mysql(all_course_data)
-###write_all_programs_to_mysql(all_program_data)
+#############################
+# I'm currently running scrapers and testing db from here. This file should become fast Api start point in future
+# To run
+# cd backend
+# python -m app.main
+#all_course_data = scrape_artsci_courses()
+all_program_data = scrape_program_courses()
+
+#write_all_courses_to_mysql(all_course_data)
+write_all_programs_to_mysql(all_program_data)
