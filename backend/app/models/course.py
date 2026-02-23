@@ -1,10 +1,9 @@
 from sqlalchemy import (
-    Column, Integer, String, Text, ForeignKey, UniqueConstraint
+    Column, Integer, String, Text
 )
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
-Base = declarative_base()
+from app.models.base import Base
 
 class Course(Base):
     """Main course information"""
@@ -17,9 +16,14 @@ class Course(Base):
     description = Column(Text, name='course_desc')
     clo = Column(Text)  # Course Learning Outcomes
 
+    program_courses = relationship('Program_Courses', back_populates='course')
+
     # Relationships
-    prerequisite_sets = relationship('PrerequisiteSet', back_populates='course',
-                                    cascade='all, delete-orphan')
+    prerequisite_sets = relationship(
+        'PrerequisiteSet', 
+        back_populates='course',
+        cascade='all, delete-orphan')
+
     exclusions = relationship(
         'Exclusion',
         back_populates='course',

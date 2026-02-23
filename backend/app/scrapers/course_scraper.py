@@ -178,6 +178,9 @@ def clean_data(all_courses):
 
 
 def scrape_artsci_courses():
+    """
+    Returns an list of df's. Each df in list representing data for a course.
+    """
     # Create a session with proper headers
     session = requests.Session()
     session.headers.update({
@@ -193,22 +196,21 @@ def scrape_artsci_courses():
         'Cache-Control': 'max-age=0',
     })
 
-    # All Courses 
+    # All Courses
 
     degree_info = []
     art_sci_degrees =  [
-        'ANAT', 
-        # 'ANIM', 'ANSH', 'ARAB', 'ARTH', 'ARIN', 'ASCX', 'ASTR',
-        # 'BADR', 'BCHM', 'BIOL', 'BLCK', 'CANC', 'CRSS', 'CHEM', 'CHIN',
-        # 'CLST', 'COGS', 'CISC', 'COCA', 'COMP', 'CWRI', 'DISC',
-        # 'DRAM', 'DDHT', 'ECON', 'EMPR', 'ENGL', 'ENIN', 'ENSC', 'FILM',
-        # 'ARTF', 'FREN', 'FRST', 'GNDS', 'GPHY', 'GEOL', 'GRMN', 'DEVS',
-        # 'GREK', 'HLTH', 'HEBR', 'HIST', 'INDG', 'IDIS', 'INTS', 'INUK',
-        # 'ITLN', 'JAPN', 'JWST', 'KNPE', 'LANG', 'LLCU', 'LATN', 'LIBS',
-        # 'LISC', 'LING', 'MATH', 'MAPP', 'MICR', 'MOHK', 'MUSC', 'MUTH',
-        # 'NSCI', 'PATH', 'PHAR', 'PHIL', 'PHYS', 'PHGY', 'POLS', 'PPEC',
-        # 'PORT', 'INTN', 'PSYC', 'QGSP', 'RELS', 'REPD', 'SOCY', 'SPAN',
-        # 'STAT', 'STAM', 'ARTV', 'WELL', 'WRIT'
+        'ANAT', 'ANIM', 'ANSH', 'ARAB', 'ARTH', 'ARIN', 'ASCX', 'ASTR',
+        'BISC', 'BCHM', 'BIOL', 'BLCK', 'CANC', 'CRSS', 'CHEM', 'CHIN',
+        'CLST', 'COGS', 'CISC', 'COCA', 'COMP', 'CWRI', 'DISC',
+        'DRAM', 'DDHT', 'ECON', 'EMPR', 'ENGL', 'ENIN', 'ENSC', 'FILM',
+        'ARTF', 'FREN', 'FRST', 'GNDS', 'GPHY', 'GEOL', 'GRMN', 'DEVS',
+        'GREK', 'HLTH', 'HEBR', 'HIST', 'INDG', 'IDIS', 'INTS', 'INUK',
+        'ITLN', 'JAPN', 'JWST', 'KNPE', 'LANG', 'LLCU', 'LATN', 'LIBS',
+        'LISC', 'LING', 'MATH', 'MAPP', 'MICR', 'MOHK', 'MUSC', 'MUTH',
+        'NSCI', 'PATH', 'PHAR', 'PHIL', 'PHYS', 'PHGY', 'POLS', 'PPEC',
+        'PORT', 'INTN', 'PSYC', 'QGSP', 'RELS', 'REPD', 'SOCY', 'SPAN',
+        'STAT', 'STAM', 'ARTV', 'WELL', 'WRIT'
     ]
 
     for degree in art_sci_degrees:
@@ -218,9 +220,6 @@ def scrape_artsci_courses():
 
         if len(degree_info) != len(art_sci_degrees):
             time.sleep(10)
-
-    for info in degree_info:
-        print(info)
 
     return degree_info
 
