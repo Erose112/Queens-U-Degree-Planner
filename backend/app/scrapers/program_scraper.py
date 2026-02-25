@@ -114,11 +114,11 @@ def extract_data(url, session, program):
                             course_code = course_code.replace('\xa0', '').replace(' ', '')
                             if course_code not in current_section["courses"]:  # Avoid duplicates
                                 current_section["courses"].append(course_code)
-        
+
         # Don't forget to add the last section
         if current_section and current_section.get("courses"):
             program_data["sections"].append(current_section)
-        
+
         return program_data
 
     except Exception as e:

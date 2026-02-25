@@ -68,19 +68,18 @@ export interface CoursePlan {
 // Extend Record<string, unknown> to satisfy @xyflow/react generics
 export interface CourseNodeData extends Record<string, unknown> {
   course: Course;
+  incomingIds: string[];  // IDs of nodes that connect TO this node
+  outgoingIds: string[];  // IDs of nodes this node connects TO
 }
 
 export interface CourseChoiceNodeData extends Record<string, unknown> {
   choice: CourseChoice;
+  incomingIds: string[];
+  outgoingIds: string[];
 }
 
-export interface YearHeaderNodeData extends Record<string, unknown> {
-  year: number;
-}
-
-/** Data for the vertical year bar segment on the left of the chart */
-export interface YearBarNodeData extends Record<string, unknown> {
-  year: number;
-  /** Height of this year's section in flow units */
-  height: number;
+export interface YearSection {
+  year: number;   // e.g. 1, 2, 3, 4
+  y: number;      // the Y pixel position of this row in the ReactFlow canvas
+  height: number; // the height of this row in pixels
 }

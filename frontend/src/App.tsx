@@ -1,13 +1,10 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import './App.css'
-
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ReactFlow,
   Background,
-  Controls,
-  MiniMap,
-  Panel,
+  useNodes,
+  useUpdateNodeInternals,
+  useViewport,
   type NodeTypes,
   type EdgeTypes,
 } from '@xyflow/react';
@@ -15,28 +12,41 @@ import '@xyflow/react/dist/style.css';
 
 import { CourseNode } from './components/CourseNode';
 import { CourseChoiceNode } from './components/CourseChoiceNode';
-import { YearBarNode } from './components/YearBarNode';
 import { CourseEdge } from './components/CourseEdge';
 import { Legend } from './components/Legend';
+import { YearSidebar } from './components/YearSidebar';
 import { convertCoursePlanToFlow } from './utils/coursePlanConverter';
-import type { CoursePlan } from './types';
+import type { CoursePlan, YearSection } from './types';
 import { CourseStatus, ConnectionType } from './types';
 
-// Define node and edge types
 const nodeTypes: NodeTypes = {
   course: CourseNode,
   courseChoice: CourseChoiceNode,
-  yearBar: YearBarNode,
 };
 
 const edgeTypes: EdgeTypes = {
   courseEdge: CourseEdge,
 };
 
+function NodeInternalsUpdater() {
+  const nodes = useNodes();
+  const updateNodeInternals = useUpdateNodeInternals();
+  const didUpdate = useRef(false);
+  useEffect(() => {
+    if (nodes.length > 0 && !didUpdate.current) {
+      didUpdate.current = true;
+      updateNodeInternals(nodes.map((n) => n.id));
+    }
+  }, [nodes, updateNodeInternals]);
+  return null;
+}
+
+function ChartInner({ yearSections }: { yearSections: YearSection[] }) {
+  const { y, zoom } = useViewport();
+  return <YearSidebar yearSections={yearSections} translateY={y} scale={zoom} />;
+}
+
 export default function App() {
-  //////////////////////////////////////////////////////////////////////////////////////////////////
-  // Example data - replace this with data from your backend
-  //////////////////////////////////////////////////////////////////////////////////////////////////
   const coursePlan: CoursePlan = {
     id: '1',
     programName: 'Computing, Mathematics and Analytics',
@@ -159,64 +169,58 @@ export default function App() {
     ],
   };
 
-  // Convert to React Flow format
-  const { nodes: initialNodes, edges: initialEdges } = useMemo(
+  const { nodes: initialNodes, edges: initialEdges, yearSections } = useMemo(
     () => convertCoursePlanToFlow(coursePlan),
-    [coursePlan]
+    []
   );
 
   const [nodes] = useState(initialNodes);
   const [edges] = useState(initialEdges);
 
-  //Return the React Flow component
-  //This is the main component that renders the course plan.
-  //It should be moved to a separate file in the future.
-  //And should be changed to a static image.
   return (
-    <div style={{ width: '100vw', height: '100vh' }}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.3 }}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={true}
-        minZoom={0.5}
-        maxZoom={1.5}
+    <div className="p-6 bg-gray-50 min-h-screen">
+      {/* Program header */}
+      <div className="mb-4">
+        <h1 className="text-xl font-bold text-gray-900">{coursePlan.programName}</h1>
+        <p className="text-sm text-gray-500">{coursePlan.programCode}</p>
+        <div className="flex gap-4 mt-1 text-xs text-gray-500">
+          <span>Core: {coursePlan.coreUnits}u</span>
+          <span>Options: {coursePlan.optionUnits}u</span>
+          <span>Electives: {coursePlan.electiveUnits}u</span>
+          <span className="font-semibold text-gray-700">Total: {coursePlan.totalUnits}u</span>
+        </div>
+      </div>
+
+      <Legend />
+
+      <div
+        className="mt-4 border border-gray-200 bg-white overflow-hidden relative"
+        style={{ height: 600 }}
       >
-        <Background color="#e5e7eb" gap={16} />
-        <Controls />
-        <MiniMap
-          nodeColor={(node) => {
-            if (node.type === 'yearBar') return '#e5e7eb';
-            if (node.type === 'courseChoice') return '#f97316';
-            return '#3b82f6';
-          }}
-          maskColor="rgba(255, 255, 255, 0.6)"
-        />
-
-        {/* Program Info Panel */}
-        <Panel position="top-left" className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
-          <h1 className="text-lg font-bold text-gray-900">{coursePlan.programName}</h1>
-          <p className="text-xs text-gray-600 mb-2">{coursePlan.programCode}</p>
-          <div className="flex gap-3 text-[10px] text-gray-600">
-            <span>Core: {coursePlan.coreUnits}u</span>
-            <span>Options: {coursePlan.optionUnits}u</span>
-            <span>Electives: {coursePlan.electiveUnits}u</span>
-          </div>
-          <div className="mt-1 text-xs font-semibold text-gray-900">
-            Total: {coursePlan.totalUnits} units
-          </div>
-        </Panel>
-
-        {/* Legend Panel */}
-        <Panel position="top-right">
-          <Legend />
-        </Panel>
-      </ReactFlow>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.15 }}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          panOnDrag={false}
+          panOnScroll={false}
+          zoomOnScroll={false}
+          zoomOnPinch={false}
+          zoomOnDoubleClick={false}
+          preventScrolling={false}
+          minZoom={0.1}
+          maxZoom={2}
+        >
+          <NodeInternalsUpdater />
+          <Background color="#f3f4f6" gap={16} />
+          <ChartInner yearSections={yearSections} />
+        </ReactFlow>
+      </div>
     </div>
   );
 }

@@ -15,7 +15,6 @@ A web application to help Queen's University students plan their course schedule
 - **Frontend**: React + TypeScript + Vite + Tailwind CSS
 - **Backend**: Python FastAPI
 - **Database**: MySQL
-- **Web Scraping**: BeautifulSoup4
 
 ## Prerequisites
 
@@ -106,10 +105,38 @@ CREATE TABLE prerequisite_set_courses (
     UNIQUE(set_id, required_course_id)
 );
 
+CREATE TABLE exclusions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  course_id INT NOT NULL,
+  excluded_course_id INT NOT NULL,
+  one_way INT NOT NULL DEFAULT 0,
+  FOREIGN KEY (course_id) REFERENCES courses(course_id),
+  FOREIGN KEY (excluded_course_id) REFERENCES courses(course_id),
+  UNIQUE KEY uq_exclusion_pair (course_id, excluded_course_id)
+);
+
+CREATE TABLE programs (
+    program_id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    program_name TEXT
+);
+
+CREATE TABLE program_courses (
+    program_id INTEGER NOT NULL,
+    course_id INTEGER NOT NULL,
+    PRIMARY KEY (program_id, course_id),
+    FOREIGN KEY (program_id) REFERENCES programs(program_id),
+    FOREIGN KEY (course_id) REFERENCES courses(course_id)
+);
+
 -- Create indexes
 CREATE INDEX idx_prereq_sets_course ON prerequisite_sets(course_id);
 CREATE INDEX idx_prereq_set_courses_set ON prerequisite_set_courses(set_id);
 CREATE INDEX idx_prereq_set_courses_required ON prerequisite_set_courses(required_course_id);
+CREATE INDEX idx_program_courses_program_id ON program_courses(program_id);
+CREATE INDEX idx_program_courses_course_id ON program_courses(course_id);
+CREATE INDEX idx_exclusions_course_id ON exclusions(course_id);
+CREATE INDEX idx_exclusions_excluded_course_id ON exclusions(excluded_course_id);
+CREATE INDEX idx_exclusions_course_oneway ON exclusions(course_id, one_way);
 ```
 
 Type `exit` to leave MySQL.

@@ -54,7 +54,7 @@ class PrerequisiteSetCourse(Base):
     __tablename__ = "prerequisite_set_courses"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    set_id = Column(Integer, ForeignKey('prerequisite_sets.set_id'), nullable=False)
+    set_id = Column(Integer, ForeignKey('prerequisite_sets.set_id'), nullable=False, index=True)
     required_course_id = Column(Integer, ForeignKey('courses.course_id'), nullable=False)
 
     __table_args__ = (
