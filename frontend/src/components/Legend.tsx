@@ -33,31 +33,6 @@ export const Legend = () => {
           <span className="text-gray-700">Completed</span>
         </div>
       </div>
-
-      {/* Connection Types */}
-      <div className="space-y-1.5 border-t pt-2">
-        <div className="flex items-center gap-2">
-          <svg width="30" height="12">
-            <line x1="0" y1="6" x2="30" y2="6" stroke="#3b82f6" strokeWidth="2" />
-            <polygon points="25,3 30,6 25,9" fill="#3b82f6" />
-          </svg>
-          <span className="text-gray-700">Prerequisite</span>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <svg width="30" height="12">
-            <line x1="0" y1="6" x2="30" y2="6" stroke="#8b5cf6" strokeWidth="2" strokeDasharray="5,5" />
-          </svg>
-          <span className="text-gray-700">Corequisite</span>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <svg width="30" height="12">
-            <line x1="0" y1="6" x2="30" y2="6" stroke="#6b7280" strokeWidth="1.5" strokeDasharray="3,3" />
-          </svg>
-          <span className="text-gray-700">Recommended</span>
-        </div>
-      </div>
     </div>
   );
 };

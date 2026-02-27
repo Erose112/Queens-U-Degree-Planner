@@ -1,13 +1,13 @@
 import type { YearSection } from '../utils/coursePlanConverter';
 import { YEAR_BAR_WIDTH } from '../utils/coursePlanLayout';
 
-interface YearSidebarProps {
+interface YearSideBarProps {
   yearSections: YearSection[];
   translateY: number;
   scale: number;
 }
 
-export function YearSidebar({ yearSections, translateY, scale }: YearSidebarProps) {
+export function YearSideBar({ yearSections, translateY, scale }: YearSideBarProps) {
   return (
     <div
       style={{
@@ -57,12 +57,14 @@ export function YearSidebar({ yearSections, translateY, scale }: YearSidebarProp
               <span
                 style={{
                   color: 'white',
-                  fontSize: 11,
-                  fontWeight: 700,
+                  fontSize: 15,
+                  fontWeight: 500,
                   writingMode: 'vertical-rl',
                   transform: 'rotate(180deg)',
-                  letterSpacing: '0.05em',
+                  letterSpacing: '0.2em',
                   userSelect: 'none',
+                  fontFamily: 'Arial, sans-serif',
+                  textTransform: 'uppercase',
                 }}
               >
                 Year {section.year}

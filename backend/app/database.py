@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from app.models.course import Course
 from app.models.exclusion import Exclusion
 from app.models.prerequisite import PrerequisiteSet, PrerequisiteSetCourse
-from app.models.program import Program, Program_Courses
+from app.models.program import Program, Program_Section
 from app.services.prerequisite_parser import parse_prerequisites
 
 load_dotenv()
@@ -64,7 +64,6 @@ def _add_exclusion_if_new(session, course_id: int, excluded_course_id: int, one_
         excluded_course_id=excluded_course_id,
         one_way=one_way,
     ))
-
 
 
 def write_all_courses_to_mysql(all_course_info):

@@ -1,5 +1,5 @@
 /** Layout constants shared by the course plan converter and year bar component */
-export const YEAR_BAR_WIDTH = 25;
+export const YEAR_BAR_WIDTH = 30;
 export const NODE_WIDTH = 110;
 export const NODE_HEIGHT = 55;
 export const HORIZONTAL_GAP = 20;

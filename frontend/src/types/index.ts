@@ -1,5 +1,7 @@
 // src/types/index.ts
 
+
+//************Potentially Remove IN PROGRESS and LOCKED */
 export const CourseStatus = {
   REQUIRED: 'required',
   CHOICE: 'choice',
@@ -63,8 +65,6 @@ export interface CoursePlan {
   connections: CourseConnection[];
 }
 
-// These are the DATA types for your custom nodes
-// (not the full Node type - ReactFlow handles that)
 // Extend Record<string, unknown> to satisfy @xyflow/react generics
 export interface CourseNodeData extends Record<string, unknown> {
   course: Course;

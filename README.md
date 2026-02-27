@@ -4,9 +4,6 @@ A web application to help Queen's University students plan their course schedule
 
 ## Features
 
-- 📚 Browse Queen's University course catalog
-- 🔍 Search and filter courses by subject, level, and requirements
-- 📊 Visualize prerequisite chains and course dependencies
 - 📅 Plan your academic path across multiple semesters
 - ✅ Validate course selections against prerequisites and exclusions
 
