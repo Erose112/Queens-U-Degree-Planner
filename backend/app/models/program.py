@@ -2,7 +2,7 @@ from sqlalchemy import (
     Column, Integer, Text, ForeignKey
 )
 from sqlalchemy.orm import relationship
-from app.models.base import Base
+from app.database import Base
 
 
 class Program(Base):
@@ -24,22 +24,21 @@ class Program(Base):
 
 
 
-
 class Program_Section(Base):
     __tablename__ = "program_section"
 
     section_id = Column(Integer, primary_key=True, autoincrement=True)
     program_id = Column(Integer, ForeignKey('programs.program_id'))
     credit_req = Column(Integer)
-    
+
     program = relationship("Program", back_populates="sections")
-    
+
     section_courses = relationship(
         "Section_Courses",
         back_populates="section",
         cascade="all, delete-orphan"
     )
-    
+
     logic_rules = relationship(
         "Program_Section_Logic",
         back_populates="section",
@@ -51,7 +50,7 @@ class Program_Section(Base):
 
 
 
-class Section_Courses (Base):
+class Section_Courses(Base):
     __tablename__ = "section_courses"
 
     sc_id = Column(Integer, primary_key=True, autoincrement=True)
