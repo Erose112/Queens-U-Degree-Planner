@@ -1,38 +1,46 @@
 // src/components/course-plan/Legend.tsx
+import { COLOURS } from "../utils/colours";
 
-/**
- * Legend for the course plan.
- * @returns A legend for the course plan.
- * Potentially not necessary if the graph is a static image.
- */
 export const Legend = () => {
   return (
-    <div className="bg-white border-2 border-gray-300 rounded-lg p-3 shadow-md text-xs">
-      <h3 className="font-bold text-sm mb-2 text-gray-800">Legend</h3>
+    <div className="bg-white/95 backdrop-blur rounded-xl shadow-lg ring-1 ring-black/5 px-4 py-3 w-56">
       
-      {/* Course Statuses */}
-      <div className="space-y-1.5 mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-16 h-6 bg-blue-600 border-2 border-blue-700 rounded text-white text-[10px] flex items-center justify-center font-bold">
-            REQ
-          </div>
-          <span className="text-gray-700">Required</span>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <div className="w-16 h-6 bg-orange-500 border-2 border-orange-600 rounded text-white text-[10px] flex items-center justify-center font-bold">
-            CHOICE
-          </div>
-          <span className="text-gray-700">Choice</span>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <div className="w-16 h-6 bg-green-600 border-2 border-green-700 rounded text-white text-[10px] flex items-center justify-center font-bold">
-            DONE
-          </div>
-          <span className="text-gray-700">Completed</span>
-        </div>
+      {/* Header */}
+      <h3
+        className="text-[15px] font-semibold tracking-wider uppercase mb-3"
+        style={{ color: COLOURS.darkGrey }}
+      >
+        Legend
+      </h3>
+
+      {/* Items */}
+      <div className="space-y-2">
+        <LegendItem colour={COLOURS.red} label="Required" />
+        <LegendItem colour={COLOURS.yellow} label="Choice" />
+        <LegendItem colour={COLOURS.brightBlue} label="Completed" />
       </div>
     </div>
   );
 };
+
+
+function LegendItem({
+  colour,
+  label,
+}: {
+  colour: string;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div
+        className="w-5 h-5 rounded-full border"
+        style={{
+          backgroundColor: colour,
+          borderColor: colour,
+        }}
+      />
+      <span className="text-[14px] text-gray-700">{label}</span>
+    </div>
+  );
+}

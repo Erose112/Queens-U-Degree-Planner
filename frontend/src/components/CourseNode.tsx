@@ -4,21 +4,20 @@ import { Handle, Position } from '@xyflow/react';
 import type { CourseNodeData } from '../types';
 import { CourseStatus } from '../types';
 import { NODE_WIDTH, NODE_HEIGHT } from '../utils/coursePlanLayout';
+import { COLOURS } from "../utils/colours";
 
 export const CourseNode = memo(({ data }: NodeProps<Node<CourseNodeData, 'course'>>) => {
   const { course, incomingIds, outgoingIds } = data;
 
   const isCompleted = course.status === CourseStatus.COMPLETED;
-  const isInProgress = course.status === CourseStatus.IN_PROGRESS;
   const isChoice = course.status === CourseStatus.CHOICE;
 
-  const borderColor = isCompleted
-    ? 'bg-green-600 border-green-700'
-    : isInProgress
-      ? 'bg-amber-500 border-amber-600'
-      : isChoice
-        ? 'bg-orange-500 border-orange-600'
-        : 'bg-blue-600 border-blue-700';
+  const borderColour =
+  isCompleted
+    ? COLOURS.brightBlue
+    : isChoice
+      ? COLOURS.yellow
+      : COLOURS.red;
 
   return (
     <div
@@ -37,8 +36,13 @@ export const CourseNode = memo(({ data }: NodeProps<Node<CourseNodeData, 'course
       ))}
 
       <div
-        className={`p-1.5 rounded-md bg-white border-2 text-black border-${borderColor} cursor-default`}
-        style={{ width: NODE_WIDTH, height: NODE_HEIGHT, boxSizing: 'border-box' }}
+        className="p-1.5 rounded-md bg-white border-2 text-black cursor-default"
+        style={{ 
+          width: NODE_WIDTH, 
+          height: NODE_HEIGHT, 
+          boxSizing: 'border-box',
+          borderColor: borderColour,
+        }}
       >
         <div className="font-bold text-[10px] mb-0.3">{course.code}</div>
         <div className="text-[8px] leading-tight">{course.name}</div>

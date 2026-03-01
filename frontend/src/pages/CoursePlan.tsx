@@ -18,8 +18,8 @@ import { YearSideBar } from '../components/YearSideBar';
 import { convertCoursePlanToFlow } from '../utils/coursePlanConverter';
 import type { CoursePlan, YearSection } from '../types';
 import { CourseStatus, ConnectionType } from '../types';
+import { COLOURS } from '../utils/colours';
 
-import queensLogo from '../assets/Queens-U-Logo.png';
 
 const nodeTypes: NodeTypes = {
   course: CourseNode,
@@ -180,32 +180,45 @@ export default function CoursePlanPage() {
   const [edges] = useState(initialEdges);
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="px-8 bg-white border-b border-gray-200 shadow-sm">
+      <div className="py-6 flex items-center gap-0">
 
-      <div className='grid grid-cols-10 gap-20'>
-
-        <img className='col-span-3 w-full h-auto p-4' src = {queensLogo} alt="Queen's University" ></img>
-
-        {/* Program header */}
-        <div className="col-span-4 mb-4">
-            <h1 className="text-xl font-bold text-gray-900">{coursePlan.programName}</h1>
-            <p className="text-sm text-gray-500">{coursePlan.programCode}</p>
-            <div className="flex gap-4 mt-1 text-xs text-gray-500">
-            <span>Core: {coursePlan.coreUnits}u</span>
-            <span>Options: {coursePlan.optionUnits}u</span>
-            <span>Electives: {coursePlan.electiveUnits}u</span>
-            <span className="font-semibold text-gray-700">Total: {coursePlan.totalUnits}u</span>
-            </div>
+        {/* Branding — left accent bar + title */}
+        <div className="flex items-stretch gap-4 pr-10 border-r border-gray-200">
+          <div className="w-1 rounded-full" style={{ background: COLOURS.blue }} />
+          <div style={{ color: COLOURS.blue, fontFamily: "'Playfair Display', serif" }}>
+            <div className="text-5xl font-black leading-none">Queen's</div>
+            <div className="text-5xl font-semibold leading-tight">Course Planner</div>
+          </div>
         </div>
 
-        <div className='col-span-3'>
-            <Legend />
+        {/* Program info */}
+        <div className="flex-1 px-10">
+          <span className="text-xl font-bold leading-tight" style={{ color: COLOURS.blue }}>
+            {coursePlan.programName}
+          </span>
+          <p className="text-m text-gray-400 mt-0.5">{coursePlan.programCode}</p>
+          <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
+            <span>Core: <span className="text-gray-600 font-medium">{coursePlan.coreUnits}u</span></span>
+            <span className="text-gray-200">|</span>
+            <span>Options: <span className="text-gray-600 font-medium">{coursePlan.optionUnits}u</span></span>
+            <span className="text-gray-200">|</span>
+            <span>Electives: <span className="text-gray-600 font-medium">{coursePlan.electiveUnits}u</span></span>
+            <span className="text-gray-200">|</span>
+            <span className="font-bold" style={{ color: COLOURS.blue }}>
+              Total: {coursePlan.totalUnits}u
+            </span>
+          </div>
         </div>
-        
+
+        {/* Legend */}
+        <div className="pl-10 border-l border-gray-200">
+          <Legend />
+        </div>
       </div>
 
       <div
-        className="mt-4 border border-gray-200 bg-white rounded-lg overflow-hidden relative"
+        className="border border-gray-200 bg-white rounded-lg overflow-hidden relative"
         style={{ height: 600 }}
       >
         <ReactFlow
