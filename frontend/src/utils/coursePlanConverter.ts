@@ -98,14 +98,26 @@ export function convertCoursePlanToFlow(plan: CoursePlan): {
       }
     }
 
-    // -----------------------------------------------------------------------
-    // Calculate this year's section height based on the tallest column
-    // -----------------------------------------------------------------------
+
     const maxColumnLength = Math.max(1, ...columns.map((col) => col.length));
-    const sectionHeight =
+
+    // Calculate this year's section height based on the tallest column
+    // Account for choice nodes too — each choice stacks its options vertically
+    const choiceHeight = yearChoices.reduce((max, choice) => {
+      const h =
+        choice.options.length * NODE_HEIGHT +
+        (choice.options.length - 1) * COLUMN_GAP + // gaps between options
+        40; // OR label height
+      return Math.max(max, h);
+    }, 0);
+
+    const courseColumnHeight =
       maxColumnLength * NODE_HEIGHT +
-      (maxColumnLength - 1) * COLUMN_GAP +
-      YEAR_SECTION_PADDING * 2;
+      (maxColumnLength - 1) * COLUMN_GAP;
+
+    const contentHeight = Math.max(courseColumnHeight, choiceHeight);
+    const sectionHeight = contentHeight + YEAR_SECTION_PADDING * 2;
+
 
     yearSections.push({ year, y: currentY, height: sectionHeight });
 
@@ -164,10 +176,10 @@ export function convertCoursePlanToFlow(plan: CoursePlan): {
       id: conn.id,
       source: conn.from,
       target: conn.to,
-      sourceHandle: `source-${conn.to}`,
-      targetHandle: `target-${conn.from}`,
+      sourceHandle: 'source',
+      targetHandle: `target-${conn.from}`,  // must match the handle id in CourseNode
       type: 'courseEdge',
-      data: { connectionType: conn.type as ConnectionType } satisfies CourseEdgeData,
+      data: { connectionType: conn.type as ConnectionType },
     });
   }
 

@@ -1,5 +1,6 @@
 import type { YearSection } from '../utils/coursePlanConverter';
 import { YEAR_BAR_WIDTH } from '../utils/coursePlanLayout';
+import { COLOURS } from "../utils/colours";
 
 interface YearSideBarProps {
   yearSections: YearSection[];
@@ -23,11 +24,10 @@ export function YearSideBar({ yearSections, translateY, scale }: YearSideBarProp
     >
       {yearSections.map((section, i) => {
         const isEven = i % 2 === 0;
-        const barColor = isEven ? '#414447' : '#9ba2ab';
-        // Background is the opposite — even year gets the lighter bg, odd gets darker
+        const barColor = isEven ? COLOURS.darkGrey : COLOURS.grey;
         const bgColor = isEven
-          ? '#9ba2ab20'
-          : '#41444740';
+          ? 'rgba(255, 255, 255, 0.6)'
+          : 'rgba(0, 0, 0, 0.05)';
 
         return (
           <div

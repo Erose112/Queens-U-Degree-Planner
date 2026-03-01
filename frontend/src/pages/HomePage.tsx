@@ -1,6 +1,7 @@
 import { useState, useRef, KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import  NavBar  from "../components/NavBar";
+import Footer from "../components/Footer";
 import { COLOURS } from "../utils/colours";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -210,7 +211,7 @@ export default function HomePage() {
                   {step.label}
                 </span>
               </div>
-              {i < 2 && <div className="w-10 h-[2px] flex-shrink-0" style={{ background: COLOURS.grey }} />}
+              {i < 2 && <div className="w-16 h-[2px] flex-shrink-0" style={{ background: COLOURS.darkGrey }} />}
             </div>
           ))}
         </div>
@@ -222,7 +223,7 @@ export default function HomePage() {
         <div
           className="bg-white rounded-2xl p-12 max-w"
           style={{
-            boxShadow: `0 4px 40px ${COLOURS.blue}14`,
+            boxShadow: `0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)`,
             border: `1px solid ${COLOURS.grey}`,
           }}
         >
@@ -293,10 +294,10 @@ export default function HomePage() {
           </div>
 
           {/* Divider */}
-          <div className="h-px mb-8" style={{ background: COLOURS.grey }} />
+          <div className="h-px my-10" style={{ background: COLOURS.grey }} />
 
           {/* Courses taken */}
-          <div className="mb-3">
+          <div className="mb-8">
             <div className="flex items-center gap-2 mb-2.5">
               <span
                 className="w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-bold flex-shrink-0"
@@ -375,9 +376,9 @@ export default function HomePage() {
           )}
 
           {/* Generate button */}
-          <div className={takenCourses.length ? "" : "mt-8"}>
+          <div className={`flex flex-col items-center justify-center ${takenCourses.length ? "" : "mt-8"}`}>
             <button
-              className="w-full py-[18px] rounded-xl border-none font-sans text-[17px] font-bold tracking-[0.04em] cursor-pointer transition-all flex items-center justify-center gap-2.5"
+              className="w-full max-w-[360px] py-[18px] rounded-xl border-none font-sans text-[17px] font-bold tracking-[0.04em] cursor-pointer transition-all flex items-center justify-center gap-2.5"
               style={{
                 background: COLOURS.blue,
                 color: COLOURS.white,
@@ -410,13 +411,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer
-        className="text-center py-6 px-10 text-[13px]"
-        style={{ background: COLOURS.blue, color: `${COLOURS.white}80` }}
-      >
-        Queen's Course Planner · For informational use only · Always verify with the official academic calendar.
-      </footer>
+      <Footer />
     </div>
   );
 }

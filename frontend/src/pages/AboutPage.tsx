@@ -1,6 +1,7 @@
 import { useState, useRef, KeyboardEvent } from "react";
 import {  useNavigate } from "react-router-dom";
 import Navbar from "../components/NavBar";
+import Footer from "../components/Footer";
 import { COLOURS } from "../utils/colours";
 
 export default function AboutPage() {
@@ -11,6 +12,10 @@ export default function AboutPage() {
     }
 
     return (
-        <Navbar onHome={handleHome} activePage="About" />
+        <div className="flex flex-col h-screen justify-between">
+            <Navbar onHome={handleHome} activePage="About" />
+            <Footer />
+        </div>
+        
     );
 }

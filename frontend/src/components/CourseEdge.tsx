@@ -42,12 +42,12 @@ export function CourseEdge({
         <defs>
           <marker
             id={markerId}
-            markerWidth="4"
-            markerHeight="4"
+            markerWidth="6"
+            markerHeight="6"
             viewBox="0 0 10 10"
             markerUnits="strokeWidth"
             orient="auto"
-            refX="8"
+            refX="7"
             refY="5"
           >
             <polygon
