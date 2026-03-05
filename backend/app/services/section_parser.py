@@ -1,6 +1,4 @@
 """
-section_parser.py
------------------
 Converts raw section dicts produced by the program scraper into structured
 logic descriptors that map directly onto the Program_Section_Logic model.
 
@@ -35,12 +33,11 @@ Output (one dict per section):
 
 from __future__ import annotations
 
-# ---------------------------------------------------------------------------
 # Constants – stored in the logic_type column of Program_Section_Logic
-# ---------------------------------------------------------------------------
 LOGIC_REQUIRED       = 1   # All courses in the section are mandatory
 LOGIC_CHOOSE_CREDITS = 2   # Choose enough courses to reach `logic_value` credits
 LOGIC_CHOOSE_COUNT   = 3   # Choose exactly `logic_value` courses (reserved)
+
 
 
 def parse_section_logic(section: dict) -> dict:
@@ -60,16 +57,16 @@ def parse_section_logic(section: dict) -> dict:
     raw_credits = section.get("section_credits", 0) or 0
 
     try:
-        credits = float(str(raw_credits).strip().split()[0])  # handles "6.0 units"
+        _credits = float(str(raw_credits).strip().split()[0])  # handles "6.0 units"
     except (TypeError, ValueError, IndexError):
-        credits = 0.0
+        _credits = 0.0
         print(f"[section_parser] Warning: could not parse section_credits "
             f"value '{raw_credits}', defaulting to REQUIRED logic.")
 
-    if credits > 0:
+    if _credits > 0:
         return {
             "logic_type":  LOGIC_CHOOSE_CREDITS,
-            "logic_value": int(credits),
+            "logic_value": int(_credits),
         }
 
     # Default: all courses in this section are required
@@ -77,6 +74,7 @@ def parse_section_logic(section: dict) -> dict:
         "logic_type":  LOGIC_REQUIRED,
         "logic_value": 0,
     }
+
 
 
 def parse_all_sections(sections: list[dict]) -> list[dict]:

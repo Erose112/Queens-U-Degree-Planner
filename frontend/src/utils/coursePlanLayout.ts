@@ -1,8 +1,9 @@
 export const YEAR_BAR_WIDTH = 30;
-export const NODE_WIDTH = 200;   // was 110
-export const NODE_HEIGHT = 90;   // was 55
-export const HORIZONTAL_GAP = 30;  // was 20
+export const NODE_WIDTH = 200;   
+export const NODE_HEIGHT = 90;   
+export const HORIZONTAL_GAP = 30;  // Horizontal Gap between Nodes
 export const COLUMN_GAP = 50;    // was 40
-export const YEAR_BAR_COURSE_OFFSET = 10;
-export const YEAR_SECTION_PADDING = 50;  // was 35
-export const CHOICE_SECTION_OFFSET = 100;
+export const YEAR_BAR_COURSE_OFFSET = 10; // Padding between year bar and nodes
+export const YEAR_SECTION_PADDING = 30;  // Reduced padding between year sections
+export const ROW_PADDING = 20;  // Padding between rows within same year
+export const CHOICE_SECTION_OFFSET = 30;  // Reduced for tighter layout

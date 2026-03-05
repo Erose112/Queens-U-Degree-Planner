@@ -5,9 +5,7 @@ from sqlalchemy.orm import relationship
 from app.database import Base
 
 
-
 class Course(Base):
-    """Main course information"""
     __tablename__ = 'courses'
 
     course_id = Column(Integer, primary_key=True, autoincrement=True)
@@ -15,13 +13,11 @@ class Course(Base):
     title = Column(String(200))
     credits = Column(Integer)
     description = Column(Text, name='course_desc')
-    clo = Column(Text)  # Course Learning Outcomes
-
-    program_courses = relationship('Program_Courses', back_populates='course')
+    clo = Column(Text)
 
     # Relationships
     prerequisite_sets = relationship(
-        'PrerequisiteSet', 
+        'PrerequisiteSet',
         back_populates='course',
         cascade='all, delete-orphan')
 
@@ -31,6 +27,3 @@ class Course(Base):
         foreign_keys='Exclusion.course_id',
         cascade='all, delete-orphan'
     )
-
-    def __repr__(self):
-        return f"<Course(code='{self.course_code}', title='{self.title}')>"

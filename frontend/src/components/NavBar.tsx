@@ -30,7 +30,7 @@ type NavbarProps = {
               {(["Home", "About"] as const).map((l) => (
                 <button
                   key={l}
-                  className="text-sm font-medium cursor-pointer transition-colors bg-transparent border-none p-0"
+                  className="text-[16px] font-medium cursor-pointer transition-colors bg-transparent border-none p-0"
                   style={{ color: activePage === l ? COLOURS.white : `${COLOURS.white}b3` }}
                   onClick={handlers[l]}
                   onMouseEnter={(e) => {

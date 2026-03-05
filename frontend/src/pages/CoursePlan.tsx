@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   ReactFlow,
   Background,
@@ -10,17 +11,60 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import { CourseNode } from '../components/CourseNode';
-import { CourseChoiceNode } from '../components/CourseChoiceNode';
-import { CourseEdge } from '../components/CourseEdge';
-import { Legend } from '../components/Legend';
-import { YearSideBar } from '../components/YearSideBar';
+import { CourseNode } from '../components/courseplan/CourseNode';
+import { CourseChoiceNode } from '../components/courseplan/CourseChoiceNode';
+import { CourseEdge } from '../components/courseplan/CourseEdge';
+import { Legend } from '../components/courseplan/Legend';
+import { YearSideBar } from '../components/courseplan/YearSideBar';
 import { YEAR_BAR_WIDTH, YEAR_BAR_COURSE_OFFSET } from '../utils/coursePlanLayout';
 import { convertCoursePlanToFlow } from '../utils/coursePlanConverter';
 import type { CoursePlan, YearSection } from '../types';
 import { CourseStatus, ConnectionType } from '../types';
 import { COLOURS } from '../utils/colours';
 import Footer from '../components/Footer';
+
+// TypeScript interfaces for API response data
+interface CourseData {
+  course_code?: string;
+  title?: string;
+  units?: number | null;
+  year?: number | null;
+  semester?: string | null;
+  is_required?: boolean;
+  is_choice?: boolean;
+}
+
+interface ChoiceOptionData {
+  course_code?: string;
+  title?: string;
+  units?: number | null;
+}
+
+interface ChoiceData {
+  choice_id?: string;
+  label?: string;
+  year?: number | null;
+  required?: boolean;
+  options?: ChoiceOptionData[];
+}
+
+interface EdgeData {
+  from_course?: string;
+  to_course?: string;
+  edge_type?: string;
+}
+
+interface PlanResponseData {
+  program_name?: string;
+  program_code?: string;
+  total_units?: number;
+  core_units?: number;
+  option_units?: number;
+  elective_units?: number;
+  courses?: CourseData[];
+  choices?: ChoiceData[];
+  edges?: EdgeData[];
+}
 
 
 const nodeTypes: NodeTypes = {
@@ -51,150 +95,189 @@ function ChartInner({ yearSections }: { yearSections: YearSection[] }) {
 }
 
 export default function CoursePlanPage() {
-  const coursePlan: CoursePlan = {
-    id: '1',
-    programName: 'Computing, Mathematics and Analytics',
-    programCode: 'BComp (Hons) COMA-P-BCH',
-    totalUnits: 120,
-    coreUnits: 78,
-    optionUnits: 12,
-    electiveUnits: 30,
-    courses: [
-      // ── YEAR 1 ──
-      {
-        id: 'cisc121', code: 'CISC 121', name: 'Introduction to Computing Sci. I',
-        units: 3, year: 1, position: 0, status: CourseStatus.COMPLETED,
-      },
-      {
-        id: 'cisc124', code: 'CISC 124', name: 'Introduction to Computing Sci. II',
-        units: 3, year: 1, position: 1, status: CourseStatus.COMPLETED,
-      },
-      {
-        id: 'math110', code: 'MATH 110', name: 'Linear Algebra',
-        units: 3, year: 1, position: 2, status: CourseStatus.COMPLETED,
-      },
-    
-      // ── YEAR 2 ──
-      {
-        id: 'cisc203', code: 'CISC 203', name: 'Discrete Structures II',
-        units: 3, year: 2, position: 0, status: CourseStatus.IN_PROGRESS,
-      },
-      {
-        id: 'cisc235', code: 'CISC 235', name: 'Data Structures',
-        units: 3, year: 2, position: 1, status: CourseStatus.REQUIRED,
-      },
-      {
-        id: 'math212', code: 'MATH 212', name: 'Linear Algebra II',
-        units: 3, year: 2, position: 2, status: CourseStatus.REQUIRED,
-      },
-      {
-        id: 'cisc221', code: 'CISC 221', name: 'Computer Architecture',
-        units: 3, year: 2, position: 3, status: CourseStatus.REQUIRED,
-      },
-      {
-        id: 'stat263', code: 'STAT 263', name: 'Intro to Mathematical Statistics',
-        units: 3, year: 2, position: 4, status: CourseStatus.REQUIRED,
-      },
-    
-      // ── YEAR 3 ──
-      {
-        id: 'cisc320', code: 'CISC 320', name: 'Introduction to Algorithms',
-        units: 3, year: 3, position: 0, status: CourseStatus.REQUIRED,
-      },
-      {
-        id: 'cisc324', code: 'CISC 324', name: 'Operating Systems',
-        units: 3, year: 3, position: 1, status: CourseStatus.REQUIRED,
-      },
-      {
-        id: 'cisc340', code: 'CISC 340', name: 'Computer Networks',
-        units: 3, year: 3, position: 2, status: CourseStatus.REQUIRED,
-      },
-      {
-        id: 'cisc352', code: 'CISC 352', name: 'Artificial Intelligence',
-        units: 3, year: 3, position: 3, status: CourseStatus.REQUIRED,
-      },
-      {
-        id: 'math334', code: 'MATH 334', name: 'Numerical Methods',
-        units: 3, year: 3, position: 4, status: CourseStatus.REQUIRED,
-      },
-    
-      // ── YEAR 4 ──
-      {
-        id: 'cisc421', code: 'CISC 421', name: 'Machine Learning',
-        units: 3, year: 4, position: 0, status: CourseStatus.REQUIRED,
-      },
-      {
-        id: 'cisc432', code: 'CISC 432', name: 'Advanced Database Systems',
-        units: 3, year: 4, position: 1, status: CourseStatus.REQUIRED,
-      },
-      {
-        id: 'cisc455', code: 'CISC 455', name: 'Evolutionary Computation',
-        units: 3, year: 4, position: 2, status: CourseStatus.REQUIRED,
-      },
-      {
-        id: 'cisc499', code: 'CISC 499', name: 'Undergraduate Thesis',
-        units: 6, year: 4, position: 3, status: CourseStatus.REQUIRED,
-      },
-    ],
-    
-    choices: [
-      {
-        id: 'math-choice-1', label: 'OR', year: 1, position: 3,
-        status: CourseStatus.CHOICE, required: true,
-        options: [
-          {
-            id: 'math120', code: 'MATH 120', name: 'Differential and Integral Calculus',
-            units: 6, year: 1, position: 3, status: CourseStatus.CHOICE,
-          },
-          {
-            id: 'math121', code: 'MATH 121', name: 'Integral Calculus',
-            units: 3, year: 1, position: 3, status: CourseStatus.CHOICE,
-          },
-        ],
-      },
-      {
-        id: 'cisc-elective-1', label: 'OR', year: 4, position: 4,
-        status: CourseStatus.CHOICE, required: false,
-        options: [
-          {
-            id: 'cisc440', code: 'CISC 440', name: 'Computer Graphics',
-            units: 3, year: 4, position: 4, status: CourseStatus.CHOICE,
-          },
-          {
-            id: 'cisc452', code: 'CISC 452', name: 'Neural & Genetic Computing',
-            units: 3, year: 4, position: 4, status: CourseStatus.CHOICE,
-          },
-        ],
-      },
-    ],
-    
-    connections: [
-      // Year 1 → 2
-      { id: 'conn1', from: 'cisc121', to: 'cisc124', type: ConnectionType.PREREQUISITE },
-      { id: 'conn2', from: 'cisc124', to: 'cisc203', type: ConnectionType.PREREQUISITE },
-      { id: 'conn3', from: 'cisc124', to: 'cisc235', type: ConnectionType.PREREQUISITE },
-      { id: 'conn4', from: 'math110', to: 'math212', type: ConnectionType.PREREQUISITE },
-      { id: 'conn5', from: 'cisc124', to: 'cisc221', type: ConnectionType.PREREQUISITE },
-    
-      // Year 2 → 3
-      { id: 'conn6', from: 'cisc235', to: 'cisc320', type: ConnectionType.PREREQUISITE },
-      { id: 'conn7', from: 'cisc221', to: 'cisc324', type: ConnectionType.PREREQUISITE },
-      { id: 'conn8', from: 'cisc203', to: 'cisc320', type: ConnectionType.PREREQUISITE },
-      { id: 'conn9', from: 'stat263', to: 'cisc352', type: ConnectionType.PREREQUISITE },
-      { id: 'conn10', from: 'math212', to: 'math334', type: ConnectionType.PREREQUISITE },
-    
-      // Year 3 → 4
-      { id: 'conn11', from: 'cisc352', to: 'cisc421', type: ConnectionType.PREREQUISITE },
-      { id: 'conn12', from: 'cisc320', to: 'cisc432', type: ConnectionType.PREREQUISITE },
-      { id: 'conn13', from: 'cisc352', to: 'cisc455', type: ConnectionType.PREREQUISITE },
-      { id: 'conn14', from: 'cisc320', to: 'cisc455', type: ConnectionType.PREREQUISITE },
-      { id: 'conn15', from: 'math334', to: 'cisc421', type: ConnectionType.PREREQUISITE },
-    ],
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { programId, programName, completedCourses, favouriteCourses } = (location.state ?? {}) as {
+    programId?: number;
+    programName?: string;
+    completedCourses?: string[];
+    favouriteCourses?: string[];
   };
 
+  const [coursePlan, setCoursePlan] = useState<CoursePlan | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!programName) {
+      navigate('/');
+      return;
+    }
+
+    const fetchPlan = async () => {
+      try {
+        const payload = {
+          program_name: programName,
+          completedCourses: completedCourses ?? [],
+          favouriteCourses: favouriteCourses ?? [],
+        };
+        console.log('Sending payload:', payload);
+        
+        const response = await fetch('http://localhost:8000/plans/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            program_name: programName,
+            completedCourses: completedCourses ?? [],
+            favouriteCourses: favouriteCourses ?? [],
+          }),
+        });
+
+        if (!response.ok) throw new Error(`Server error: ${response.status}`);
+
+        const data: PlanResponseData = await response.json();
+        console.log('RAW API RESPONSE:', JSON.stringify(data, null, 2));
+        
+        // Validate response structure
+        if (!data.courses || !Array.isArray(data.courses)) {
+          throw new Error('Invalid response: courses array missing');
+        }
+        if (!data.choices || !Array.isArray(data.choices)) {
+          throw new Error('Invalid response: choices array missing');
+        }
+        if (!data.edges || !Array.isArray(data.edges)) {
+          throw new Error('Invalid response: edges array missing');
+        }
+
+        // Group courses by year to assign positions
+        const coursesByYear: Record<number, number> = {};
+
+        const mappedCourses = data.courses.map((c: CourseData) => {
+          if (!c.course_code) {
+            console.error('Invalid course: missing course_code', c);
+            throw new Error('Course missing course_code');
+          }
+          
+          // Clamp year between 1 and 4
+          const year = Math.min(Math.max(c.year ?? 1, 1), 4);
+          if (coursesByYear[year] === undefined) coursesByYear[year] = 0;
+          const position = coursesByYear[year]++;
+          
+          // Validate units is positive
+          const units = c.units || 3;
+          if (units <= 0) {
+            console.warn(`Course ${c.course_code} has invalid units: ${units}, defaulting to 3`);
+          }
+
+          return {
+            id: c.course_code,
+            code: c.course_code,
+            name: c.title ?? c.course_code,
+            units: Math.max(units, 0.5),
+            year,
+            position,
+            status:
+              c.semester === 'Completed'
+                ? CourseStatus.COMPLETED
+                : c.is_required
+                ? CourseStatus.REQUIRED
+                : c.is_choice
+                ? CourseStatus.CHOICE
+                : CourseStatus.SELECTED_ELECTIVE,
+          };
+        });
+
+        // Create a map of course codes by year to detect duplicates in choices
+        const courseCodesByYear = new Map<number, Set<string>>();
+        for (const course of mappedCourses) {
+          if (!courseCodesByYear.has(course.year)) {
+            courseCodesByYear.set(course.year, new Set());
+          }
+          courseCodesByYear.get(course.year)!.add(course.id);
+        }
+
+        const choicesByYear: Record<number, number> = {};
+
+        // Filter out choice groups that have duplicate courses already rendered
+        const mappedChoices = data.choices
+          .map((ch: ChoiceData, i: number) => {
+            // Clamp year between 1 and 4
+            const year = Math.min(Math.max(ch.year ?? 1, 1), 4);
+            // Start choices after courses in the same year (not at 100)
+            if (choicesByYear[year] === undefined) choicesByYear[year] = coursesByYear[year] ?? 0;
+            const position = choicesByYear[year]++;
+
+            // Filter out options that already exist as standalone courses in the same year
+            const courseCodesInYear = courseCodesByYear.get(year) ?? new Set();
+            const filteredOptions = (ch.options ?? []).filter(
+              (o: ChoiceOptionData) => !courseCodesInYear.has(o.course_code ?? '')
+            );
+
+            return {
+              id: ch.choice_id ?? `choice_${i}`,
+              label: ch.label ?? 'OR',
+              year,
+              position,
+              status: CourseStatus.CHOICE,
+              required: ch.required ?? true,
+              options: filteredOptions.map((o: ChoiceOptionData, j: number) => {
+                const units = o.units || 3;
+                if (units <= 0) {
+                  console.warn(`Choice option ${o.course_code} has invalid units: ${units}, defaulting to 3`);
+                }
+                return {
+                  id: o.course_code ?? `option_${j}`,
+                  code: o.course_code ?? `option_${j}`,
+                  name: o.title ?? o.course_code ?? `Option ${j}`,
+                  units: Math.max(units, 0.5),
+                  year,
+                  position: j,
+                  status: CourseStatus.CHOICE,
+                };
+              }),
+            };
+          })
+          // Remove choice groups that have no remaining options after filtering
+          .filter((choice) => choice.options.length > 0);
+
+        const mappedConnections = data.edges.map((e: EdgeData) => {
+          if (!e.from_course || !e.to_course) {
+            console.warn('Invalid edge missing from_course or to_course', e);
+            return null;
+          }
+          return {
+            id: `${e.from_course}-${e.to_course}`,
+            from_course: e.from_course,
+            to_course: e.to_course,
+            type: ConnectionType.PREREQUISITE,
+          };
+        }).filter((e) => e !== null);
+
+        setCoursePlan({
+          id: String(programId),
+          programName: data.program_name ?? 'Unknown Program',
+          programCode: data.program_code ?? 'UNKNOWN',
+          totalUnits: data.total_units ?? 0,
+          coreUnits: data.core_units ?? 0,
+          optionUnits: data.option_units ?? 0,
+          electiveUnits: data.elective_units ?? 0,
+          courses: mappedCourses,
+          choices: mappedChoices,
+          connections: mappedConnections as any,
+        });
+      } catch (err: any) {
+        setError(err.message ?? 'Unknown error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPlan();
+  }, [programName, completedCourses, favouriteCourses, navigate]);
+
   const { nodes: initialNodes, edges: initialEdges, yearSections } = useMemo(
-    () => convertCoursePlanToFlow(coursePlan),
-    []
+    () => coursePlan ? convertCoursePlanToFlow(coursePlan) : { nodes: [], edges: [], yearSections: [] },
+    [coursePlan]
   );
 
   const flowHeight = useMemo(() => {
@@ -203,23 +286,45 @@ export default function CoursePlanPage() {
     return last.y + last.height;
   }, [yearSections]);
 
-  console.log('flowHeight:', flowHeight);
-  console.log('yearSections:', yearSections);
+  const [nodes, setNodes] = useState(initialNodes);
+  const [edges, setEdges] = useState(initialEdges);
 
-  const [nodes] = useState(initialNodes);
-  const [edges] = useState(initialEdges);
+  useEffect(() => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+  }, [initialNodes, initialEdges]);
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-gray-400 text-lg">Generating your plan...</p>
+    </div>
+  );
+
+  if (error || !coursePlan) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-red-400 text-lg">Error: {error ?? 'No plan data found.'}</p>
+    </div>
+  );
 
   return (
     <div className='min-h-screen flex flex-col gap-6 bg-white'>
       <div className="px-8">
         <div className="py-6 flex items-center gap-0">
 
-          {/* Branding — left accent bar + title */}
           <div className="flex items-stretch gap-4 pr-10 border-r border-gray-200">
             <div className="w-1 rounded-full" style={{ background: COLOURS.blue }} />
-            <div style={{ color: COLOURS.blue, fontFamily: "'Playfair Display', serif" }}>
-              <div className="text-5xl font-black leading-none">Queen's</div>
-              <div className="text-5xl font-semibold leading-tight">Course Planner</div>
+            <div>
+              <button
+                onClick={() => navigate('/')}
+                className="flex items-center gap-1.5 mb-1 text-xs font-medium tracking-wide cursor-pointer bg-transparent border-none p-0 transition-opacity opacity-50 hover:opacity-100"
+                style={{ color: COLOURS.blue }}
+              >
+                ⬅ Back to Home
+              </button>
+              <div style={{ color: COLOURS.blue, fontFamily: "'Playfair Display', serif" }}>
+                <div className="text-5xl font-black leading-none">Queen's</div>
+                <div className="text-5xl font-semibold leading-tight">Course Planner</div>
+              </div>
             </div>
           </div>
 
@@ -279,7 +384,5 @@ export default function CoursePlanPage() {
 
       <Footer />
     </div>
-    
-    
   );
 }

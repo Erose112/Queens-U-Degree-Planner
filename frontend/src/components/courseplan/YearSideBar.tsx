@@ -1,6 +1,6 @@
-import type { YearSection } from '../utils/coursePlanConverter';
-import { YEAR_BAR_WIDTH } from '../utils/coursePlanLayout';
-import { COLOURS } from "../utils/colours";
+import type { YearSection } from '../../utils/coursePlanConverter';
+import { YEAR_BAR_WIDTH } from '../../utils/coursePlanLayout';
+import { COLOURS } from "../../utils/colours";
 
 interface YearSideBarProps {
   yearSections: YearSection[];

@@ -1,5 +1,5 @@
 // src/components/course-plan/Legend.tsx
-import { COLOURS } from "../utils/colours";
+import { COLOURS } from "../../utils/colours";
 
 export const Legend = () => {
   return (
@@ -14,7 +14,7 @@ export const Legend = () => {
         <LegendItem colour={COLOURS.brightBlue} label="Completed" />
         <LegendItem colour={COLOURS.red} label="Required" />
         <LegendItem colour={COLOURS.yellow} label="Choice" />
-        <LegendItem colour={COLOURS.orange} label="Recommended" />
+        <LegendItem colour={COLOURS.orange} label="Elective" />
       </div>
     </div>
   );

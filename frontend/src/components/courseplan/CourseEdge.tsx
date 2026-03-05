@@ -1,7 +1,7 @@
 import type { EdgeProps } from '@xyflow/react';
 import { BaseEdge, getBezierPath, Position } from '@xyflow/react';
-import type { ConnectionType } from '../types';
-import { COLOURS } from "../utils/colours";
+import type { ConnectionType } from '../../types';
+import { COLOURS } from "../../utils/colours";
 
 export interface CourseEdgeData extends Record<string, unknown> {
   connectionType?: ConnectionType;

@@ -56,7 +56,7 @@ def parse_requirements(requirement_line):
 
     # Remove "Requirements:" prefix if present
     text = re.sub(r'^\s*Requirements?\s*:\s*', '', requirement_line, flags=re.IGNORECASE).strip()
-    
+
     # Convert square brackets to parentheses
     text = text.replace('[', '(').replace(']', ')')
 
@@ -222,8 +222,3 @@ def scrape_artsci_courses():
             time.sleep(10)
 
     return degree_info
-
-
-
-if __name__ == "__main__":
-    scrape_artsci_courses()

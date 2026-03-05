@@ -1,3 +1,6 @@
+"""
+Parses course prerequisites
+"""
 from enum import Enum, auto
 from itertools import product
 import re

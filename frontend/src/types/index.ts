@@ -1,14 +1,12 @@
 // src/types/index.ts
 
 
-//************Potentially Remove IN PROGRESS and LOCKED */
 export const CourseStatus = {
   REQUIRED: 'required',
   CHOICE: 'choice',
+  SELECTED_ELECTIVE: 'selected_elective',
   COMPLETED: 'completed',
-  IN_PROGRESS: 'in_progress',
   AVAILABLE: 'available',
-  LOCKED: 'locked',
 } as const;
 
 export type CourseStatus =
@@ -47,8 +45,8 @@ export interface CourseChoice {
 
 export interface CourseConnection {
   id: string;
-  from: string;
-  to: string;
+  from_course: string;
+  to_course: string;
   type: ConnectionType;
 }
 
