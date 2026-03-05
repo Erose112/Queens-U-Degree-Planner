@@ -1,8 +1,9 @@
 """
 Query helpers for course data from the database.
 """
-
 from __future__ import annotations
+
+import re
 
 from sqlalchemy.orm import Session, selectinload, joinedload
 
@@ -72,3 +73,49 @@ def get_course_with_exclusions(db: Session, course_id: int) -> Course | None:
         .filter(Course.course_id == course_id)
         .one_or_none()
     )
+
+
+
+def get_free_electives_by_level(
+    db: Session,
+    level: int,
+    exclude: set[str],
+    limit: int = 20,
+) -> list[Course]:
+    """
+    Return courses at the given level (e.g. 100 = course codes 100-199)
+    that are not in the exclude set and have no prerequisites.
+    """
+    has_prereqs = (
+        db.query(PrerequisiteSet.course_id)
+        .distinct()
+        .subquery()
+    )
+
+    # Fetch all courses with no prerequisites, excluding already-scheduled ones
+    candidates = (
+        db.query(Course)
+        .filter(
+            ~Course.course_code.in_(exclude),
+            ~Course.course_id.in_(has_prereqs),
+        )
+        .order_by(Course.course_code)
+        .all()
+    )
+
+    # Filter by level in Python using the same logic as course_level_floor
+    level_min = level
+    level_max = level + 99
+
+    results = []
+    for course in candidates:
+        match = re.search(r'(\d+)$', course.course_code)
+        if not match:
+            continue
+        course_num = int(match.group(1))
+        if level_min <= course_num <= level_max:
+            results.append(course)
+        if len(results) >= limit:
+            break
+
+    return results

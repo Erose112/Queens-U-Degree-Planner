@@ -14,7 +14,7 @@ export const Legend = () => {
         <LegendItem colour={COLOURS.brightBlue} label="Completed" />
         <LegendItem colour={COLOURS.red} label="Required" />
         <LegendItem colour={COLOURS.yellow} label="Choice" />
-        <LegendItem colour={COLOURS.orange} label="Elective" />
+        <LegendItem colour={COLOURS.green} label="Elective" />
       </div>
     </div>
   );

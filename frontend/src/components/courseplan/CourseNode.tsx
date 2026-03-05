@@ -20,7 +20,7 @@ export const CourseNode = memo(({ data }: NodeProps<Node<CourseNodeData, 'course
     : isChoice
       ? COLOURS.yellow
       : isElective
-        ? COLOURS.orange
+        ? COLOURS.green
         : COLOURS.red;
 
   const hasIncoming = data.incomingIds.length > 0;

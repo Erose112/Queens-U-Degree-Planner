@@ -7,7 +7,8 @@ export const COLOURS = {
     white: "#ffffff",
     grey: "#d1d3d4",
     darkGrey: "#808285",
-    black: "#000000"
+    black: "#000000",
+    green: "#2e7d32",
 } as const;
   
 export type ColourKey = keyof typeof COLOURS;
