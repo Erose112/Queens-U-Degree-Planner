@@ -1,5 +1,5 @@
 import type { Node, Edge } from '@xyflow/react';
-import type { CoursePlan, Course, ConnectionType, CourseNodeData, CourseChoiceNodeData } from '../types';
+import type { CoursePlan, Course, CourseNodeData } from '../types';
 import type { CourseEdgeData } from '../components/courseplan/CourseEdge';
 import {
   YEAR_BAR_WIDTH,
@@ -10,7 +10,6 @@ import {
   HORIZONTAL_GAP,
   COLUMN_GAP,
   YEAR_BAR_COURSE_OFFSET,
-  CHOICE_SECTION_OFFSET
 } from './coursePlanLayout';
 
 export interface YearSection {
@@ -19,26 +18,17 @@ export interface YearSection {
   height: number;
 }
 
-const MAX_COLS = 5; // Maximum columns (course chains) per row before wrapping
+const MAX_COLS = 5;
 
-// Helper: Calculate grid dimensions for choice options
-function getChoiceGridDimensions(numOptions: number) {
-  const cols = Math.ceil(Math.sqrt(numOptions));
-  const rows = Math.ceil(numOptions / cols);
-  const width = cols * (NODE_WIDTH + 10);
-  const height = rows * (NODE_HEIGHT + 10) + (rows - 1) * 20;
-  return { cols, rows, width, height };
-}
 
 export function convertCoursePlanToFlow(plan: CoursePlan): {
-  nodes: Node<CourseNodeData | CourseChoiceNodeData, string>[];
+  nodes: Node<CourseNodeData, string>[];
   edges: Edge<CourseEdgeData, 'courseEdge'>[];
   yearSections: YearSection[];
 } {
-  const nodes: Node<CourseNodeData | CourseChoiceNodeData, string>[] = [];
+  const nodes: Node<CourseNodeData, string>[] = [];
   const edges: Edge<CourseEdgeData, 'courseEdge'>[] = [];
 
-  // Pre-compute incoming and outgoing neighbour IDs per node
   const incomingMap = new Map<string, string[]>();
   const outgoingMap = new Map<string, string[]>();
 
@@ -49,9 +39,9 @@ export function convertCoursePlanToFlow(plan: CoursePlan): {
     incomingMap.get(conn.to_course)!.push(conn.from_course);
   }
 
+
   const years = new Set<number>();
   plan.courses.forEach((c) => years.add(c.year));
-  plan.choices.forEach((c) => years.add(c.year));
   const sortedYears = Array.from(years).sort((a, b) => a - b);
 
   const yearSections: YearSection[] = [];
@@ -62,30 +52,8 @@ export function convertCoursePlanToFlow(plan: CoursePlan): {
       .filter((c) => c.year === year)
       .sort((a, b) => a.position - b.position);
 
-    let yearChoices = plan.choices
-      .filter((c) => c.year === year)
-      .sort((a, b) => a.position - b.position);
-
-    // -----------------------------------------------------------------------
-    // Filter out choice options that are already rendered as standalone courses
-    // -----------------------------------------------------------------------
     const yearCourseIds = new Set(yearCourses.map((c) => c.id));
-    yearChoices = yearChoices
-      .map((choice) => ({
-        ...choice,
-        // Remove options that already exist as standalone course nodes
-        options: choice.options.filter((opt) => !yearCourseIds.has(opt.id)),
-      }))
-      // Skip entire choice groups if all options were filtered out
-      .filter((choice) => choice.options.length > 0);
 
-    // -----------------------------------------------------------------------
-    // Build columns for this year.
-    // A "column" is a vertical chain: the top course has no same-year
-    // prerequisite, and each subsequent course is a same-year successor.
-    // -----------------------------------------------------------------------
-
-    // Find courses that have NO incoming edge from within the same year
     const columnRoots = yearCourses.filter((c) => {
       const incoming = incomingMap.get(c.id) ?? [];
       return !incoming.some((id) => yearCourseIds.has(id));
@@ -109,7 +77,6 @@ export function convertCoursePlanToFlow(plan: CoursePlan): {
       columns.push(column);
     }
 
-    // Any courses not placed get their own column
     for (const course of yearCourses) {
       if (!placed.has(course.id)) {
         columns.push([course]);
@@ -117,36 +84,21 @@ export function convertCoursePlanToFlow(plan: CoursePlan): {
       }
     }
 
-    // -----------------------------------------------------------------------
-    // Split columns into rows of MAX_COLS
-    // -----------------------------------------------------------------------
     const columnRows: Column[][] = [];
     for (let i = 0; i < columns.length; i += MAX_COLS) {
       columnRows.push(columns.slice(i, i + MAX_COLS));
     }
 
-    // Calculate total course content height: sum of each row's tallest column
-    const courseContentHeight = columnRows.reduce((totalH, rowCols, rowIndex) => {
+    const contentHeight = columnRows.reduce((totalH, rowCols, rowIndex) => {
       const rowMaxLen = Math.max(1, ...rowCols.map((col) => col.length));
       const rowHeight = rowMaxLen * NODE_HEIGHT + (rowMaxLen - 1) * COLUMN_GAP;
-      // Add row padding between rows (not after the last row)
       return totalH + rowHeight + (rowIndex < columnRows.length - 1 ? ROW_PADDING : 0);
     }, 0);
 
-    // Calculate choice height (for all choices stacked vertically)
-    const allChoicesHeight = yearChoices.reduce((totalH, choice, idx) => {
-      const { height } = getChoiceGridDimensions(choice.options.length);
-      return totalH + height + (idx < yearChoices.length - 1 ? COLUMN_GAP : 0);
-    }, 0);
-
-    const contentHeight = Math.max(courseContentHeight, allChoicesHeight);
     const sectionHeight = contentHeight + YEAR_SECTION_PADDING * 2;
 
     yearSections.push({ year, y: currentY, height: sectionHeight });
 
-    // -----------------------------------------------------------------------
-    // Position courses row by row
-    // -----------------------------------------------------------------------
     const courseStartX = YEAR_BAR_WIDTH + YEAR_BAR_COURSE_OFFSET;
     let rowY = currentY + YEAR_SECTION_PADDING;
 
@@ -177,53 +129,30 @@ export function convertCoursePlanToFlow(plan: CoursePlan): {
         x += NODE_WIDTH + HORIZONTAL_GAP;
       }
 
-      // Advance Y by this row's height plus inter-row padding (except after last row)
       const isLastRow = rowIndex === columnRows.length - 1;
       rowY += rowMaxLen * NODE_HEIGHT + (rowMaxLen - 1) * COLUMN_GAP + (isLastRow ? 0 : ROW_PADDING);
     }
-
-    // -----------------------------------------------------------------------
-    // Place choices to the right of the courses
-    // -----------------------------------------------------------------------
-    // Calculate the actual width used by courses (based on the widest row)
-    let maxCourseWidth = 0;
-    for (const rowCols of columnRows) {
-      const rowWidth = rowCols.length * (NODE_WIDTH + HORIZONTAL_GAP) - HORIZONTAL_GAP;
-      maxCourseWidth = Math.max(maxCourseWidth, rowWidth);
-    }
-    
-    const choiceStartX = courseStartX + maxCourseWidth + CHOICE_SECTION_OFFSET;
-    let choiceX = choiceStartX;
-    let choiceY = currentY + YEAR_SECTION_PADDING;
-
-    for (const choice of yearChoices) {
-      const { width, height } = getChoiceGridDimensions(choice.options.length);
-      
-      nodes.push({
-        id: choice.id,
-        type: 'courseChoice',
-        position: { x: choiceX, y: choiceY },
-        data: {
-          choice,
-          incomingIds: incomingMap.get(choice.id) ?? [],
-          outgoingIds: outgoingMap.get(choice.id) ?? [],
-        } satisfies CourseChoiceNodeData,
-        draggable: false,
-        measured: { width, height },
-        width: width,
-        height: height,
-      });
-      
-      choiceY += height + COLUMN_GAP;
-    }
-
     currentY += sectionHeight;
   }
 
-  // -------------------------------------------------------------------------
-  // Edges
-  // -------------------------------------------------------------------------
+  // Build a year lookup for all nodes
+  const nodeYearMap = new Map<string, number>();
+  plan.courses.forEach((c) => nodeYearMap.set(c.id, c.year));
+
+  // Edges — attach gapY, edgeIndex, totalEdges for clean routing in CourseEdge
   for (const conn of plan.connections) {
+    const sourceYear = nodeYearMap.get(conn.from_course) ?? sortedYears[0];
+    const sourceSection = yearSections.find((s) => s.year === sourceYear);
+
+    // gapY sits in the whitespace below the source year band,
+    // exactly halfway between the bottom of that band and the top of the next
+    const sourceSectionBottom = sourceSection
+      ? sourceSection.y + sourceSection.height
+      : 0;
+    const nextSection = yearSections.find((s) => s.year > sourceYear);
+    const nextSectionTop = nextSection ? nextSection.y : sourceSectionBottom + 40;
+    const gapY = (sourceSectionBottom + nextSectionTop) / 2;
+
     edges.push({
       id: conn.id,
       source: conn.from_course,
@@ -231,7 +160,9 @@ export function convertCoursePlanToFlow(plan: CoursePlan): {
       sourceHandle: 'source',
       targetHandle: `target-${conn.from_course}`,
       type: 'courseEdge',
-      data: { connectionType: conn.type as ConnectionType },
+      data: {
+        gapY,
+      },
     });
   }
 

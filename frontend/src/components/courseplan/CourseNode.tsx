@@ -10,19 +10,18 @@ export const CourseNode = memo(({ data }: NodeProps<Node<CourseNodeData, 'course
   const { course } = data;
 
   const isCompleted = course.status === CourseStatus.COMPLETED;
-  const isChoice = course.status === CourseStatus.CHOICE;
-  const isElective = course.status === CourseStatus.SELECTED_ELECTIVE;
-
-  const handleStyle = { width: 6, height: 6 };
+  const isRequired  = course.status === CourseStatus.REQUIRED;
+  const isChoice    = course.status === CourseStatus.CHOICE;
 
   const borderColour = isCompleted
     ? COLOURS.brightBlue
-    : isChoice
-      ? COLOURS.yellow
-      : isElective
-        ? COLOURS.green
-        : COLOURS.red;
+    : isRequired
+      ? COLOURS.red
+      : isChoice
+        ? COLOURS.yellow
+        : COLOURS.green;
 
+  const handleStyle = { width: 6, height: 6 };
   const hasIncoming = data.incomingIds.length > 0;
   const hasOutgoing = data.outgoingIds.length > 0;
 
@@ -52,11 +51,21 @@ export const CourseNode = memo(({ data }: NodeProps<Node<CourseNodeData, 'course
           height: NODE_HEIGHT,
           boxSizing: 'border-box',
           borderColor: borderColour,
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+          boxShadow: isChoice
+            ? `0 2px 8px rgba(0,0,0,0.08), inset 0 0 0 1px ${COLOURS.yellow}22`
+            : '0 2px 8px rgba(0,0,0,0.08)',
         }}
       >
         <div className="font-bold text-[18px] mb-0.3">{course.code}</div>
         <div className="text-[16px] leading-tight">{course.name}</div>
+        {isChoice && (
+          <div
+            className="absolute top-1.5 right-1.5 text-[10px] font-semibold px-1 py-0.5 rounded"
+            style={{ background: COLOURS.yellow, color: '#000', opacity: 0.85 }}
+          >
+            ELECTIVE
+          </div>
+        )}
       </div>
 
       <Handle

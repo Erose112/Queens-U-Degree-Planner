@@ -23,7 +23,7 @@ type NavbarProps = {
           >
             <div className="flex items-center gap-2.5">
               <span className="font-playfair font-bold text-xl tracking-[0.01em]" style={{ color: COLOURS.white }}>
-                Queen's Course Planner
+                Queen's Degree Planner
               </span>
             </div>
             <div className="flex gap-6">

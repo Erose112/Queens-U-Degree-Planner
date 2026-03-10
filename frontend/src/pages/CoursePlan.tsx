@@ -12,7 +12,6 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import { CourseNode } from '../components/courseplan/CourseNode';
-import { CourseChoiceNode } from '../components/courseplan/CourseChoiceNode';
 import { CourseEdge } from '../components/courseplan/CourseEdge';
 import { Legend } from '../components/courseplan/Legend';
 import { YearSideBar } from '../components/courseplan/YearSideBar';
@@ -32,6 +31,9 @@ interface CourseData {
   semester?: string | null;
   is_required?: boolean;
   is_choice?: boolean;
+  group_id?: string | null;
+  group_label?: string | null;
+  group_required?: number;
 }
 
 interface ChoiceOptionData {
@@ -69,7 +71,6 @@ interface PlanResponseData {
 
 const nodeTypes: NodeTypes = {
   course: CourseNode,
-  courseChoice: CourseChoiceNode,
 };
 
 const edgeTypes: EdgeTypes = {
@@ -107,6 +108,7 @@ export default function CoursePlanPage() {
   const [coursePlan, setCoursePlan] = useState<CoursePlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
 
   useEffect(() => {
     if (!programName) {
@@ -176,6 +178,8 @@ export default function CoursePlanPage() {
             units: Math.max(units, 0.5),
             year,
             position,
+            group_id: c.group_id ?? null,
+            group_label: c.group_label ?? null,
             status:
               c.semester === 'Completed'
                 ? CourseStatus.COMPLETED
@@ -183,62 +187,43 @@ export default function CoursePlanPage() {
                 ? CourseStatus.REQUIRED
                 : c.is_choice
                 ? CourseStatus.CHOICE
-                : CourseStatus.SELECTED_ELECTIVE,
+                : CourseStatus.AVAILABLE,
           };
         });
 
-        // Create a map of course codes by year to detect duplicates in choices
-        const courseCodesByYear = new Map<number, Set<string>>();
-        for (const course of mappedCourses) {
-          if (!courseCodesByYear.has(course.year)) {
-            courseCodesByYear.set(course.year, new Set());
-          }
-          courseCodesByYear.get(course.year)!.add(course.id);
-        }
-
         const choicesByYear: Record<number, number> = {};
 
-        // Filter out choice groups that have duplicate courses already rendered
-        const mappedChoices = data.choices
-          .map((ch: ChoiceData, i: number) => {
-            // Clamp year between 1 and 4
-            const year = Math.min(Math.max(ch.year ?? 1, 1), 4);
-            // Start choices after courses in the same year (not at 100)
-            if (choicesByYear[year] === undefined) choicesByYear[year] = coursesByYear[year] ?? 0;
-            const position = choicesByYear[year]++;
+        const mappedChoices = data.choices.map((ch: ChoiceData, i: number) => {
+          // Clamp year between 1 and 4
+          const year = Math.min(Math.max(ch.year ?? 1, 1), 4);
+          // Start choices after courses in the same year (not at 100)
+          if (choicesByYear[year] === undefined) choicesByYear[year] = coursesByYear[year] ?? 0;
+          const position = choicesByYear[year]++;
 
-            // Filter out options that already exist as standalone courses in the same year
-            const courseCodesInYear = courseCodesByYear.get(year) ?? new Set();
-            const filteredOptions = (ch.options ?? []).filter(
-              (o: ChoiceOptionData) => !courseCodesInYear.has(o.course_code ?? '')
-            );
-
-            return {
-              id: ch.choice_id ?? `choice_${i}`,
-              label: ch.label ?? 'OR',
-              year,
-              position,
-              status: CourseStatus.CHOICE,
-              required: ch.required ?? true,
-              options: filteredOptions.map((o: ChoiceOptionData, j: number) => {
-                const units = o.units || 3;
-                if (units <= 0) {
-                  console.warn(`Choice option ${o.course_code} has invalid units: ${units}, defaulting to 3`);
-                }
-                return {
-                  id: o.course_code ?? `option_${j}`,
-                  code: o.course_code ?? `option_${j}`,
-                  name: o.title ?? o.course_code ?? `Option ${j}`,
-                  units: Math.max(units, 0.5),
-                  year,
-                  position: j,
-                  status: CourseStatus.CHOICE,
-                };
-              }),
-            };
-          })
-          // Remove choice groups that have no remaining options after filtering
-          .filter((choice) => choice.options.length > 0);
+          return {
+            id: ch.choice_id ?? `choice_${i}`,
+            label: ch.label ?? 'OR',
+            year,
+            position,
+            status: CourseStatus.CHOICE,
+            required: ch.required ?? true,
+            options: (ch.options ?? []).map((o: ChoiceOptionData, j: number) => {
+              const units = o.units || 3;
+              if (units <= 0) {
+                console.warn(`Choice option ${o.course_code} has invalid units: ${units}, defaulting to 3`);
+              }
+              return {
+                id: o.course_code ?? `option_${j}`,
+                code: o.course_code ?? `option_${j}`,
+                name: o.title ?? o.course_code ?? `Option ${j}`,
+                units: Math.max(units, 0.5),
+                year,
+                position: j,
+                status: CourseStatus.CHOICE,
+              };
+            }),
+          };
+        });
 
         const mappedConnections = data.edges.map((e: EdgeData) => {
           if (!e.from_course || !e.to_course) {
@@ -294,6 +279,20 @@ export default function CoursePlanPage() {
     setEdges(initialEdges);
   }, [initialNodes, initialEdges]);
 
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+
+  const visibleEdges = useMemo(() => {
+    if (!hoveredNodeId) return edges;
+    return edges.map(edge => ({
+      ...edge,
+      style: {
+        ...edge.style,
+        opacity: edge.source === hoveredNodeId || edge.target === hoveredNodeId ? 1 : 0.05,
+      },
+      zIndex: edge.source === hoveredNodeId || edge.target === hoveredNodeId ? 10 : 0,
+    }));
+  }, [edges, hoveredNodeId]);
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
       <p className="text-gray-400 text-lg">Generating your plan...</p>
@@ -323,7 +322,7 @@ export default function CoursePlanPage() {
               </button>
               <div style={{ color: COLOURS.blue, fontFamily: "'Playfair Display', serif" }}>
                 <div className="text-5xl font-black leading-none">Queen's</div>
-                <div className="text-5xl font-semibold leading-tight">Course Planner</div>
+                <div className="text-5xl font-semibold leading-tight">Degree Planner</div>
               </div>
             </div>
           </div>
@@ -336,8 +335,6 @@ export default function CoursePlanPage() {
             <p className="text-m text-gray-400 mt-0.5">{coursePlan.programCode}</p>
             <div className="flex items-center gap-3 mt-1.5 text-s text-gray-400">
               <span>Core: <span className="text-gray-600 font-medium">{coursePlan.coreUnits}u</span></span>
-              <span className="text-gray-200">|</span>
-              <span>Options: <span className="text-gray-600 font-medium">{coursePlan.optionUnits}u</span></span>
               <span className="text-gray-200">|</span>
               <span>Electives: <span className="text-gray-600 font-medium">{coursePlan.electiveUnits}u</span></span>
               <span className="text-gray-200">|</span>
@@ -359,13 +356,15 @@ export default function CoursePlanPage() {
         >
           <ReactFlow
             nodes={nodes}
-            edges={edges}
+            edges={visibleEdges}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
+            onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
+            onNodeMouseLeave={() => setHoveredNodeId(null)}  
             defaultViewport={{ x: YEAR_BAR_WIDTH + YEAR_BAR_COURSE_OFFSET, y: 0, zoom: 1 }}
             nodesDraggable={false}
             nodesConnectable={false}
-            elementsSelectable={false}
+            elementsSelectable={true}
             panOnDrag={false}
             panOnScroll={false}
             zoomOnScroll={false}

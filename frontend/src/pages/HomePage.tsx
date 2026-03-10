@@ -174,7 +174,15 @@ export default function HomePage() {
         setErrors({ program: "Program not found." });
         return;
       }
-  
+
+      // Wait for the API to generate the plan
+      await generatePlan({
+        program_name: selectedProgram,
+        completedCourses: takenCourses,
+        favouriteCourses: favCourses,
+      });
+
+      // Navigate to course-planner once generation is complete
       navigate("/course-planner", {
         state: {
           programName: selectedProgram,
@@ -262,7 +270,7 @@ export default function HomePage() {
         }}
       >
         <p className="animate-fade-up-1 text-[16px] font-bold tracking-[0.12em] uppercase mb-3" style={{ color: COLOURS.red }}>
-          Queen's University · Course Planner
+          Queen's University · Degree Planner
         </p>
 
         <h1
@@ -588,7 +596,7 @@ export default function HomePage() {
               />
 
               {favDropdownOpen && courseCodes.length > 0 && (() => {
-                const matches = filterCourses(favInput, favCourses);
+                const matches = filterCourses(favInput, favCourses).filter(c => takenCourses.includes(c));
                 return (
                   <div style={dropdownContainer(COLOURS.yellow)}>
                     <div

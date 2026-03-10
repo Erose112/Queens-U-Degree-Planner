@@ -31,6 +31,9 @@ export interface Course {
   year: number;
   position: number;
   status: CourseStatus;
+  group_id?: string;
+  group_label?: string;
+  group_required?: number;
 }
 
 export interface CourseChoice {
