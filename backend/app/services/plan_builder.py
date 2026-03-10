@@ -1,11 +1,5 @@
 """
 Plan generation service.
-
-Logic Types (from seeder contract)
------------------------------------
-  LOGIC_REQUIRED        (1) Every course in the section is mandatory.
-  LOGIC_CHOOSE_CREDITS  (2) Accumulate exactly logic_value credits from the section.
-  LOGIC_CHOOSE_COUNT    (3) Choose N courses from the section (reserved / future use).
 """
 from __future__ import annotations
 from typing import NamedTuple
@@ -19,13 +13,10 @@ from sqlalchemy.orm import Session
 from app.queries.course_queries import get_course_by_code, get_free_electives_by_level
 from app.queries.program_queries import get_program_with_sections_and_courses
 from app.schemas.plan import (
-    ChoiceNode,
-    ChoiceOption,
     CourseEdge,
     CourseNode,
     PlanResponse,
 )
-from app.services.recommendation_services import get_highest_scored_courses
 from app.services.recommendation_services import get_recommendations_for_program
 from app.models.course import Course
 from app.models.prerequisite import PrerequisiteSet, PrerequisiteSetCourse
@@ -34,18 +25,17 @@ from app.models.prerequisite import PrerequisiteSet, PrerequisiteSetCourse
 logger = logging.getLogger(__name__)
 
 CREDITS_PER_YEAR = 30
-SCHEDULE_BUFFER_CREDITS = 20
 MAX_YEARS = 4
 TOTAL_PLAN_CREDITS = 120
+DEFAULT_CREDITS = 3.0
 
-# Logic type constants — must match seeder contract
+# Logic type constants must match seeder contract
 LOGIC_REQUIRED = 1
 LOGIC_CHOOSE_CREDITS = 2
 LOGIC_CHOOSE_COUNT = 3
 
 
 # Data structures for prereq logic
-
 class PrerequisiteConstraint(NamedTuple):
     """
     Represents a single prerequisite requirement.
@@ -66,7 +56,6 @@ class PrerequisiteRequirement(NamedTuple):
 
 
 # Cycle detection
-
 def has_cycle_in_graph(prereq_requirements: dict[str, PrerequisiteRequirement]) -> bool:
     """
     Detect cycles in the prerequisite graph using depth-first search.
@@ -109,7 +98,6 @@ def has_cycle_in_graph(prereq_requirements: dict[str, PrerequisiteRequirement]) 
 
 
 # Helper functions
-
 def course_level_floor(course_code: str) -> int:
     """
     Derive the earliest year a course should be scheduled from its course code.
@@ -144,17 +132,17 @@ def are_prerequisites_met(
 
 
 # Main entry point
-
 def generate_plan(
     db: Session,
     program_id: int,
     completed_courses: list[str],
-    interests: list[str],
+    favourites: list[str],
+    interested: list[str]
 ) -> PlanResponse | None:
 
     logger.info(
-        "[generate_plan] START — program_id=%d | completed=%d course(s) | interests=%s",
-        program_id, len(completed_courses), interests,
+        "[generate_plan] START — program_id=%d | completed=%d course(s) | favourites=%s | interested=%s",
+        program_id, len(completed_courses), favourites, interested,
     )
 
     # Get program data
@@ -171,11 +159,11 @@ def generate_plan(
     completed_set: set[str] = set(completed_courses)
 
     required_codes: list[str] = []
-    choice_groups: dict[str, list[str]] = defaultdict(list)
     elective_codes: list[str] = []
 
     core_credits = 0.0
     elective_credits = 0.0
+    
 
     # Section parsing
     for section in program.sections:
@@ -189,8 +177,8 @@ def generate_plan(
         n_courses = len(section_course_list)
 
         avg_credits = (
-            sum(float(c.credits or 3) for c in section_course_list) / n_courses
-            if n_courses > 0 else 3.0
+            sum(float(c.credits or DEFAULT_CREDITS) for c in section_course_list) / n_courses
+            if n_courses > 0 else DEFAULT_CREDITS
         )
 
         logger.debug(
@@ -202,7 +190,7 @@ def generate_plan(
         if logic_type == LOGIC_REQUIRED:
             # Complete ALL — every course is required/core
             for course in section_course_list:
-                units = float(course.credits or 3)
+                units = float(course.credits or DEFAULT_CREDITS)
                 if course.course_code not in required_codes:
                     required_codes.append(course.course_code)
                 core_credits += units
@@ -213,41 +201,58 @@ def generate_plan(
             )
 
         elif logic_type == LOGIC_CHOOSE_CREDITS:
-            # Accumulate logic_value credits from the candidate pool
             credits_to_pick = float(logic_value or 0)
-            for course in section_course_list:
-                if course.course_code not in elective_codes:
-                    elective_codes.append(course.course_code)
+            section_codes = [c.course_code for c in section_course_list]
+            
+            # Still add to flat pool for backward compat with rank_electives
+            for code in section_codes:
+                if code not in elective_codes:
+                    elective_codes.append(code)
+            
             elective_credits += credits_to_pick
-            logger.debug(
-                "[generate_plan] Section %d (CHOOSE_CREDITS, need %.1f cr) → "
-                "%d candidate(s) added to elective pool. Running elective_credits=%.1f",
-                section.section_id, credits_to_pick, n_courses, elective_credits,
-            )
 
         elif logic_type == LOGIC_CHOOSE_COUNT:
-            # Choose N courses resolved by recommendation system
             n_to_pick = logic_value or 1
             if n_to_pick >= n_courses:
-                # Must pick all, treat as core units
+                # Must pick all, treat as core
                 for course in section_course_list:
-                    units = float(course.credits or 3)
+                    units = float(course.credits or DEFAULT_CREDITS)
                     if course.course_code not in required_codes:
                         required_codes.append(course.course_code)
                     core_credits += units
-                logger.debug(
-                    "[generate_plan] Section %d (CHOOSE_COUNT pick-%d of %d → all required) "
-                    "→ added %d core course(s). Running core_credits=%.1f",
-                    section.section_id, n_to_pick, n_courses, n_courses, core_credits,
-                )
             else:
-                for course in section_course_list:
-                    choice_groups[str(section.section_id)].append(course.course_code)
-                logger.debug(
-                    "[generate_plan] Section %d (CHOOSE_COUNT pick-%d of %d → choice group) "
-                    "→ %d candidate(s) deferred for resolution.",
-                    section.section_id, n_to_pick, n_courses, n_courses,
+                # Rank candidates by recommendation score and pick top n
+                section_codes = [c.course_code for c in section_course_list]
+                seed_codes_early = list(completed_set) + favourites + interested
+
+                ranked = get_recommendations_for_program(
+                    db,
+                    program_id=program_id,
+                    completed_course_codes=seed_codes_early,
+                    top_k=len(section_codes),
                 )
+
+                ranked_section_codes = [
+                    c.course_code for c, _ in ranked
+                    if c.course_code in set(section_codes)
+                ] if ranked else []
+
+                # Fall back to original order if recommender returns nothing
+                unranked = [c for c in section_codes if c not in set(ranked_section_codes)]
+                ordered = ranked_section_codes + unranked
+
+                picked = ordered[:n_to_pick]
+                for code in picked:
+                    if code not in required_codes:
+                        required_codes.append(code)
+                    course_obj = get_course_by_code(db, code)
+                    core_credits += float(course_obj.credits or DEFAULT_CREDITS) if course_obj else DEFAULT_CREDITS
+
+                logger.debug(
+                    "[generate_plan] Section %d (CHOOSE_COUNT pick-%d of %d) → picked: %s",
+                    section.section_id, n_to_pick, n_courses, picked,
+                )
+
 
         else:
             logger.warning(
@@ -258,135 +263,65 @@ def generate_plan(
 
     logger.info(
         "[generate_plan] Section parsing complete — required_codes=%d | "
-        "choice_groups=%d | elective_candidates=%d | "
+        "elective_candidates=%d | "
         "core_credits=%.1f | elective_credits=%.1f",
-        len(required_codes), len(choice_groups), len(elective_codes),
+        len(required_codes), len(elective_codes),
         core_credits, elective_credits,
     )
 
 
-    # Resolve choice groups (CHOOSE_COUNT sections)
-    resolved_choices: list[str] = []
-    choice_nodes: list[ChoiceNode] = []
-    picks_per_group: dict[str, list[str]] = {}
-
-    logger.info("[generate_plan] Resolving %d choice group(s).", len(choice_groups))
-
-    for group_idx, (group_id, group_codes) in enumerate(choice_groups.items()):
-        section_id = int(group_id)
-        section = next(
-            (s for s in program.sections if s.section_id == section_id), None
-        )
-        logic = section.logic_rules[0] if section and section.logic_rules else None
-        n_required = logic.logic_value if logic and logic.logic_value else 1
-
-        logger.debug(
-            "[generate_plan] Choice group '%s' (section %d) — %d candidate(s), need %d.",
-            group_id, section_id, len(group_codes), n_required,
-        )
-
-        ranked = get_highest_scored_courses(db, group_codes, top_k=len(group_codes))
-        if not ranked:
-            logger.debug(
-                "[generate_plan] No scored courses for group '%s'; falling back to raw lookup.",
-                group_id,
-            )
-            ranked = [
-                (get_course_by_code(db, code), 0.0)
-                for code in group_codes
-                if get_course_by_code(db, code)
-            ]
-
-        options = [
-            ChoiceOption(
-                course_code=c.course_code,
-                title=c.title or "",
-                units=float(c.credits) if c.credits else None,
-            )
-            for c, _ in ranked
-            if c is not None
-        ]
-
-        picked: list[str] = []
-        for option in options[:n_required]:
-            if option.course_code not in required_codes:
-                resolved_choices.append(option.course_code)
-                picked.append(option.course_code)
-
-        # Store picks immediately — no reconstruction needed later
-        picks_per_group[group_id] = picked
-
-        logger.debug(
-            "[generate_plan] Choice group '%s' resolved → picked: %s", group_id, picked,
-        )
-
-        choice_nodes.append(
-            ChoiceNode(
-                choice_id=f"choice_{group_id}",
-                label=f"Pick {n_required} of {len(options)}",
-                year=0,
-                position=group_idx,
-                required=True,
-                options=options,
-            )
-        )
-
-    logger.info(
-        "[generate_plan] Choice resolution complete — resolved_choices=%d | choice_nodes=%d",
-        len(resolved_choices), len(choice_nodes),
-    )
-
-    # Calculate actual choice group credits
-    choice_group_credits: dict[str, float] = {}
-    for group_id, picked_codes in picks_per_group.items():
-        actual_credits = sum(
-            float(get_course_by_code(db, code).credits or 3)
-            for code in picked_codes
-            if get_course_by_code(db, code)
-        )
-        choice_group_credits[group_id] = actual_credits
-        logger.debug(
-            "[generate_plan] Choice group '%s' actual credits: %.1f (courses: %s)",
-            group_id, actual_credits, picked_codes,
-        )
-
     # Compute credit leftovers with accurate values
     required_credits = sum(
-        float(get_course_by_code(db, c).credits or 3)
+        float(course.credits or DEFAULT_CREDITS)
         for c in required_codes
-        if get_course_by_code(db, c)
+        if (course := get_course_by_code(db, c)) is not None
     )
-    actual_choice_credits = sum(choice_group_credits.values())
     completed_required_credits = sum(
-        float(course.credits or 3)
+        float(course.credits or DEFAULT_CREDITS)
         for c in completed_set
         if c in set(required_codes)
         if (course := get_course_by_code(db, c)) is not None
     )
 
     # Credits of courses added to plan
-    committed_credits = required_credits + actual_choice_credits - completed_required_credits
+    committed_credits = required_credits - completed_required_credits
 
-    # Use whichever is larger: the gap implied by the 120cr total, or the
-    # explicit elective credit requirement declared by CHOOSE_CREDITS sections
+    elective_pool_credits = sum(
+        float(course.credits or DEFAULT_CREDITS)
+        for c in elective_codes
+        if (course := get_course_by_code(db, c)) is not None
+    )
+
     remaining_credit_gap = max(
-        TOTAL_PLAN_CREDITS - committed_credits,
+        min(TOTAL_PLAN_CREDITS - committed_credits, elective_pool_credits),
         elective_credits,
         0.0,
     )
 
     logger.info(
         "[generate_plan] Credit budget — total_target=%d | required=%.1f | "
-        "choice_groups=%.1f | completed_required=%.1f | committed=%.1f | "
+        " completed_required=%.1f | committed=%.1f | "
         "gap_for_electives=%.1f (section_elective_req=%.1f)",
-        TOTAL_PLAN_CREDITS, required_credits, actual_choice_credits,
+        TOTAL_PLAN_CREDITS, required_credits,
         completed_required_credits, committed_credits,
         remaining_credit_gap, elective_credits,
     )
 
 
+    interested_to_schedule: set[str] = set()
+    for course in interested:
+        course_obj = get_course_by_code(db, course)  # null check
+        if not course_obj:
+            logger.warning("[generate_plan] Interested course '%s' not found in DB; skipping.", course)
+            continue
+        credit = float(course_obj.credits or DEFAULT_CREDITS)
+        if course not in completed_set and course not in set(required_codes) and remaining_credit_gap - credit >= 0:
+            interested_to_schedule.add(course)
+            remaining_credit_gap -= credit
+
+
     # Rank / select electives
-    seed_codes = list(completed_set) + interests
+    seed_codes = list(completed_set) + favourites
 
     logger.info(
         "[generate_plan] Ranking electives — candidates=%d | seed_codes=%d | "
@@ -398,6 +333,7 @@ def generate_plan(
         db, elective_codes, seed_codes, program_id, completed_courses, remaining_credit_gap
     )
 
+
     logger.info(
         "[generate_plan] rank_electives returned %d course(s): %s",
         len(ranked_electives), ranked_electives,
@@ -406,19 +342,18 @@ def generate_plan(
 
     # Build deduplicated schedule list and enforce 120cr hard limit
     required_set: set[str] = set(required_codes)
-    resolved_set: set[str] = set(resolved_choices)
 
     all_to_schedule: list[str] = []
     seen: set[str] = set()
     scheduled_credits = 0.0
 
 
-    for code in required_codes + resolved_choices + ranked_electives:
+    for code in required_codes + list(interested_to_schedule) + ranked_electives:
         if code in seen or code in completed_set:
             continue
         course = get_course_by_code(db, code)
-        course_cr = float(course.credits or 3) if course else 3.0
-        if scheduled_credits + course_cr > TOTAL_PLAN_CREDITS + SCHEDULE_BUFFER_CREDITS:
+        course_cr = float(course.credits or DEFAULT_CREDITS) if course else DEFAULT_CREDITS
+        if scheduled_credits + course_cr > TOTAL_PLAN_CREDITS:
             break
         seen.add(code)
         all_to_schedule.append(code)
@@ -427,19 +362,19 @@ def generate_plan(
     logger.info(
         "[generate_plan] Schedule list built — total_to_schedule=%d | "
         "scheduled_credits=%.1f / %d "
-        "(required=%d | resolved=%d | ranked_electives=%d, excl. %d completed)",
+        "(required=%d | ranked_electives=%d, excl. %d completed)",
         len(all_to_schedule), scheduled_credits, TOTAL_PLAN_CREDITS,
-        len(required_codes), len(resolved_choices), len(ranked_electives), len(completed_set),
+        len(required_codes), len(ranked_electives), len(completed_set),
     )
 
     credit_cache: dict[str, float] = {
-        code: float(course.credits or 3)
+        code: float(course.credits or DEFAULT_CREDITS)
         for code in all_to_schedule
         if (course := get_course_by_code(db, code)) is not None
     }
 
     year1_credits = sum(
-        credit_cache.get(code, 3.0) for code in all_to_schedule
+        credit_cache.get(code, DEFAULT_CREDITS) for code in all_to_schedule
         if course_level_floor(code) == 1
     )
 
@@ -454,9 +389,11 @@ def generate_plan(
             db, level=100, exclude=set(all_to_schedule) | completed_set
         )
         for course in free_electives:
-            if shortfall <= 0:
+            units = float(course.credits or DEFAULT_CREDITS)
+            if shortfall <= 0 or scheduled_credits + units > TOTAL_PLAN_CREDITS:
                 break
-            units = float(course.credits or 3)
+
+            scheduled_credits += units
             all_to_schedule.append(course.course_code)
             seen.add(course.course_code)
             shortfall -= units
@@ -488,19 +425,17 @@ def generate_plan(
 
     # Schedule
     logger.info("[generate_plan] Running scheduler.")
-    course_nodes, updated_choice_nodes, edges = schedule(
+    course_nodes, edges = schedule(
         db,
         codes_to_schedule=all_to_schedule,
         prereq_map=prereq_map,
         full_edge_map=full_edge_map,
         completed_set=completed_set,
         required_set=required_set,
-        choice_nodes=choice_nodes,
-        resolved_choices=resolved_set,
     )
     logger.info(
-        "[generate_plan] Scheduler returned — course_nodes=%d | edges=%d | choice_nodes=%d",
-        len(course_nodes), len(edges), len(updated_choice_nodes),
+        "[generate_plan] Scheduler returned — course_nodes=%d | edges=%d",
+        len(course_nodes), len(edges),
     )
 
     # Credit totals computed from actual scheduled courses
@@ -510,9 +445,9 @@ def generate_plan(
     for node in course_nodes:
         if node.semester == "Completed":
             continue
-        units = node.units or 3.0
+        units = node.units or DEFAULT_CREDITS
         # Required courses and mandatory choice picks both count as core
-        if node.is_required or node.is_choice:
+        if node.is_required:
             actual_core_credits += units
         else:
             actual_elective_credits += units
@@ -535,14 +470,12 @@ def generate_plan(
         core_units=round(actual_core_credits, 1),
         elective_units=round(actual_elective_credits, 1),
         courses=course_nodes,
-        choices=updated_choice_nodes,
         edges=edges,
     )
 
 
 
 # Elective ranking
-
 def rank_electives(
     db: Session,
     elective_codes: list[str],
@@ -572,13 +505,9 @@ def rank_electives(
     for code in elective_codes:
         course = get_course_by_code(db, code)
         if course:
-            elective_credits_map[code] = float(course.credits or 3.0)
+            elective_credits_map[code] = float(course.credits or DEFAULT_CREDITS)
         else:
-            logger.warning(
-                "[rank_electives] Elective course '%s' not found in DB; defaulting to 3.0 credits.",
-                code,
-            )
-            elective_credits_map[code] = 3.0
+            elective_credits_map[code] = DEFAULT_CREDITS
 
     logger.debug("[rank_electives] Credit map built: %s", elective_credits_map)
 
@@ -614,10 +543,10 @@ def rank_electives(
         if credits_accumulated >= elective_credits_required:
             break
         selected_electives.append(code)
-        credits_accumulated += elective_credits_map.get(code, 3.0)
+        credits_accumulated += elective_credits_map.get(code, DEFAULT_CREDITS)
         logger.debug(
             "[rank_electives] Selected '%s' (%.1f cr) — accumulated=%.1f / required=%.1f",
-            code, elective_credits_map.get(code, 3.0), credits_accumulated,
+            code, elective_credits_map.get(code, DEFAULT_CREDITS), credits_accumulated,
             elective_credits_required,
         )
 
@@ -754,7 +683,7 @@ def _filter_to_nearest_prereq_edges(
         nearest_gap = dest_year - placement.get(sorted_incoming[0].from_course, 0)
         for edge in sorted_incoming:
             gap = dest_year - placement.get(edge.from_course, 0)
-            if gap <= nearest_gap:
+            if gap == nearest_gap:
                 result.append(edge)
 
     return result
@@ -771,9 +700,7 @@ def schedule(
     full_edge_map: dict[str, set[str]],
     completed_set: set[str],
     required_set: set[str],
-    choice_nodes: list[ChoiceNode],
-    resolved_choices: set[str],
-) -> tuple[list[CourseNode], list[ChoiceNode], list[CourseEdge]]:
+) -> tuple[list[CourseNode], list[CourseEdge]]:
     """
     Schedule courses into years 1 MAX_YEARS respecting:
       1. Prerequisite ordering
@@ -782,9 +709,9 @@ def schedule(
     """
     logger.info(
         "[schedule] START — courses_to_schedule=%d | completed=%d | "
-        "required=%d | resolved_choices=%d",
+        "required=%d",
         len(codes_to_schedule), len(completed_set),
-        len(required_set), len(resolved_choices),
+        len(required_set),
     )
 
     placed: set[str] = set(completed_set)
@@ -796,7 +723,7 @@ def schedule(
     credit_cache: dict[str, float] = {}
     for code in codes_to_schedule:
         course = get_course_by_code(db, code)
-        credit_cache[code] = float(course.credits or 3) if course else 3.0
+        credit_cache[code] = float(course.credits or DEFAULT_CREDITS) if course else DEFAULT_CREDITS
 
     course_nodes: list[CourseNode] = []
     placement: dict[str, int] = {}
@@ -834,7 +761,7 @@ def schedule(
                 eligible = list(remaining)
 
         for code in eligible:
-            course_credits = credit_cache.get(code, 3.0)
+            course_credits = credit_cache.get(code, DEFAULT_CREDITS)
 
             if credits_used + course_credits > CREDITS_PER_YEAR:
                 if year < MAX_YEARS:
@@ -866,7 +793,6 @@ def schedule(
                 continue
 
             is_required = code in required_set
-            is_choice = code in resolved_choices
 
             course_nodes.append(
                 CourseNode(
@@ -876,9 +802,9 @@ def schedule(
                     year=year,
                     semester=None,
                     is_required=is_required,
-                    is_choice=is_choice,
                 )
             )
+
             placement[code] = year
             placed.add(code)
             remaining.remove(code)
@@ -886,8 +812,8 @@ def schedule(
 
             logger.debug(
                 "[schedule] Placed '%s' in year %d "
-                "(is_required=%s, is_choice=%s, credits=%.1f, running=%.1f)",
-                code, year, is_required, is_choice, course_credits, credits_used,
+                "(is_required=%s,, credits=%.1f, running=%.1f)",
+                code, year, is_required, course_credits, credits_used,
             )
 
     if remaining:
@@ -924,29 +850,6 @@ def schedule(
     logger.info("[schedule] Built %d edge(s).", len(edges))
 
 
-    # Update ChoiceNode years
-    updated_choice_nodes: list[ChoiceNode] = []
-    for cn in choice_nodes:
-        resolved_year = 1
-        if cn.options:
-            first_code = cn.options[0].course_code
-            if first_code and first_code in placement:
-                resolved_year = min(placement[first_code], MAX_YEARS)
-        logger.debug(
-            "[schedule] ChoiceNode '%s' assigned to year %d.", cn.choice_id, resolved_year,
-        )
-        updated_choice_nodes.append(
-            ChoiceNode(
-                choice_id=cn.choice_id,
-                label=cn.label,
-                year=resolved_year,
-                position=cn.position,
-                required=cn.required,
-                options=cn.options,
-            )
-        )
-
-
     # Append completed course nodes
     for code in completed_set:
         course = get_course_by_code(db, code)
@@ -967,7 +870,7 @@ def schedule(
             )
 
     logger.info(
-        "[schedule] DONE — course_nodes=%d | edges=%d | choice_nodes=%d",
-        len(course_nodes), len(edges), len(updated_choice_nodes),
+        "[schedule] DONE — course_nodes=%d | edges=%d ",
+        len(course_nodes), len(edges),
     )
-    return course_nodes, updated_choice_nodes, edges
+    return course_nodes, edges

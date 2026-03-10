@@ -18,6 +18,8 @@ class CourseNode(BaseModel):
     semester: str | None = None
     is_required: bool
     is_choice: bool = False  # True if course is from a choice group
+    group_id: str | None = None      # e.g. "section_412"
+    group_label: str | None = None   # e.g. "Pick 3cr from 5"
 
 
 class CourseEdge(BaseModel):
