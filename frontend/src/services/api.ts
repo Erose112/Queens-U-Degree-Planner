@@ -19,7 +19,7 @@ export interface Course {
   course_code: string;
   title: string;
   description: string | null;
-  units: number | null;
+  units: number | 3;
 }
 
 export async function getCourses(): Promise<Course[]> {
@@ -33,12 +33,13 @@ export interface PlanRequest {
   program_name: string;
   completedCourses: string[];
   favouriteCourses: string[];
+  interestedCourses: string[];
 }
 
 export interface CourseNode {
   course_code: string;
   title: string;
-  units: number | null;
+  units: number | 3;
   year: number;
   is_required: boolean;
 }

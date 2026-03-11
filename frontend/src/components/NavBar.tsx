@@ -3,12 +3,14 @@ import { COLOURS } from "../utils/colours";
 type NavbarProps = {
     onAbout?: () => void;
     onHome?: () => void;
-    activePage?: "Home" | "About";
+    onPlan?: () => void;
+    activePage?: "Home" | "Plan" | "About";
   };
   
-  export default function Navbar({ onAbout, onHome, activePage }: NavbarProps) {
+  export default function Navbar({ onAbout, onHome, onPlan, activePage }: NavbarProps) {
     const handlers = {
       Home: onHome,
+      Plan: onPlan,
       About: onAbout,
     };
   
@@ -27,7 +29,7 @@ type NavbarProps = {
               </span>
             </div>
             <div className="flex gap-6">
-              {(["Home", "About"] as const).map((l) => (
+              {(["Home", "Plan", "About"] as const).map((l) => (
                 <button
                   key={l}
                   className="text-[16px] font-medium cursor-pointer transition-colors bg-transparent border-none p-0"

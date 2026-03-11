@@ -18,7 +18,7 @@ import { YearSideBar } from '../components/courseplan/YearSideBar';
 import { YEAR_BAR_WIDTH, YEAR_BAR_COURSE_OFFSET } from '../utils/coursePlanLayout';
 import { convertCoursePlanToFlow } from '../utils/coursePlanConverter';
 import type { CoursePlan, YearSection } from '../types';
-import { CourseStatus, ConnectionType } from '../types';
+import { CourseStatus } from '../types';
 import { COLOURS } from '../utils/colours';
 import Footer from '../components/Footer';
 
@@ -30,30 +30,11 @@ interface CourseData {
   year?: number | null;
   semester?: string | null;
   is_required?: boolean;
-  is_choice?: boolean;
-  group_id?: string | null;
-  group_label?: string | null;
-  group_required?: number;
-}
-
-interface ChoiceOptionData {
-  course_code?: string;
-  title?: string;
-  units?: number | null;
-}
-
-interface ChoiceData {
-  choice_id?: string;
-  label?: string;
-  year?: number | null;
-  required?: boolean;
-  options?: ChoiceOptionData[];
 }
 
 interface EdgeData {
   from_course?: string;
   to_course?: string;
-  edge_type?: string;
 }
 
 interface PlanResponseData {
@@ -64,7 +45,6 @@ interface PlanResponseData {
   option_units?: number;
   elective_units?: number;
   courses?: CourseData[];
-  choices?: ChoiceData[];
   edges?: EdgeData[];
 }
 
@@ -98,11 +78,12 @@ function ChartInner({ yearSections }: { yearSections: YearSection[] }) {
 export default function CoursePlanPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { programId, programName, completedCourses, favouriteCourses } = (location.state ?? {}) as {
+  const { programId, programName, completedCourses, favouriteCourses, interestedCourses } = (location.state ?? {}) as {
     programId?: number;
     programName?: string;
     completedCourses?: string[];
     favouriteCourses?: string[];
+    interestedCourses?: string[];
   };
 
   const [coursePlan, setCoursePlan] = useState<CoursePlan | null>(null);
@@ -122,6 +103,7 @@ export default function CoursePlanPage() {
           program_name: programName,
           completedCourses: completedCourses ?? [],
           favouriteCourses: favouriteCourses ?? [],
+          interestedCourses: interestedCourses ?? [],
         };
         console.log('Sending payload:', payload);
         
@@ -132,6 +114,7 @@ export default function CoursePlanPage() {
             program_name: programName,
             completedCourses: completedCourses ?? [],
             favouriteCourses: favouriteCourses ?? [],
+            interestedCourses: interestedCourses ?? [],
           }),
         });
 
@@ -143,9 +126,6 @@ export default function CoursePlanPage() {
         // Validate response structure
         if (!data.courses || !Array.isArray(data.courses)) {
           throw new Error('Invalid response: courses array missing');
-        }
-        if (!data.choices || !Array.isArray(data.choices)) {
-          throw new Error('Invalid response: choices array missing');
         }
         if (!data.edges || !Array.isArray(data.edges)) {
           throw new Error('Invalid response: edges array missing');
@@ -178,50 +158,12 @@ export default function CoursePlanPage() {
             units: Math.max(units, 0.5),
             year,
             position,
-            group_id: c.group_id ?? null,
-            group_label: c.group_label ?? null,
             status:
               c.semester === 'Completed'
                 ? CourseStatus.COMPLETED
                 : c.is_required
                 ? CourseStatus.REQUIRED
-                : c.is_choice
-                ? CourseStatus.CHOICE
                 : CourseStatus.AVAILABLE,
-          };
-        });
-
-        const choicesByYear: Record<number, number> = {};
-
-        const mappedChoices = data.choices.map((ch: ChoiceData, i: number) => {
-          // Clamp year between 1 and 4
-          const year = Math.min(Math.max(ch.year ?? 1, 1), 4);
-          // Start choices after courses in the same year (not at 100)
-          if (choicesByYear[year] === undefined) choicesByYear[year] = coursesByYear[year] ?? 0;
-          const position = choicesByYear[year]++;
-
-          return {
-            id: ch.choice_id ?? `choice_${i}`,
-            label: ch.label ?? 'OR',
-            year,
-            position,
-            status: CourseStatus.CHOICE,
-            required: ch.required ?? true,
-            options: (ch.options ?? []).map((o: ChoiceOptionData, j: number) => {
-              const units = o.units || 3;
-              if (units <= 0) {
-                console.warn(`Choice option ${o.course_code} has invalid units: ${units}, defaulting to 3`);
-              }
-              return {
-                id: o.course_code ?? `option_${j}`,
-                code: o.course_code ?? `option_${j}`,
-                name: o.title ?? o.course_code ?? `Option ${j}`,
-                units: Math.max(units, 0.5),
-                year,
-                position: j,
-                status: CourseStatus.CHOICE,
-              };
-            }),
           };
         });
 
@@ -234,7 +176,6 @@ export default function CoursePlanPage() {
             id: `${e.from_course}-${e.to_course}`,
             from_course: e.from_course,
             to_course: e.to_course,
-            type: ConnectionType.PREREQUISITE,
           };
         }).filter((e) => e !== null);
 
@@ -247,7 +188,6 @@ export default function CoursePlanPage() {
           optionUnits: data.option_units ?? 0,
           electiveUnits: data.elective_units ?? 0,
           courses: mappedCourses,
-          choices: mappedChoices,
           connections: mappedConnections as any,
         });
       } catch (err: any) {
@@ -258,7 +198,7 @@ export default function CoursePlanPage() {
     };
 
     fetchPlan();
-  }, [programName, completedCourses, favouriteCourses, navigate]);
+  }, [programName, completedCourses, favouriteCourses, interestedCourses, navigate]);
 
   const { nodes: initialNodes, edges: initialEdges, yearSections } = useMemo(
     () => coursePlan ? convertCoursePlanToFlow(coursePlan) : { nodes: [], edges: [], yearSections: [] },
@@ -306,7 +246,7 @@ export default function CoursePlanPage() {
   );
 
   return (
-    <div className='min-h-screen flex flex-col gap-6 bg-white'>
+    <div className='min-h-screen flex flex-col gap-6' style={{ background: COLOURS.warmWhite }}>
       <div className="px-8">
         <div className="py-6 flex items-center gap-0">
 

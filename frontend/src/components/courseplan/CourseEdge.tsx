@@ -1,11 +1,9 @@
 import { useMemo } from 'react';
 import type { EdgeProps } from '@xyflow/react';
 import { BaseEdge, useNodes } from '@xyflow/react';
-import type { ConnectionType } from '../../types';
 import { COLOURS } from '../../utils/colours';
 
 export interface CourseEdgeData extends Record<string, unknown> {
-  connectionType?: ConnectionType;
   gapY?: number;
   edgeIndex?: number;
   totalEdges?: number;

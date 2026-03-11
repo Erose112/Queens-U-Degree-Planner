@@ -4,7 +4,8 @@ export const COLOURS = {
     yellow: "#fabd0f",
     red: "#b90e31",
     orange: "#f08c00",
-    white: "#ffffff",
+    white: "#fafaf9",
+    warmWhite: "#F2EFE9",
     grey: "#d1d3d4",
     darkGrey: "#808285",
     black: "#000000",
@@ -12,3 +13,5 @@ export const COLOURS = {
 } as const;
   
 export type ColourKey = keyof typeof COLOURS;
+
+{/*"#F5F0E8" "#F2EFE9" "#EDE8DF"*/}
