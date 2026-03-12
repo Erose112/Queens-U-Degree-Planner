@@ -174,6 +174,8 @@ export default function PlannerPage() {
   const [interestedDropdownOpen, setInterestedDropdownOpen] = useState(false);
   const interestedRef = useRef<HTMLDivElement>(null);
 
+  const isSubmitting = useRef(false);
+
   useEffect(() => {
     getPrograms()
       .then(setPrograms)
@@ -297,11 +299,20 @@ export default function PlannerPage() {
   };
 
   const handleGenerate = async () => {
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
+
     const errs = validate();
-    if (Object.keys(errs).length) { setErrors(errs); return; }
+    if (Object.keys(errs).length) { 
+        setErrors(errs); 
+        isSubmitting.current = false;
+        return; 
+    }
+
     setErrors({});
     setServerError(null);
     setLoading(true);
+
     try {
       const program = programs.find((p) => p.program_name === selectedProgram);
       if (!program) { setErrors({ program: "Program not found." }); return; }
@@ -323,6 +334,7 @@ export default function PlannerPage() {
       setServerError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setLoading(false);
+      isSubmitting.current = false;
     }
   };
 
@@ -375,7 +387,7 @@ export default function PlannerPage() {
       <NavBar onHome={() => navigate("/")} onPlan={() => navigate("/planner")} onAbout={() => navigate("/about")} activePage="Plan" />
 
       {/* ── Page header ── */}
-      <div className="px-10 pt-10 pb-8 text-center" style={{ background: COLOURS.warmWhite }}>
+      <div className="px-10 pt-[30px] pb-8 text-center" style={{ background: COLOURS.warmWhite }}>
         <div className="animate-fade-in max-w-[1100px] mx-auto">
           <button
             onClick={() => navigate("/")}
@@ -402,7 +414,7 @@ export default function PlannerPage() {
       </div>
 
       {/* ── Form grid ── */}
-      <section className="pt-4 px-[30px] pb-[40px] max-w-full mx-auto w-full">
+      <section className="pt-4 px-[30px] pb-[30px] max-w-full mx-auto w-full">
         <div className="planner-grid">
 
           {/* ── Q1: Program ── */}

@@ -24,8 +24,6 @@ const SOCIAL_LINKS = [
   },
 ];
 
-const SKILLS = ["React", "TypeScript", "Node.js", "Python", "SQL", "Tailwind CSS"];
-
 export default function AboutPage() {
   const navigate = useNavigate();
 
@@ -37,7 +35,7 @@ export default function AboutPage() {
         activePage="About"
       />
 
-      <main className="flex-1 w-full max-w-[900px] mx-auto px-10 py-20 flex flex-col gap-16">
+      <main className="flex-1 w-full max-w-[900px] mx-auto px-10 py-11 flex flex-col gap-16">
 
         {/* Hero */}
         <div className="flex flex-col gap-6">
@@ -49,7 +47,7 @@ export default function AboutPage() {
               >
                 Ethan Rose
               </h1>
-              <p className="text-[15px] mt-1" style={{ color: COLOURS.darkGrey }}>
+              <p className="text-[16px] mt-1" style={{ color: COLOURS.darkGrey }}>
                 Computer Science Student · Queen's University · Class of 2028
               </p>
             </div>
@@ -89,7 +87,7 @@ export default function AboutPage() {
           <h2 className="font-playfair text-[24px] font-bold" style={{ color: COLOURS.blue }}>
             About Me
           </h2>
-          <p className="text-[15px] leading-[1.75]" style={{ color: COLOURS.darkGrey }}>
+          <p className="text-[16px] leading-[1.75]" style={{ color: COLOURS.darkGrey }}>
             I'm a second-year Computer Science student passionate about building tools that make
             student life easier. I enjoy full-stack development, data-driven design, and turning
             frustrating problems into real life solutions.
@@ -117,28 +115,15 @@ export default function AboutPage() {
             <h2 className="font-playfair text-[22px] font-bold" style={{ color: COLOURS.blue }}>
               Why I Built This
             </h2>
-            <p className="text-[15px] leading-[1.75]" style={{ color: COLOURS.darkGrey }}>
+            <p className="text-[16px] leading-[1.75]" style={{ color: COLOURS.darkGrey }}>
                 I built this project out of my own frustration with the degree planning process at Queen's. 
                 I wanted a simple way to visualise my degree progress, experiment with different course combinations, 
                 and plan out my semesters without having to click through multiple pages on the university website. 
-                I also wanted to challenge myself to build something useful that I could share with other students.
+                This tool is also designed to help introduce you to courses you might not have heard of, but match
+                with your interests. Have fun planning!
             </p>
           </div>
         </div>
-
-        {/* Disclaimer */}
-        <p
-          className="text-[13px] leading-[1.6] px-4 py-3 rounded-xl"
-          style={{
-            color: COLOURS.darkGrey,
-            background: `${COLOURS.yellow}18`,
-            borderLeft: `3px solid ${COLOURS.yellow}`,
-          }}
-        >
-          ⚠️ This is a student-built project and is not officially affiliated with or endorsed by
-          any university. Always verify your degree plan with a registered academic advisor.
-        </p>
-
       </main>
 
       <Footer />

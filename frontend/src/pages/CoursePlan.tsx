@@ -93,7 +93,7 @@ export default function CoursePlanPage() {
 
   useEffect(() => {
     if (!programName) {
-      navigate('/');
+      navigate('/planner');
       return;
     }
 
@@ -258,7 +258,7 @@ export default function CoursePlanPage() {
                 className="flex items-center gap-1.5 mb-1 text-xs font-medium tracking-wide cursor-pointer bg-transparent border-none p-0 transition-opacity opacity-50 hover:opacity-100"
                 style={{ color: COLOURS.blue }}
               >
-                ⬅ Back to Home
+                ⬅ Back to Planner
               </button>
               <div style={{ color: COLOURS.blue, fontFamily: "'Playfair Display', serif" }}>
                 <div className="text-5xl font-black leading-none">Queen's</div>

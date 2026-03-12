@@ -68,8 +68,9 @@ export default function HomePage() {
           className="animate-fade-up-3 max-w-[560px] mx-auto mb-12 text-lg leading-[1.7] font-light relative"
           style={{ color: COLOURS.darkGrey }}
         >
-          Select your program, add the courses you've already completed, and get a
-          personalised year-by-year academic plan; built around your interests.
+          Select your program, add the courses you've already completed, and get a personalized 
+          year-by-year academic plan built around your interests.
+
         </p>
 
         {/* ── How it works steps ── */}
@@ -125,7 +126,7 @@ export default function HomePage() {
           className="font-playfair text-[32px] font-bold text-center mb-12"
           style={{ color: COLOURS.blue }}
         >
-          Everything you need to succeed
+          How it Works
         </h2>
 
         <div
@@ -135,7 +136,7 @@ export default function HomePage() {
           {[
             {
               icon: (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
                 </svg>
               ),
@@ -145,12 +146,12 @@ export default function HomePage() {
             },
             {
               icon: (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                 </svg>
               ),
               title: "Highlight Favourites",
-              desc: "Tell us what subjects you love; we'll prioritise similar courses in your future plan.",
+              desc: "Tell us about the subjects you love; we'll prioritize similar courses in your plan.",
               color: COLOURS.yellow,
             },
           ].map((card, i) => (
@@ -181,61 +182,108 @@ export default function HomePage() {
 
         {/* Guide Section */}
         <div
-          className="flex gap-8 p-7 rounded-2xl mt-6"
-          style={{
-            background: COLOURS.white,
-            boxShadow: `0 2px 16px rgba(0,0,0,0.06)`,
-            border: `1px solid ${COLOURS.grey}`,
-            width: "100%",
-            minHeight: "140px",
-          }}
+          className="flex flex-col gap-6 py-7 rounded-2xl mt-6"
         >
-          {/* Icon */}
-          <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: `${COLOURS.black}18`, color: COLOURS.black }}
+
+          {/* Instructions */}
+          <div className="flex gap-8 p-7 rounded-2xl"
+            style={{
+              background: COLOURS.white,
+              boxShadow: `0 2px 16px rgba(0,0,0,0.06)`,
+              border: `1px solid ${COLOURS.grey}`,
+              width: "100%",
+            }}
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-            </svg>
+            
+            {/* Icon */}
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: `${COLOURS.black}18`, color: COLOURS.black }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+              </svg>
+            </div>
+
+            {/* Text */}
+            <div className="flex flex-col gap-3">
+              <h3 className="font-semibold text-[17px]" style={{ color: COLOURS.blue }}>
+                Instructions
+              </h3>
+
+              <ol className="flex flex-col gap-3" style={{ color: COLOURS.darkGrey }}>
+                {[
+                  "Select your program and courses from the list.",
+                  "Pick your favourite subjects and interested courses to personalize your plan.",
+                  'Click "Generate Plan" to see your personalized degree roadmap.',
+                ].map((step, i) => (
+                  <li key={i} className="flex items-start gap-2 text-[15px] leading-[1.65]">
+                    <span
+                      className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[12px] font-bold mt-[2px]"
+                      style={{ background: COLOURS.blue, color: COLOURS.white }}
+                    >
+                      {i + 1}
+                    </span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
 
-          {/* Text */}
-          <div className="flex flex-col gap-3">
-            <h3 className="font-semibold text-[17px]" style={{ color: COLOURS.blue }}>
-              Instructions
-            </h3>
+          {/* Warnings */}
+          <div className="flex gap-8 p-7 rounded-2xl"
+            style={{
+              background: COLOURS.white,
+              boxShadow: `0 2px 16px rgba(0,0,0,0.06)`,
+              border: `1px solid ${COLOURS.grey}`,
+              width: "100%",
+            }}
+          >
 
-            <ol className="flex flex-col gap-3" style={{ color: COLOURS.darkGrey }}>
-              {[
-                "Select your program and courses from the list.",
-                "Pick your favourite subjects and interested courses to personalise your plan.",
-                'Click "Generate Plan" to see your personalised degree roadmap.',
-              ].map((step, i) => (
-                <li key={i} className="flex items-start gap-2 text-[15px] leading-[1.65]">
-                  <span
-                    className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[12px] font-bold mt-[2px]"
-                    style={{ background: `${COLOURS.blue}`, color: COLOURS.white }}
-                  >
-                    {i + 1}
-                  </span>
-                  {step}
-                </li>
-              ))}
-            </ol>
+            {/* Icon */}
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: `${COLOURS.red}18`, color: COLOURS.red }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2l8 4v5c0 5.25-3.3 8.25-8 10.5C7.3 19.25 4 16.25 4 11V6l8-4z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <circle cx="12" cy="16" r="0.5" fill="currentColor" stroke="none"/>
+              </svg>
+            </div>
 
-            <p
-              className="text-[15px] leading-[1.6] px-3 py-2 rounded-lg"
+            {/* Text */}
+            <div className="flex flex-col gap-3"
               style={{
-                color: COLOURS.darkGrey,
-                background: `${COLOURS.yellow}18`,
-                borderLeft: `3px solid ${COLOURS.yellow}`,
+                background: COLOURS.white,
+                width: "100%",
               }}
             >
-              ⚠️ The generated plan is a suggestion and may not perfectly align with all degree requirements. Always double-check with an academic advisor to ensure your plan meets graduation criteria.
-            </p>
+              <h3 className="font-semibold text-[17px]" style={{ color: COLOURS.red }}>
+                Notice
+              </h3>
+
+              <ol className="flex flex-col gap-3" style={{ color: COLOURS.darkGrey }}>
+                {[
+                  "Not all program/course data is guaranteed to be accurate or up-to-date. Always double-check with official resources.",
+                  "Be careful to only add courses that you have taken when adding courses to your plan.",
+                ].map((step, i) => (
+                  <li key={i} className="flex items-start gap-2 text-[15px] leading-[1.65]">
+                    <span
+                      className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[12px] font-bold mt-[2px]"
+                      style={{ background: COLOURS.red, color: COLOURS.white }}
+                    >
+                      {i + 1}
+                    </span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
+
         </div>
       </section>
 
