@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.program import Program                        # ← DB query
 from app.schemas.plan import PlanRequest, PlanResponse        # ← validation
-from app.services.plan_builder import generate_plan as build_plan
+from app.services.plan import generate_plan as build_plan
 
 
 router = APIRouter(prefix="/plans", tags=["plans"])
@@ -30,7 +30,8 @@ def generate(request: PlanRequest, db: Session = Depends(get_db)):
         db,
         program_id=program.program_id,
         completed_courses=request.completed_courses,
-        interests=request.favourite_courses,
+        favourites=request.favourite_courses,
+        interested=request.interested_courses,
     )
 
     if not plan:
@@ -41,5 +42,4 @@ def generate(request: PlanRequest, db: Session = Depends(get_db)):
 
     logger.debug("Plan details: %s", plan)
 
-    
     return plan
