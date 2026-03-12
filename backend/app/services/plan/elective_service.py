@@ -199,12 +199,15 @@ def resolve_elective_prereqs(
             if any(c in working_plan for c in group):
                 continue  # This group already satisfied
 
-            in_plan = [c for c in group if c in working_plan]
             in_pool_ranked = sorted(
-                [c for c in group if c in elective_pool and c not in working_plan],
+                [
+                    c for c in group
+                    if c not in working_plan
+                    and (c in elective_pool or c in required_set)
+                ],
                 key=lambda c: rank_index.get(c, len(selected)),
             )
-            candidates = in_plan + in_pool_ranked
+            candidates = in_pool_ranked
 
             if not candidates:
                 logger.debug(

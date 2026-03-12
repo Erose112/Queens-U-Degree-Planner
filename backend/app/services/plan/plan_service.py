@@ -72,15 +72,10 @@ def generate_plan(
             sc.course for sc in section.section_courses if sc.course is not None
         ]
         n_courses = len(section_course_list)
-        avg_credits = (
-            sum(float(c.credits or DEFAULT_CREDITS) for c in section_course_list) / n_courses
-            if n_courses > 0 else DEFAULT_CREDITS
-        )
 
         logger.debug(
-            "[generate_plan] Section %d — logic_type=%d | logic_value=%s | "
-            "courses=%d | avg_credits=%.1f",
-            section.section_id, logic_type, logic_value, n_courses, avg_credits,
+            "[generate_plan] Section %d — logic_type=%d | logic_value=%s | courses=%d",
+            section.section_id, logic_type, logic_value, n_courses,
         )
 
         if logic_type == LOGIC_REQUIRED:
@@ -109,7 +104,7 @@ def generate_plan(
                     units = float(course.credits or DEFAULT_CREDITS)
                     if course.course_code not in required_codes:
                         required_codes.append(course.course_code)
-                    core_credits += units
+                        core_credits += units
             else:
                 section_codes = [c.course_code for c in section_course_list]
                 seed_codes_early = list(completed_set) + favourites + interested
@@ -131,11 +126,11 @@ def generate_plan(
                 for code in picked:
                     if code not in required_codes:
                         required_codes.append(code)
-                    course_obj = get_course_by_code(db, code)
-                    core_credits += (
-                        float(course_obj.credits or DEFAULT_CREDITS)
-                        if course_obj else DEFAULT_CREDITS
-                    )
+                        course_obj = get_course_by_code(db, code)
+                        core_credits += (
+                            float(course_obj.credits or DEFAULT_CREDITS)
+                            if course_obj else DEFAULT_CREDITS
+                        )
 
                 logger.debug(
                     "[generate_plan] Section %d (CHOOSE_COUNT pick-%d of %d) → picked: %s",
@@ -173,13 +168,10 @@ def generate_plan(
     elective_pool_credits = sum(
         float(course.credits or DEFAULT_CREDITS)
         for c in elective_codes
+        if c not in completed_set
         if (course := get_course_by_code(db, c)) is not None
     )
-    remaining_credit_gap = max(
-        min(TOTAL_PLAN_CREDITS - committed_credits, elective_pool_credits),
-        elective_credits,
-        0.0,
-    )
+    remaining_credit_gap = max(TOTAL_PLAN_CREDITS - committed_credits, 0.0)
 
     logger.info(
         "[generate_plan] Credit budget — total_target=%d | required=%.1f | "
@@ -191,8 +183,8 @@ def generate_plan(
 
 
 
-    # Interested courses
-    interested_to_schedule: set[str] = set()
+    # Interested courses — credit pre-filter then prerequisite validation
+    interested_filtered: list[str] = []
     for course in interested:
         course_obj = get_course_by_code(db, course)
         if not course_obj:
@@ -200,15 +192,18 @@ def generate_plan(
                 "[generate_plan] Interested course '%s' not found in DB; skipping.", course
             )
             continue
-        credit = float(course_obj.credits or DEFAULT_CREDITS)
-        if (
-            course not in completed_set
-            and course not in set(required_codes)
-            and remaining_credit_gap - credit >= 0
-        ):
-            interested_to_schedule.add(course)
-            remaining_credit_gap -= credit
+        if course not in completed_set and course not in set(required_codes):
+            interested_filtered.append(course)
 
+    # Validate prerequisites and credit budget for interested courses
+    interested_validated, remaining_credit_gap = resolve_elective_prereqs(
+        db,
+        selected=interested_filtered,
+        required_set=set(required_codes) | completed_set,
+        elective_pool=set(interested_filtered) | set(elective_codes),
+        credit_budget=remaining_credit_gap,
+    )
+    interested_to_schedule: set[str] = set(interested_validated)
 
 
     # Early year-1 free-elective backfill
@@ -295,7 +290,7 @@ def generate_plan(
         seed_codes,
         program_id,
         completed_courses,
-        remaining_credit_gap - PREREQ_PULLTHROUGH_BUFFER,
+        max(remaining_credit_gap - PREREQ_PULLTHROUGH_BUFFER, 0.0),
     )
 
     ranked_electives, remaining_credit_gap = resolve_elective_prereqs(

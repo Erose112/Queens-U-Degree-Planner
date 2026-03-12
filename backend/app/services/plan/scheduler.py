@@ -111,6 +111,10 @@ def schedule(
                 )
                 eligible = list(remaining)
 
+        placed_this_round: list[str] = []
+        skipped_this_round: list[str] = []
+        not_found_this_round: list[str] = []
+
         for code in eligible:
             course_credits = credit_cache.get(code, DEFAULT_CREDITS)
 
@@ -130,7 +134,7 @@ def schedule(
                         "Consider adding a 5th year or reducing electives.",
                         year, code, course_credits,
                     )
-                    remaining.remove(code)
+                    skipped_this_round.append(code)
                     continue
 
             course = get_course_by_code(db, code)
@@ -138,7 +142,7 @@ def schedule(
                 logger.warning(
                     "[schedule] Course '%s' not found in DB; removing from schedule.", code
                 )
-                remaining.remove(code)
+                not_found_this_round.append(code)
                 continue
 
             course_nodes.append(
@@ -154,13 +158,18 @@ def schedule(
 
             placement[code] = year
             placed.add(code)
-            remaining.remove(code)
+            placed_this_round.append(code)
             credits_used += course_credits
 
             logger.debug(
                 "[schedule] Placed '%s' in year %d (is_required=%s, credits=%.1f, running=%.1f)",
                 code, year, code in required_set, course_credits, credits_used,
             )
+
+        codes_to_remove = set(placed_this_round + skipped_this_round + not_found_this_round)
+        for code in codes_to_remove:
+            if code in remaining:
+                remaining.remove(code)
 
     if remaining:
         logger.warning(
