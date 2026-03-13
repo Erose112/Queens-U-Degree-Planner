@@ -15,7 +15,6 @@
     "biology": [
         "biology-specialization",
         "biology-mathematics-specialization-science-bs-honours",
-        "biology-psychology-specialization-science-bs-honours",
         "biotechnology-specialization-science-bs-honours",
         "environmental-biology-specialization-science-bs-honours",
         "biology-major-science-bs-honours",
@@ -50,7 +49,6 @@
         "data-analytics-certificate"
     ],
     "drama-music": [
-        "computing-creative-arts-specialization-arts-ba-honours",
         "drama-specialization",
         "drama-major-arts-ba-honours",
         "drama-general-arts-ba",
@@ -83,10 +81,6 @@
     ],
     "environmental-studies": [
         "earth-system-science-specialization-science-bs-honours",
-        "environmental-biology-specialization-science-bs-honours",
-        "environmental-chemistry-specialization-science-bs-honours",
-        "environmental-geology-specialization-science-bs-honours",
-        "environmental-life-science-specialization-science-bs-honours",
         "environmental-science-specialization",
         "environmental-studies-specialization",
         "environmental-toxicology-specialization-science-bs-honours",
@@ -97,7 +91,6 @@
         "#programstext"
     ],
     "film-media": [
-        "computing-creative-arts-specialization-arts-ba-honours",
         "film-media-specialization",
         "media-performance-production-specialization-arts-ba-honours",
         "film-media-major-arts-ba-honours",
@@ -168,7 +161,6 @@
         "disability-physical-activity-certificate"
     ],
     "languages-literatures-cultures": [
-        "cognitive-science-specialization-computing-bc-honours",
         "indg-major20",
         "indigenous-studies-general-arts-ba",
         "indigenous-studies-minor-arts",
@@ -191,8 +183,6 @@
         "life-sciences-minor-science"
     ],
     "mathematics-statistics": [
-        "biology-mathematics-specialization-science-bs-honours",
-        "computing-mathematics-analytics-specialization-computing-bs-honours",
         "mathematical-physics-specialization-science-bs-honours",
         "mathematics-specialization",
         "statistics-specialization",
@@ -206,9 +196,7 @@
         "statistics-minor-science"
     ],
     "philosophy": [
-        "cognitive-science-specialization-computing-bc-honours",
         "philosophy-specialization",
-        "politics-philosophy-economics-specialization-arts-ba-honours",
         "philosophy-ba-honours",
         "philosophy-general-ba",
         "#coursestext"
@@ -223,7 +211,6 @@
         "physics-minor-science"
     ],
     "political-studies": [
-        "politics-philosophy-economics-specialization-arts-ba-honours",
         "political-studies-specialization",
         "political-studies-major-arts-ba-honours",
         "political-studies-general-arts-ba",
@@ -231,7 +218,6 @@
     ],
     "psychology": [
         "biology-psychology-specialization-science-bs-honours",
-        "cognitive-science-specialization-computing-bc-honours",
         "psychology-specialization-arts",
         "psychology-specialization-science",
         "psychology-major-arts-ba-honours",

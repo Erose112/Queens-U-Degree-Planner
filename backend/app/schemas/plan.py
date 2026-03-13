@@ -9,6 +9,7 @@ class PlanRequest(BaseModel):
     completed_courses: list[str] = Field(default=[], alias="completedCourses")
     favourite_courses: list[str] = Field(default=[], alias="favouriteCourses")
     interested_courses: list[str] = Field(default=[], alias="interestedCourses")
+    second_program_name: str | None = Field(default=None, alias="secondProgramName")  # optional for double majors/minors
 
 
 class CourseNode(BaseModel):

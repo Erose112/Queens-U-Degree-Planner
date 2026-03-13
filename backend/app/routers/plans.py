@@ -7,7 +7,6 @@ from app.models.program import Program                        # ← DB query
 from app.schemas.plan import PlanRequest, PlanResponse        # ← validation
 from app.services.plan import generate_plan as build_plan
 
-
 router = APIRouter(prefix="/plans", tags=["plans"])
 
 logging.basicConfig(
@@ -23,15 +22,24 @@ def generate(request: PlanRequest, db: Session = Depends(get_db)):
         Program.program_name == request.program_name
     ).first()
 
+    if request.second_program_name:
+        second_program = db.query(Program).filter(
+            Program.program_name == request.second_program_name
+        ).first()
+
+        if not second_program:
+            raise HTTPException(status_code=404, detail=f"'{request.second_program_name}' not found")
+
     if not program:
         raise HTTPException(status_code=404, detail=f"'{request.program_name}' not found")
-
+    
     plan = build_plan(
         db,
         program_id=program.program_id,
         completed_courses=request.completed_courses,
         favourites=request.favourite_courses,
         interested=request.interested_courses,
+        secondary_program_id=second_program.program_id if request.second_program_name else None,
     )
 
     if not plan:

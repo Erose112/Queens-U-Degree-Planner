@@ -44,9 +44,6 @@ def has_cycle_in_graph(prereq_requirements: dict[str, PrerequisiteRequirement]) 
                 if dfs(neighbor):
                     return True
             elif neighbor in rec_stack:
-                logger.warning(
-                    "Cycle detected in prerequisite graph: %s -> %s", node, neighbor
-                )
                 return True
         rec_stack.remove(node)
         return False
@@ -59,10 +56,7 @@ def has_cycle_in_graph(prereq_requirements: dict[str, PrerequisiteRequirement]) 
     return False
 
 
-# ---------------------------------------------------------------------------
 # Scheduling helpers
-# ---------------------------------------------------------------------------
-
 def course_level_floor(course_code: str) -> int:
     """
     Derive the earliest year a course should be scheduled from its course code.
@@ -96,10 +90,7 @@ def are_prerequisites_met(
     return True
 
 
-# ---------------------------------------------------------------------------
 # Prerequisite map builder
-# ---------------------------------------------------------------------------
-
 def build_prereq_maps(
     db: Session,
     codes: list[str],
@@ -120,11 +111,6 @@ def build_prereq_maps(
 
     for code in codes:
         course = get_course_by_code(db, code)
-        if not course:
-            logger.warning(
-                "[build_prereq_maps] Course '%s' not found in DB; skipping.", code
-            )
-            continue
 
         psets = db.query(PrerequisiteSet).filter(
             PrerequisiteSet.course_id == course.course_id
@@ -133,7 +119,6 @@ def build_prereq_maps(
         if not psets:
             prereq_requirements[code] = PrerequisiteRequirement(constraints=[])
             full_edge_map[code] = set()
-            logger.debug("[build_prereq_maps] '%s' — no prerequisite sets.", code)
             continue
 
         constraints: list[PrerequisiteConstraint] = []
@@ -157,28 +142,12 @@ def build_prereq_maps(
             is_and_set = pset.min_required is None or pset.min_required == 0
             in_known = set(c for c in set_course_codes if c in known_codes)
 
-            if not in_known:
-                logger.debug(
-                    "[build_prereq_maps] '%s' set %d — no in-plan courses found; skipping constraint.",
-                    code, pset.set_id,
-                )
-                continue
-
             if is_and_set:
                 constraint = PrerequisiteConstraint(and_set=in_known, or_set=set())
                 constraints.append(constraint)
-                logger.debug(
-                    "[build_prereq_maps] '%s' set %d (AND) — blocking courses: %s",
-                    code, pset.set_id, in_known,
-                )
             else:
-                min_req = pset.min_required or 1
                 constraint = PrerequisiteConstraint(and_set=set(), or_set=in_known)
                 constraints.append(constraint)
-                logger.debug(
-                    "[build_prereq_maps] '%s' set %d (OR, need %d) — options: %s",
-                    code, pset.set_id, min_req, in_known,
-                )
 
         prereq_requirements[code] = PrerequisiteRequirement(constraints=constraints)
         full_edge_map[code] = all_prereqs

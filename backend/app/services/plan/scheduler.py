@@ -89,10 +89,6 @@ def schedule(
             and min_year.get(code, 1) <= year
         ]
 
-        logger.debug(
-            "[schedule] Year %d — remaining=%d | eligible=%d | credits_used=%.1f",
-            year, len(remaining), len(eligible), credits_used,
-        )
 
         if not eligible:
             if year < MAX_YEARS:
@@ -120,28 +116,15 @@ def schedule(
 
             if credits_used + course_credits > CREDITS_PER_YEAR:
                 if year < MAX_YEARS:
-                    logger.debug(
-                        "[schedule] Credit cap reached (%.1f + %.1f > %d); "
-                        "advancing to year %d for '%s'.",
-                        credits_used, course_credits, CREDITS_PER_YEAR, year + 1, code,
-                    )
                     year += 1
                     credits_used = 0.0
                     break  # Recompute eligible for new year
                 else:
-                    logger.warning(
-                        "[schedule] Year %d credit cap exceeded; skipping '%s' (%.1f cr). "
-                        "Consider adding a 5th year or reducing electives.",
-                        year, code, course_credits,
-                    )
                     skipped_this_round.append(code)
                     continue
 
             course = get_course_by_code(db, code)
             if not course:
-                logger.warning(
-                    "[schedule] Course '%s' not found in DB; removing from schedule.", code
-                )
                 not_found_this_round.append(code)
                 continue
 

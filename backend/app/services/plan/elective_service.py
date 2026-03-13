@@ -16,10 +16,7 @@ from app.services.recommendation_services import get_recommendations_for_program
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
 # Elective ranker
-# ---------------------------------------------------------------------------
-
 def rank_electives(
     db: Session,
     elective_codes: list[str],
@@ -87,13 +84,6 @@ def rank_electives(
             break
         selected_electives.append(code)
         credits_accumulated += elective_credits_map.get(code, DEFAULT_CREDITS)
-        logger.debug(
-            "[rank_electives] Selected '%s' (%.1f cr) — accumulated=%.1f / required=%.1f",
-            code,
-            elective_credits_map.get(code, DEFAULT_CREDITS),
-            credits_accumulated,
-            elective_credits_required,
-        )
 
     logger.info(
         "[rank_electives] DONE — selected %d elective(s) totalling %.1f credits: %s",
@@ -102,10 +92,7 @@ def rank_electives(
     return selected_electives
 
 
-# ---------------------------------------------------------------------------
 # Elective prerequisite resolution
-# ---------------------------------------------------------------------------
-
 def resolve_elective_prereqs(
     db: Session,
     selected: list[str],
@@ -199,22 +186,14 @@ def resolve_elective_prereqs(
             if any(c in working_plan for c in group):
                 continue  # This group already satisfied
 
+            in_plan = [c for c in group if c in working_plan]
             in_pool_ranked = sorted(
-                [
-                    c for c in group
-                    if c not in working_plan
-                    and (c in elective_pool or c in required_set)
-                ],
+                [c for c in group if c in elective_pool and c not in working_plan],
                 key=lambda c: rank_index.get(c, len(selected)),
             )
-            candidates = in_pool_ranked
+            candidates = in_plan + in_pool_ranked
 
             if not candidates:
-                logger.debug(
-                    "[resolve_elective_prereqs] '%s' dropped — prereq group %s "
-                    "has no satisfiable candidates in plan or pool.",
-                    code, group,
-                )
                 return False, plan, budget
 
             satisfied = False
@@ -227,11 +206,6 @@ def resolve_elective_prereqs(
                     break
 
             if not satisfied:
-                logger.debug(
-                    "[resolve_elective_prereqs] '%s' dropped — could not satisfy "
-                    "prereq group %s within budget.",
-                    code, group,
-                )
                 return False, plan, budget
 
         # All prereq groups satisfied — commit
@@ -248,10 +222,7 @@ def resolve_elective_prereqs(
         success, resolved, remaining_budget = try_add(code, resolved, remaining_budget)
         if success and code not in required_set:
             result.append(code)
-        elif not success:
-            logger.info(
-                "[resolve_elective_prereqs] Dropped '%s' from elective selection.", code
-            )
+
 
     def topo_order_pulled(codes: list[str], already_in_plan: set[str]) -> list[str]:
         """Return codes sorted so each course comes after its prerequisites."""
