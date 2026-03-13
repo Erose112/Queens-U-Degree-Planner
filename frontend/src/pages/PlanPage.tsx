@@ -9,9 +9,53 @@ import NextPageButton from "../components/NextPageButton";
 
 interface FormErrors {
   program?: string;
+  secondProgram?: string;
 }
 
-// ─── Sub-components moved OUTSIDE PlannerPage so they aren't recreated on every render ───
+// ─── Name formatter ────────────────────────────────────────────────────────────
+// Strips redundant type/faculty words and expands degree abbreviations.
+// "Biochemistry Major Science Bs Honours" → "Biochemistry Bachelor of Science"
+// "Biochemistry Minor Science"            → "Biochemistry"
+
+const DEGREE_MAP: Record<string, string> = {
+  bs: "Bachelor of Science",
+  ba: "Bachelor of Arts",
+  bm: "Bachelor of Music",
+  bmt: "Bachelor of Music Theatre",
+};
+
+function formatProgramName(rawName: string): string {
+  // 1. Remove type keywords and Honours
+  let name = rawName.replace(
+    /\b(Specialization|Major|Minor|General|Honours)\b/gi,
+    ""
+  );
+
+  // 2. Replace "Faculty Degree" pairs  e.g. "Science Bs" → "Bachelor of Science"
+  name = name.replace(
+    /\b(Science|Arts|Music)\s+(Bs|Ba|Bm)\b/gi,
+    (_match, _faculty, degree) => DEGREE_MAP[degree.toLowerCase()] ?? degree
+  );
+
+  // 3. Remove any leftover standalone faculty names (e.g. minors end with "Science")
+  name = name.replace(
+    /(?<!of )\b(Science|Arts|Music)\b/gi,
+    ""
+  );
+  
+  // 4. Collapse whitespace
+  return name.replace(/\s+/g, " ").trim();
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function isMajorType(type: string | undefined): boolean {
+  if (!type) return false;
+  const t = type.toLowerCase();
+  return t === "major" || t === "honours major";
+}
+
+// ─── Sub-components ────────────────────────────────────────────────────────────
 
 const StepBadge = ({ n, color }: { n: string; color: string }) => (
   <span
@@ -140,6 +184,134 @@ const CourseDropdownInput = ({
   </div>
 );
 
+// ─── Program dropdown (shared between primary and secondary selectors) ─────────
+
+const ProgramDropdownInput = ({
+  programs, selectedProgram, programInput, setProgramInput,
+  programDropdownOpen, setProgramDropdownOpen, programRef,
+  onSelect, onClear, error, loading, excludeName, accentColor,
+}: {
+  programs: Program[];
+  selectedProgram: string;
+  programInput: string;
+  setProgramInput: (v: string) => void;
+  programDropdownOpen: boolean;
+  setProgramDropdownOpen: (v: boolean) => void;
+  programRef: React.RefObject<HTMLDivElement | null>;
+  onSelect: (name: string) => void;
+  onClear: () => void;
+  error?: string;
+  loading: boolean;
+  excludeName?: string;
+  accentColor: string;
+}) => {
+  const allSorted = programs
+    .slice()
+    .sort((a, b) => a.program_name.localeCompare(b.program_name));
+
+  const filtered =
+    programInput.trim().length === 0
+      ? allSorted.filter((p) => p.program_name !== excludeName)
+      : allSorted.filter(
+          (p) =>
+            p.program_name !== excludeName &&
+            formatProgramName(p.program_name)
+              .toLowerCase()
+              .includes(programInput.toLowerCase())
+        );
+
+  return (
+    <div ref={programRef} className="relative">
+      <div className="relative">
+        <input
+          className="w-full px-3 py-2.5 pr-9 rounded-xl border-2 bg-white font-sans text-[14px] transition-colors focus:outline-none"
+          style={{
+            borderColor: error ? COLOURS.red : programDropdownOpen ? accentColor : COLOURS.grey,
+            color: selectedProgram ? accentColor : COLOURS.darkGrey,
+          }}
+          type="text"
+          placeholder={loading ? "Loading programs…" : "Search for a program…"}
+          disabled={loading}
+          value={programInput}
+          onChange={(e) => {
+            setProgramInput(e.target.value);
+            onClear();
+            setProgramDropdownOpen(true);
+          }}
+          onFocus={() => setProgramDropdownOpen(true)}
+        />
+        <button
+          tabIndex={-1}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2"
+          style={{ background: "transparent", border: "none", cursor: "pointer", color: COLOURS.darkGrey }}
+          onClick={() => {
+            if (selectedProgram || programInput) {
+              onClear();
+              setProgramInput("");
+              setProgramDropdownOpen(true);
+            } else {
+              setProgramDropdownOpen(!programDropdownOpen);
+            }
+          }}
+        >
+          {selectedProgram || programInput ? (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+            </svg>
+          ) : (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <polyline points={programDropdownOpen ? "18 15 12 9 6 15" : "6 9 12 15 18 9"} />
+            </svg>
+          )}
+        </button>
+      </div>
+
+      {programDropdownOpen && !loading && (
+        <div style={dropdownStyle(accentColor)}>
+          <div
+            className="px-3 py-1.5 text-[13px] font-semibold uppercase tracking-wider flex-shrink-0"
+            style={{ color: COLOURS.darkGrey, borderBottom: `1px solid ${COLOURS.grey}` }}
+          >
+            {filtered.length} program{filtered.length !== 1 ? "s" : ""}
+          </div>
+          <div className="dd-scroll">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-2.5 text-[14px]" style={{ color: COLOURS.darkGrey }}>
+                No programs match "{programInput}"
+              </div>
+            ) : (
+              filtered.map((p) => (
+                <div
+                  key={p.program_id}
+                  className="dd-item px-3 py-2.5 text-[14px] font-medium"
+                  style={{
+                    color: selectedProgram === p.program_name ? COLOURS.white : accentColor,
+                    background: selectedProgram === p.program_name ? accentColor : "transparent",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedProgram !== p.program_name)
+                      (e.currentTarget as HTMLDivElement).style.background = `${COLOURS.grey}cc`;
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedProgram !== p.program_name)
+                      (e.currentTarget as HTMLDivElement).style.background = "transparent";
+                  }}
+                  onClick={() => onSelect(p.program_name)}
+                >
+                  {formatProgramName(p.program_name)}
+                  {p.program_type && (
+                    <span className="ml-2 text-[13px] font-normal opacity-60">{p.program_type}</span>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Main page component ───────────────────────────────────────────────────────
 
 export default function PlannerPage() {
@@ -150,10 +322,17 @@ export default function PlannerPage() {
   const [programsError, setProgramsError] = useState<string | null>(null);
   const [courseCodes, setCourseCodes] = useState<string[]>([]);
 
+  // ── Primary program
   const [selectedProgram, setSelectedProgram] = useState<string>("");
   const [programInput, setProgramInput] = useState<string>("");
   const [programDropdownOpen, setProgramDropdownOpen] = useState(false);
   const programRef = useRef<HTMLDivElement>(null);
+
+  // ── Secondary program (only shown when primary is a Major)
+  const [selectedSecondProgram, setSelectedSecondProgram] = useState<string>("");
+  const [secondProgramInput, setSecondProgramInput] = useState<string>("");
+  const [secondProgramDropdownOpen, setSecondProgramDropdownOpen] = useState(false);
+  const secondProgramRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -176,6 +355,15 @@ export default function PlannerPage() {
 
   const isSubmitting = useRef(false);
 
+  // Derived: is the selected primary program a Major?
+  const selectedProgramObj = programs.find((p) => p.program_name === selectedProgram);
+  const primaryIsMajor = isMajorType(selectedProgramObj?.program_type);
+
+  // Programs eligible for secondary selection: only Major and Minor types
+  const secondaryPrograms = programs.filter(
+    (p) => isMajorType(p.program_type) || p.program_type?.toLowerCase() === "minor"
+  );
+
   useEffect(() => {
     getPrograms()
       .then(setPrograms)
@@ -186,12 +374,24 @@ export default function PlannerPage() {
       .catch(() => {});
   }, []);
 
+  // Reset secondary selection whenever primary changes
+  useEffect(() => {
+    setSelectedSecondProgram("");
+    setSecondProgramInput("");
+    setErrors((prev) => ({ ...prev, secondProgram: undefined }));
+  }, [selectedProgram]);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (programRef.current && !programRef.current.contains(e.target as Node)) {
         setProgramDropdownOpen(false);
         if (!selectedProgram) setProgramInput("");
-        else setProgramInput(selectedProgram);
+        else setProgramInput(formatProgramName(selectedProgram));
+      }
+      if (secondProgramRef.current && !secondProgramRef.current.contains(e.target as Node)) {
+        setSecondProgramDropdownOpen(false);
+        if (!selectedSecondProgram) setSecondProgramInput("");
+        else setSecondProgramInput(formatProgramName(selectedSecondProgram));
       }
       if (courseRef.current && !courseRef.current.contains(e.target as Node))
         setCourseDropdownOpen(false);
@@ -202,25 +402,7 @@ export default function PlannerPage() {
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [selectedProgram]);
-
-  const allProgramOptions = programs
-    .slice()
-    .sort((a, b) => a.program_name.localeCompare(b.program_name));
-
-  const filteredPrograms =
-    programInput.trim().length === 0
-      ? allProgramOptions
-      : allProgramOptions.filter((p) =>
-          p.program_name.toLowerCase().includes(programInput.toLowerCase())
-        );
-
-  const handleProgramSelect = (name: string) => {
-    setSelectedProgram(name);
-    setProgramInput(name);
-    setProgramDropdownOpen(false);
-    setErrors((prev) => ({ ...prev, program: undefined }));
-  };
+  }, [selectedProgram, selectedSecondProgram]);
 
   const filterCourses = (val: string, exclude: string[]): string[] => {
     const q = val.trim().toUpperCase();
@@ -295,6 +477,8 @@ export default function PlannerPage() {
   const validate = (): FormErrors => {
     const errs: FormErrors = {};
     if (!selectedProgram) errs.program = "Please select a program.";
+    if (primaryIsMajor && !selectedSecondProgram)
+      errs.secondProgram = "Please select a second major or minor.";
     return errs;
   };
 
@@ -303,10 +487,10 @@ export default function PlannerPage() {
     isSubmitting.current = true;
 
     const errs = validate();
-    if (Object.keys(errs).length) { 
-        setErrors(errs); 
-        isSubmitting.current = false;
-        return; 
+    if (Object.keys(errs).length) {
+      setErrors(errs);
+      isSubmitting.current = false;
+      return;
     }
 
     setErrors({});
@@ -318,6 +502,7 @@ export default function PlannerPage() {
       if (!program) { setErrors({ program: "Program not found." }); return; }
       await generatePlan({
         program_name: selectedProgram,
+        second_program_name: primaryIsMajor ? selectedSecondProgram : undefined,
         completedCourses: takenCourses,
         favouriteCourses: favCourses,
         interestedCourses: interestedCourses,
@@ -325,6 +510,7 @@ export default function PlannerPage() {
       navigate("/visualizer", {
         state: {
           programName: selectedProgram,
+          secondProgramName: primaryIsMajor ? selectedSecondProgram : undefined,
           completedCourses: takenCourses,
           favouriteCourses: favCourses,
           interestedCourses: interestedCourses,
@@ -366,6 +552,11 @@ export default function PlannerPage() {
         }
         .animate-fade-in   { animation: fadeUp 0.4s ease both; }
         .animate-fade-up-5 { animation: fadeUp 0.6s 0.6s ease both; }
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-down { animation: slideDown 0.25s ease both; }
         .dd-item { transition: background 0.1s ease; cursor: pointer; }
         .dd-scroll {
           overflow-y: auto; flex: 1;
@@ -378,6 +569,7 @@ export default function PlannerPage() {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 24px;
+          align-items: start;
         }
         @media (max-width: 800px) {
           .planner-grid { grid-template-columns: 1fr; }
@@ -430,97 +622,74 @@ export default function PlannerPage() {
             {programsError ? (
               <p className="text-[14px] font-medium" style={{ color: COLOURS.red }}>{programsError}</p>
             ) : (
-              <div ref={programRef} className="relative">
-                <div className="relative">
-                  <input
-                    className="w-full px-3 py-2.5 pr-9 rounded-xl border-2 bg-white font-sans text-[14px] transition-colors focus:outline-none"
-                    style={{
-                      borderColor: errors.program ? COLOURS.red : programDropdownOpen ? COLOURS.blue : COLOURS.grey,
-                      color: selectedProgram ? COLOURS.blue : COLOURS.darkGrey,
-                    }}
-                    type="text"
-                    placeholder={programsLoading ? "Loading programs…" : "Search for a program…"}
-                    disabled={programsLoading}
-                    value={programInput}
-                    onChange={(e) => {
-                      setProgramInput(e.target.value);
-                      setSelectedProgram("");
-                      setProgramDropdownOpen(true);
-                      setErrors((prev) => ({ ...prev, program: undefined }));
-                    }}
-                    onFocus={() => setProgramDropdownOpen(true)}
-                  />
-                  <button
-                    tabIndex={-1}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2"
-                    style={{ background: "transparent", border: "none", cursor: "pointer", color: COLOURS.darkGrey }}
-                    onClick={() => {
-                      if (selectedProgram || programInput) {
-                        setSelectedProgram(""); setProgramInput(""); setProgramDropdownOpen(true);
-                      } else {
-                        setProgramDropdownOpen((v) => !v);
-                      }
-                    }}
-                  >
-                    {selectedProgram || programInput ? (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
-                      </svg>
-                    ) : (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <polyline points={programDropdownOpen ? "18 15 12 9 6 15" : "6 9 12 15 18 9"} />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-
-                {programDropdownOpen && !programsLoading && (
-                  <div style={dropdownStyle(COLOURS.blue)}>
-                    <div
-                      className="px-3 py-1.5 text-[13px] font-semibold uppercase tracking-wider flex-shrink-0"
-                      style={{ color: COLOURS.darkGrey, borderBottom: `1px solid ${COLOURS.grey}` }}
-                    >
-                      {filteredPrograms.length} program{filteredPrograms.length !== 1 ? "s" : ""}
-                    </div>
-                    <div className="dd-scroll">
-                      {filteredPrograms.length === 0 ? (
-                        <div className="px-3 py-2.5 text-[14px]" style={{ color: COLOURS.darkGrey }}>
-                          No programs match "{programInput}"
-                        </div>
-                      ) : (
-                        filteredPrograms.map((p) => (
-                          <div
-                            key={p.program_id}
-                            className="dd-item px-3 py-2.5 text-[14px] font-medium"
-                            style={{
-                              color: selectedProgram === p.program_name ? COLOURS.white : COLOURS.blue,
-                              background: selectedProgram === p.program_name ? COLOURS.blue : "transparent",
-                            }}
-                            onMouseEnter={(e) => {
-                              if (selectedProgram !== p.program_name)
-                                (e.currentTarget as HTMLDivElement).style.background = `${COLOURS.grey}cc`;
-                            }}
-                            onMouseLeave={(e) => {
-                              if (selectedProgram !== p.program_name)
-                                (e.currentTarget as HTMLDivElement).style.background = "transparent";
-                            }}
-                            onClick={() => handleProgramSelect(p.program_name)}
-                          >
-                            {p.program_name}
-                            {p.program_type && (
-                              <span className="ml-2 text-[13px] font-normal opacity-60">{p.program_type}</span>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <ProgramDropdownInput
+                programs={programs.filter((p) => p.program_type?.toLowerCase() !== "minor")}
+                selectedProgram={selectedProgram}
+                programInput={programInput}
+                setProgramInput={setProgramInput}
+                programDropdownOpen={programDropdownOpen}
+                setProgramDropdownOpen={setProgramDropdownOpen}
+                programRef={programRef}
+                onSelect={(name) => {
+                  setSelectedProgram(name);
+                  setProgramInput(formatProgramName(name));
+                  setProgramDropdownOpen(false);
+                  setErrors((prev) => ({ ...prev, program: undefined }));
+                }}
+                onClear={() => setSelectedProgram("")}
+                error={errors.program}
+                loading={programsLoading}
+                accentColor={COLOURS.blue}
+              />
             )}
 
             {errors.program && (
               <p className="text-[15px] font-medium" style={{ color: COLOURS.red }}>{errors.program}</p>
+            )}
+
+            {/* ── Secondary program (Major only) ── */}
+            {primaryIsMajor && (
+              <div className="animate-slide-down flex flex-col gap-3 pt-1 border-t" style={{ borderColor: COLOURS.grey }}>
+                <div className="flex items-center gap-2 pt-1">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={COLOURS.blue} strokeWidth="2.2">
+                    <path d="M12 5v14"/><path d="M5 12h14"/>
+                  </svg>
+                  <span className="font-semibold text-[15px]" style={{ color: COLOURS.blue }}>
+                    Second Major / Minor
+                    <span className="ml-1 text-[14px] font-normal" style={{ color: COLOURS.red }}>*</span>
+                  </span>
+                </div>
+
+                <InfoNote
+                  color={COLOURS.blue}
+                  text="A Major requires a second major or minor. Select yours below."
+                />
+
+                <ProgramDropdownInput
+                  programs={secondaryPrograms}
+                  selectedProgram={selectedSecondProgram}
+                  programInput={secondProgramInput}
+                  setProgramInput={setSecondProgramInput}
+                  programDropdownOpen={secondProgramDropdownOpen}
+                  setProgramDropdownOpen={setSecondProgramDropdownOpen}
+                  programRef={secondProgramRef}
+                  onSelect={(name) => {
+                    setSelectedSecondProgram(name);
+                    setSecondProgramInput(formatProgramName(name));
+                    setSecondProgramDropdownOpen(false);
+                    setErrors((prev) => ({ ...prev, secondProgram: undefined }));
+                  }}
+                  onClear={() => setSelectedSecondProgram("")}
+                  error={errors.secondProgram}
+                  loading={programsLoading}
+                  excludeName={selectedProgram}
+                  accentColor={COLOURS.blue}
+                />
+
+                {errors.secondProgram && (
+                  <p className="text-[15px] font-medium" style={{ color: COLOURS.red }}>{errors.secondProgram}</p>
+                )}
+              </div>
             )}
 
             <p className="text-[15px] mt-auto pt-1" style={{ color: COLOURS.darkGrey }}>

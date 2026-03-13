@@ -31,6 +31,7 @@ export async function getCourses(): Promise<Course[]> {
 // Plan 
 export interface PlanRequest {
   program_name: string;
+  second_program_name?: string;
   completedCourses: string[];
   favouriteCourses: string[];
   interestedCourses: string[];

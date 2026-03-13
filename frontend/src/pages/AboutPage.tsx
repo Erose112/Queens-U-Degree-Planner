@@ -35,7 +35,7 @@ export default function AboutPage() {
         activePage="About"
       />
 
-      <main className="flex-1 w-full max-w-[900px] mx-auto px-10 py-11 flex flex-col gap-16">
+      <main className="flex-1 w-full max-w-[900px] mx-auto px-10 py-11 flex flex-col gap-14">
 
         {/* Hero */}
         <div className="flex flex-col gap-6">
@@ -88,7 +88,7 @@ export default function AboutPage() {
             About Me
           </h2>
           <p className="text-[16px] leading-[1.75]" style={{ color: COLOURS.darkGrey }}>
-            I'm a second-year Computer Science student passionate about building tools that make
+            I'm a second-year Computer Science and Mathematics student passionate about building tools that make
             student life easier. I enjoy full-stack development, data-driven design, and turning
             frustrating problems into real life solutions.
           </p>

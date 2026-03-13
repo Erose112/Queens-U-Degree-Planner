@@ -182,7 +182,7 @@ export default function HomePage() {
 
         {/* Guide Section */}
         <div
-          className="flex flex-col gap-6 py-7 rounded-2xl mt-6"
+          className="flex flex-col gap-6 py-6 rounded-2xl"
         >
 
           {/* Instructions */}
@@ -247,10 +247,12 @@ export default function HomePage() {
               className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
               style={{ background: `${COLOURS.red}18`, color: COLOURS.red }}
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2l8 4v5c0 5.25-3.3 8.25-8 10.5C7.3 19.25 4 16.25 4 11V6l8-4z"/>
-                <line x1="12" y1="9" x2="12" y2="13"/>
-                <circle cx="12" cy="16" r="0.5" fill="currentColor" stroke="none"/>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L21 6V12C21 17 17 20.5 12 22C7 20.5 3 17 3 12V6L12 2Z"
+                  fill="currentColor" fill-opacity="0.1"
+                  stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                <circle cx="12" cy="16" r="1.1" fill="currentColor"/>
+                <rect x="11.1" y="9" width="1.8" height="5" rx="0.9" fill="currentColor"/>
               </svg>
             </div>
 
@@ -269,6 +271,7 @@ export default function HomePage() {
                 {[
                   "Not all program/course data is guaranteed to be accurate or up-to-date. Always double-check with official resources.",
                   "Be careful to only add courses that you have taken when adding courses to your plan.",
+                  "This tools is only for students in the Arts & Science faculty at Queen's, and will not work for other faculties or universities.",
                 ].map((step, i) => (
                   <li key={i} className="flex items-start gap-2 text-[15px] leading-[1.65]">
                     <span
