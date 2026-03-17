@@ -41,6 +41,7 @@ export interface CourseConnection {
 export interface CoursePlan {
   id: string;
   programName: string;
+  secondProgramName?: string;
   programCode: string;
   totalUnits: number;
   coreUnits: number;

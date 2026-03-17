@@ -77,18 +77,3 @@ export interface PlanResponse {
   choices: ChoiceNode[];
   edges: CourseEdge[];
 }
-
-export async function generatePlan(payload: PlanRequest): Promise<PlanResponse> {
-  const res = await fetch(`${API_BASE}/plans/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? `Server error ${res.status}`);
-  }
-
-  return res.json();
-}

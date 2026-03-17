@@ -3,60 +3,26 @@ import { useNavigate } from "react-router-dom";
 import NavBar from "../components/NavBar";
 import Footer from "../components/Footer";
 import ScrollToTop from "../components/ScrollToTop";
-import { COLOURS } from "../utils/colours";
-import { generatePlan, getPrograms, getCourses, type Program } from "../services/api";
 import NextPageButton from "../components/NextPageButton";
+import { COLOURS } from "../utils/colours";
+import { formatProgramName } from "../utils/formatProgramName";
+import { getPrograms, getCourses, type Program } from "../services/api";
 
 interface FormErrors {
   program?: string;
   secondProgram?: string;
 }
 
-// ─── Name formatter ────────────────────────────────────────────────────────────
-// Strips redundant type/faculty words and expands degree abbreviations.
-// "Biochemistry Major Science Bs Honours" → "Biochemistry Bachelor of Science"
-// "Biochemistry Minor Science"            → "Biochemistry"
 
-const DEGREE_MAP: Record<string, string> = {
-  bs: "Bachelor of Science",
-  ba: "Bachelor of Arts",
-  bm: "Bachelor of Music",
-  bmt: "Bachelor of Music Theatre",
-};
-
-function formatProgramName(rawName: string): string {
-  // 1. Remove type keywords and Honours
-  let name = rawName.replace(
-    /\b(Specialization|Major|Minor|General|Honours)\b/gi,
-    ""
-  );
-
-  // 2. Replace "Faculty Degree" pairs  e.g. "Science Bs" → "Bachelor of Science"
-  name = name.replace(
-    /\b(Science|Arts|Music)\s+(Bs|Ba|Bm)\b/gi,
-    (_match, _faculty, degree) => DEGREE_MAP[degree.toLowerCase()] ?? degree
-  );
-
-  // 3. Remove any leftover standalone faculty names (e.g. minors end with "Science")
-  name = name.replace(
-    /(?<!of )\b(Science|Arts|Music)\b/gi,
-    ""
-  );
-  
-  // 4. Collapse whitespace
-  return name.replace(/\s+/g, " ").trim();
-}
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
+// Helpers 
 function isMajorType(type: string | undefined): boolean {
   if (!type) return false;
   const t = type.toLowerCase();
   return t === "major" || t === "honours major";
 }
 
-// ─── Sub-components ────────────────────────────────────────────────────────────
 
+// Sub-components 
 const StepBadge = ({ n, color }: { n: string; color: string }) => (
   <span
     className="w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-bold flex-shrink-0"
@@ -184,8 +150,8 @@ const CourseDropdownInput = ({
   </div>
 );
 
-// ─── Program dropdown (shared between primary and secondary selectors) ─────────
 
+// Program dropdown (shared between primary and secondary selectors) 
 const ProgramDropdownInput = ({
   programs, selectedProgram, programInput, setProgramInput,
   programDropdownOpen, setProgramDropdownOpen, programRef,
@@ -312,8 +278,8 @@ const ProgramDropdownInput = ({
   );
 };
 
-// ─── Main page component ───────────────────────────────────────────────────────
 
+// Main page component
 export default function PlannerPage() {
   const navigate = useNavigate();
 
@@ -500,15 +466,27 @@ export default function PlannerPage() {
     try {
       const program = programs.find((p) => p.program_name === selectedProgram);
       if (!program) { setErrors({ program: "Program not found." }); return; }
-      await generatePlan({
+
+      const payload = {
         program_name: selectedProgram,
         second_program_name: primaryIsMajor ? selectedSecondProgram : undefined,
         completedCourses: takenCourses,
         favouriteCourses: favCourses,
         interestedCourses: interestedCourses,
+      };
+
+      const response = await fetch('http://localhost:8000/plans/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
+
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+      const planData = await response.json();
+
       navigate("/visualizer", {
         state: {
+          planData,
           programName: selectedProgram,
           secondProgramName: primaryIsMajor ? selectedSecondProgram : undefined,
           completedCourses: takenCourses,
@@ -536,7 +514,7 @@ export default function PlannerPage() {
   };
 
   return (
-    <div className="font-sans min-h-screen flex flex-col" style={{ background: COLOURS.warmWhite }}>
+    <div className="font-sans flex flex-col min-h-screen" style={{ background: COLOURS.warmWhite }}>
       <ScrollToTop />
       <style>{`
         body { font-family: 'DM Sans', sans-serif; }
@@ -579,7 +557,7 @@ export default function PlannerPage() {
       <NavBar onHome={() => navigate("/")} onPlan={() => navigate("/planner")} onAbout={() => navigate("/about")} activePage="Plan" />
 
       {/* ── Page header ── */}
-      <div className="px-10 pt-[30px] pb-8 text-center" style={{ background: COLOURS.warmWhite }}>
+      <div className="px-10 py-[30px] grow text-center" style={{ background: COLOURS.warmWhite }}>
         <div className="animate-fade-in max-w-[1100px] mx-auto">
           <button
             onClick={() => navigate("/")}
@@ -606,7 +584,7 @@ export default function PlannerPage() {
       </div>
 
       {/* ── Form grid ── */}
-      <section className="pt-4 px-[30px] pb-[30px] max-w-full mx-auto w-full">
+      <section className="pt-4 px-[30px] pb-10 max-w-full mx-auto w-full">
         <div className="planner-grid">
 
           {/* ── Q1: Program ── */}

@@ -15,12 +15,14 @@ import { CourseNode } from '../components/courseplan/CourseNode';
 import { CourseEdge } from '../components/courseplan/CourseEdge';
 import { Legend } from '../components/courseplan/Legend';
 import { YearSideBar } from '../components/courseplan/YearSideBar';
+import Footer from '../components/Footer';
+import ScrollToTop from '../components/ScrollToTop';
 import { YEAR_BAR_WIDTH, YEAR_BAR_COURSE_OFFSET } from '../utils/coursePlanLayout';
+import { COLOURS } from '../utils/colours';
 import { convertCoursePlanToFlow } from '../utils/coursePlanConverter';
 import type { CoursePlan, YearSection } from '../types';
 import { CourseStatus } from '../types';
-import { COLOURS } from '../utils/colours';
-import Footer from '../components/Footer';
+import { formatProgramName } from "../utils/formatProgramName";
 
 // TypeScript interfaces for API response data
 interface CourseData {
@@ -78,127 +80,80 @@ function ChartInner({ yearSections }: { yearSections: YearSection[] }) {
 export default function CoursePlanPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { programId, programName, completedCourses, favouriteCourses, interestedCourses } = (location.state ?? {}) as {
-    programId?: number;
+  const { planData, programName, secondProgramName } = (location.state ?? {}) as {
+    planData?: PlanResponseData;
     programName?: string;
-    completedCourses?: string[];
-    favouriteCourses?: string[];
-    interestedCourses?: string[];
+    secondProgramName?: string;
   };
 
   const [coursePlan, setCoursePlan] = useState<CoursePlan | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-
+  // Map planData → CoursePlan synchronously on mount.
+  // No fetch needed — the planner page fetched and passed the result via navigate state.
   useEffect(() => {
-    if (!programName) {
+    if (!programName || !planData) {
       navigate('/planner');
       return;
     }
 
-    const fetchPlan = async () => {
-      try {
-        const payload = {
-          program_name: programName,
-          completedCourses: completedCourses ?? [],
-          favouriteCourses: favouriteCourses ?? [],
-          interestedCourses: interestedCourses ?? [],
+    try {
+      if (!planData.courses || !Array.isArray(planData.courses))
+        throw new Error('Invalid response: courses array missing');
+      if (!planData.edges || !Array.isArray(planData.edges))
+        throw new Error('Invalid response: edges array missing');
+
+      const coursesByYear: Record<number, number> = {};
+
+      const mappedCourses = planData.courses.map((c: CourseData) => {
+        if (!c.course_code) throw new Error('Course missing course_code');
+
+        const year = Math.min(Math.max(c.year ?? 1, 1), 4);
+        if (coursesByYear[year] === undefined) coursesByYear[year] = 0;
+        const position = coursesByYear[year]++;
+
+        const units = Math.max(c.units || 3, 0.5);
+
+        return {
+          id: c.course_code,
+          code: c.course_code,
+          name: c.title ?? c.course_code,
+          units,
+          year,
+          position,
+          status:
+            c.semester === 'Completed'
+              ? CourseStatus.COMPLETED
+              : c.is_required
+              ? CourseStatus.REQUIRED
+              : CourseStatus.AVAILABLE,
         };
-        console.log('Sending payload:', payload);
-        
-        const response = await fetch('http://localhost:8000/plans/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            program_name: programName,
-            completedCourses: completedCourses ?? [],
-            favouriteCourses: favouriteCourses ?? [],
-            interestedCourses: interestedCourses ?? [],
-          }),
-        });
+      });
 
-        if (!response.ok) throw new Error(`Server error: ${response.status}`);
+      const mappedConnections = planData.edges
+        .filter((e: EdgeData) => e.from_course && e.to_course)
+        .map((e: EdgeData) => ({
+          id: `${e.from_course}-${e.to_course}`,
+          from_course: e.from_course!,
+          to_course: e.to_course!,
+        }));
 
-        const data: PlanResponseData = await response.json();
-        console.log('RAW API RESPONSE:', JSON.stringify(data, null, 2));
-        
-        // Validate response structure
-        if (!data.courses || !Array.isArray(data.courses)) {
-          throw new Error('Invalid response: courses array missing');
-        }
-        if (!data.edges || !Array.isArray(data.edges)) {
-          throw new Error('Invalid response: edges array missing');
-        }
-
-        // Group courses by year to assign positions
-        const coursesByYear: Record<number, number> = {};
-
-        const mappedCourses = data.courses.map((c: CourseData) => {
-          if (!c.course_code) {
-            console.error('Invalid course: missing course_code', c);
-            throw new Error('Course missing course_code');
-          }
-          
-          // Clamp year between 1 and 4
-          const year = Math.min(Math.max(c.year ?? 1, 1), 4);
-          if (coursesByYear[year] === undefined) coursesByYear[year] = 0;
-          const position = coursesByYear[year]++;
-          
-          // Validate units is positive
-          const units = c.units || 3;
-          if (units <= 0) {
-            console.warn(`Course ${c.course_code} has invalid units: ${units}, defaulting to 3`);
-          }
-
-          return {
-            id: c.course_code,
-            code: c.course_code,
-            name: c.title ?? c.course_code,
-            units: Math.max(units, 0.5),
-            year,
-            position,
-            status:
-              c.semester === 'Completed'
-                ? CourseStatus.COMPLETED
-                : c.is_required
-                ? CourseStatus.REQUIRED
-                : CourseStatus.AVAILABLE,
-          };
-        });
-
-        const mappedConnections = data.edges.map((e: EdgeData) => {
-          if (!e.from_course || !e.to_course) {
-            console.warn('Invalid edge missing from_course or to_course', e);
-            return null;
-          }
-          return {
-            id: `${e.from_course}-${e.to_course}`,
-            from_course: e.from_course,
-            to_course: e.to_course,
-          };
-        }).filter((e) => e !== null);
-
-        setCoursePlan({
-          id: String(programId),
-          programName: data.program_name ?? 'Unknown Program',
-          programCode: data.program_code ?? 'UNKNOWN',
-          totalUnits: data.total_units ?? 0,
-          coreUnits: data.core_units ?? 0,
-          optionUnits: data.option_units ?? 0,
-          electiveUnits: data.elective_units ?? 0,
-          courses: mappedCourses,
-          connections: mappedConnections as any,
-        });
-      } catch (err: any) {
-        setError(err.message ?? 'Unknown error');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPlan();
-  }, [programName, completedCourses, favouriteCourses, interestedCourses, navigate]);
+      setCoursePlan({
+        id: programName,
+        programName: formatProgramName(planData.program_name ?? '') ?? 'Unknown Program',
+        secondProgramName: secondProgramName ? formatProgramName(secondProgramName) : undefined,
+        programCode: planData.program_code ?? 'UNKNOWN',
+        totalUnits: planData.total_units ?? 0,
+        coreUnits: planData.core_units ?? 0,
+        optionUnits: planData.option_units ?? 0,
+        electiveUnits: planData.elective_units ?? 0,
+        courses: mappedCourses,
+        connections: mappedConnections as any,
+      });
+    } catch (err: any) {
+      setError(err.message ?? 'Unknown error');
+    }
+  }, []); // runs once on mount — data is already present in navigation state
 
   const { nodes: initialNodes, edges: initialEdges, yearSections } = useMemo(
     () => coursePlan ? convertCoursePlanToFlow(coursePlan) : { nodes: [], edges: [], yearSections: [] },
@@ -233,12 +188,6 @@ export default function CoursePlanPage() {
     }));
   }, [edges, hoveredNodeId]);
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-400 text-lg">Generating your plan...</p>
-    </div>
-  );
-
   if (error || !coursePlan) return (
     <div className="min-h-screen flex items-center justify-center">
       <p className="text-red-400 text-lg">Error: {error ?? 'No plan data found.'}</p>
@@ -247,6 +196,7 @@ export default function CoursePlanPage() {
 
   return (
     <div className='min-h-screen flex flex-col gap-6' style={{ background: COLOURS.warmWhite }}>
+      <ScrollToTop />
       <div className="px-8">
         <div className="py-6 flex items-center gap-0">
 
@@ -254,7 +204,7 @@ export default function CoursePlanPage() {
             <div className="w-1 rounded-full" style={{ background: COLOURS.blue }} />
             <div>
               <button
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/planner')}
                 className="flex items-center gap-1.5 mb-1 text-xs font-medium tracking-wide cursor-pointer bg-transparent border-none p-0 transition-opacity opacity-50 hover:opacity-100"
                 style={{ color: COLOURS.blue }}
               >
@@ -270,7 +220,7 @@ export default function CoursePlanPage() {
           {/* Program info */}
           <div className="flex-1 px-8">
             <span className="text-2xl font-bold leading-tight" style={{ color: COLOURS.blue }}>
-              {coursePlan.programName}
+              {coursePlan.programName + (coursePlan.secondProgramName ? ` + ${coursePlan.secondProgramName}` : '')}
             </span>
             <p className="text-m text-gray-400 mt-0.5">{coursePlan.programCode}</p>
             <div className="flex items-center gap-3 mt-1.5 text-s text-gray-400">
@@ -300,7 +250,7 @@ export default function CoursePlanPage() {
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
-            onNodeMouseLeave={() => setHoveredNodeId(null)}  
+            onNodeMouseLeave={() => setHoveredNodeId(null)}
             defaultViewport={{ x: YEAR_BAR_WIDTH + YEAR_BAR_COURSE_OFFSET, y: 0, zoom: 1 }}
             nodesDraggable={false}
             nodesConnectable={false}
