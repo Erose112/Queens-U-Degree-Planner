@@ -67,5 +67,4 @@ def precompute_all_similarities():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     precompute_all_similarities()

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -7,6 +9,11 @@ from app.routers.courses import router as courses_router
 from app.routers.programs import router as programs_router
 from app.routers.plans import router as plans_router
 from app.routers.recommendations import router as recommendations_router
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 app = FastAPI(title="Course Planner API", version="1.0.0")
 
