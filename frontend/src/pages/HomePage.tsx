@@ -3,6 +3,7 @@ import NavBar from "../components/NavBar";
 import Footer from "../components/Footer";
 import NextPageButton from "../components/NextPageButton";
 import { COLOURS } from "../utils/colours";
+import ScrollToTop from "../components/ScrollToTop";
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -11,6 +12,7 @@ export default function HomePage() {
 
   return (
     <div className="font-sans min-h-screen flex flex-col" style={{ background: COLOURS.warmWhite }}>
+      <ScrollToTop />
       <style>{`
         body { font-family: 'DM Sans', sans-serif; }
         .font-playfair { font-family: 'Playfair Display', serif; }
@@ -170,10 +172,10 @@ export default function HomePage() {
               >
                 {card.icon}
               </div>
-              <h3 className="font-semibold text-[17px] mb-2" style={{ color: COLOURS.blue }}>
+              <h3 className="font-semibold text-[18px] mb-2" style={{ color: COLOURS.blue }}>
                 {card.title}
               </h3>
-              <p className="text-[15px] leading-[1.65]" style={{ color: COLOURS.darkGrey }}>
+              <p className="text-[16px] leading-[1.65]" style={{ color: COLOURS.darkGrey }}>
                 {card.desc}
               </p>
             </div>
@@ -208,7 +210,7 @@ export default function HomePage() {
 
             {/* Text */}
             <div className="flex flex-col gap-3">
-              <h3 className="font-semibold text-[17px]" style={{ color: COLOURS.blue }}>
+              <h3 className="font-semibold text-[18px]" style={{ color: COLOURS.blue }}>
                 Instructions
               </h3>
 
@@ -218,9 +220,9 @@ export default function HomePage() {
                   "Pick your favourite subjects and interested courses to personalize your plan.",
                   'Click "Generate Plan" to see your personalized degree roadmap.',
                 ].map((step, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[15px] leading-[1.65]">
+                  <li key={i} className="flex items-start gap-2 text-[16px] leading-[1.65]">
                     <span
-                      className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[12px] font-bold mt-[2px]"
+                      className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold mt-[2px]"
                       style={{ background: COLOURS.blue, color: COLOURS.white }}
                     >
                       {i + 1}
@@ -263,7 +265,7 @@ export default function HomePage() {
                 width: "100%",
               }}
             >
-              <h3 className="font-semibold text-[17px]" style={{ color: COLOURS.red }}>
+              <h3 className="font-semibold text-[18px]" style={{ color: COLOURS.red }}>
                 Notice
               </h3>
 
@@ -273,9 +275,9 @@ export default function HomePage() {
                   "Be careful to only add courses that you have taken when adding courses to your plan.",
                   "This tools is only for students in the Arts & Science faculty at Queen's, and will not work for other faculties or universities.",
                 ].map((step, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[15px] leading-[1.65]">
+                  <li key={i} className="flex items-start gap-2 text-[16px] leading-[1.65]">
                     <span
-                      className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[12px] font-bold mt-[2px]"
+                      className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold mt-[2px]"
                       style={{ background: COLOURS.red, color: COLOURS.white }}
                     >
                       {i + 1}

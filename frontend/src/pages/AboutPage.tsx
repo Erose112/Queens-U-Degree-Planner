@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/NavBar";
 import Footer from "../components/Footer";
 import { COLOURS } from "../utils/colours";
+import ScrollToTop from "../components/ScrollToTop";
 
 const SOCIAL_LINKS = [
   {
@@ -29,6 +30,7 @@ export default function AboutPage() {
 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: COLOURS.warmWhite }}>
+      <ScrollToTop />
       <Navbar
         onHome={() => navigate("/")}
         onPlan={() => navigate("/planner")}

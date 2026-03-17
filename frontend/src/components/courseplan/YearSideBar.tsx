@@ -24,10 +24,10 @@ export function YearSideBar({ yearSections, translateY, scale }: YearSideBarProp
     >
       {yearSections.map((section, i) => {
         const isEven = i % 2 === 0;
-        const barColor = isEven ? COLOURS.darkGrey : COLOURS.grey;
+        const barColor = isEven ? COLOURS.blue : `${COLOURS.blue}80`;
         const bgColor = isEven
           ? 'rgba(255, 255, 255, 0.6)'
-          : 'rgba(0, 0, 0, 0.05)';
+          : `${COLOURS.blue}20`;
 
         return (
           <div
