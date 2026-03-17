@@ -117,6 +117,26 @@ def get_db_prereq_groups(db: Session, code: str) -> list[set[str]]:
 
 
 
+
+def prereqs_satisfiable(
+    db: Session,
+    code: str,
+    current_plan: set[str],
+    elective_pool: set[str],
+) -> bool:
+    """
+    Returns True if every prereq group for `code` has at least one member
+    either already in the plan or available in the elective pool.
+    """
+    for group in get_db_prereq_groups(db, code):
+        if any(c in current_plan for c in group):
+            continue  # already satisfied
+        if not any(c in elective_pool for c in group):
+            return False  # no candidate can satisfy this group
+    return True
+
+
+
 # Prerequisite map builder
 def build_prereq_maps(
     db: Session,

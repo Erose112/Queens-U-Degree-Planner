@@ -102,44 +102,68 @@ def get_recommendations_for_program(
     return results[:top_k]
 
 
-def get_highest_scored_courses(
+
+
+def get_recommendations_for_candidates(
     db: Session,
-    course_codes: list[str],
+    seed_course_codes: list[str],
+    candidate_course_codes: list[str],
     top_k: int = 10,
 ) -> list[tuple]:
     """
-    Given a list of course codes (e.g. elective options in a plan),
-    return them ranked by average precomputed similarity to each other.
-    Used by the graph layer to weight elective selection.
+    Rank a set of candidate courses by their similarity to a set of seed
+    courses (e.g. committed/completed courses). No program scoping applied.
+
+    Used for free elective backfill where candidates are outside the program.
     """
-    courses = [
-        c for code in course_codes
+    if not candidate_course_codes:
+        return []
+
+    candidates = [
+        c for code in candidate_course_codes
+        if (c := get_course_by_code(db, code))
+    ]
+    if not candidates:
+        return []
+
+    seed_courses = [
+        c for code in seed_course_codes
         if (c := get_course_by_code(db, code))
     ]
 
-    if not courses:
-        return []
+    # No history — return candidates unscored
+    if not seed_courses:
+        return [(c, 0.0) for c in candidates[:top_k]]
 
-    # Single course — nothing to compare against
-    if len(courses) == 1:
-        return [(courses[0], 0.0)]
+    candidate_ids = {c.course_id for c in candidates}
 
-    course_ids = {c.course_id for c in courses}
-
-    scored = []
-    for course in courses:
+    scored: dict[int, float] = {}
+    for seed in seed_courses:
         results = get_similar_courses_from_db(
             db,
-            course.course_id,
-            top_k=len(courses),
+            seed.course_id,
+            top_k=len(candidates),
         )
-        # Only keep scores against other courses in the input list
-        peer_scores = [
-            score for c, score in results
-            if c.course_id in course_ids and c.course_id != course.course_id
-        ]
-        avg_score = sum(peer_scores) / len(peer_scores) if peer_scores else 0.0
-        scored.append((course, avg_score))
+        for course, score in results:
+            if course.course_id not in candidate_ids:
+                continue
+            # Keep the highest score seen across all seeds
+            scored[course.course_id] = max(
+                scored.get(course.course_id, 0.0),
+                score,
+            )
 
-    scored.sort(key=lambda x: x[1], reverse=True)
-    return scored[:top_k]
+    course_map = {c.course_id: c for c in candidates}
+    ranked = [
+        (course_map[cid], score)
+        for cid, score in scored.items()
+        if cid in course_map
+    ]
+
+    # Append anything with no similarity data at all
+    scored_ids = set(scored)
+    unscored = [(c, 0.0) for c in candidates if c.course_id not in scored_ids]
+
+    ranked = ranked + unscored
+    ranked.sort(key=lambda x: x[1], reverse=True)
+    return ranked[:top_k]

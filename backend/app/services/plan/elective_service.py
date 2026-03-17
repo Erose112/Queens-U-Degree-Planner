@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.queries.course_queries import get_course_by_code
 from app.services.plan.constants import DEFAULT_CREDITS, CREDITS_PER_YEAR, MAX_YEARS
 from app.services.plan.prereq_utils import course_level_floor, get_db_prereq_groups
-from app.services.recommendation_services import get_recommendations_for_program
+from app.services.recommendation_services import get_recommendations_for_candidates, get_recommendations_for_program
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ def rank_electives(
     elective_credits_required: float = 0.0,
     year_credits_used: dict[int, float] | None = None,
     choice_groups: list[dict] | None = None,
+    use_candidate_ranking: bool = False,
 ) -> list[str]:
     """
     Select electives from the candidate pool to meet the required credit amount.
@@ -55,12 +56,24 @@ def rank_electives(
 
     logger.debug("[rank_electives] Credit map built: %s", elective_credits_map)
 
-    ranked = get_recommendations_for_program(
-        db,
-        program_id=program_id,
-        completed_course_codes=seed_codes or completed_courses,
-        top_k=len(elective_codes),
-    )
+
+    if use_candidate_ranking:
+        # Seeds are the full committed+favourite+interested pool;
+        # candidates are the free elective pool — no program scoping needed
+        ranked = get_recommendations_for_candidates(
+            db,
+            seed_course_codes=seed_codes or completed_courses,
+            candidate_course_codes=elective_codes,
+            top_k=len(elective_codes),
+        )
+    else:
+        ranked = get_recommendations_for_program(
+            db,
+            program_id=program_id,
+            completed_course_codes=seed_codes or completed_courses,
+            top_k=len(elective_codes),
+        )
+
     logger.info(
         "[rank_electives] Recommendation engine returned %d result(s).",
         len(ranked) if ranked else 0,
@@ -103,6 +116,9 @@ def rank_electives(
 
     group_credits_used: dict[int, float] = defaultdict(float)
 
+    # Only want ot apply dept cap for free backfill, not choice groups
+    is_choice_group = bool(choice_groups)
+
     for code in ordered:
         if credits_accumulated >= elective_credits_required:
             break
@@ -113,14 +129,14 @@ def rank_electives(
         if available_in_year < cr:
             continue  # this year is full try next candidate
 
-        dept = code[:4]  # e.g. "STAT", "CISC", "MATH"
-        dept_cap = max(
-            elective_credits_required * DEPT_CREDIT_CAP_RATIO,
-            DEFAULT_CREDITS,  # always allow at least one course per dept
-        )
-
-        if dept_credits_used[dept] + cr > dept_cap:
-            continue
+        if not is_choice_group:
+            dept = code[:4]  # e.g. "STAT", "CISC", "MATH"
+            dept_cap = max(
+                elective_credits_required * DEPT_CREDIT_CAP_RATIO,
+                DEFAULT_CREDITS,  # always allow at least one course per dept
+            )
+            if dept_credits_used[dept] + cr > dept_cap:
+                continue
 
         group = code_to_group.get(code)
         if group:
@@ -131,7 +147,9 @@ def rank_electives(
         selected_electives.append(code)
         credits_accumulated += cr
         year_budget[yr] = available_in_year - cr
-        dept_credits_used[dept] += cr
+
+        if not is_choice_group:
+            dept_credits_used[dept] += cr
 
         if group:
             group_credits_used[group["section_id"]] += cr
@@ -146,13 +164,14 @@ def rank_electives(
                 break
             cr = elective_credits_map.get(code, DEFAULT_CREDITS)
 
-            dept = code[:4]
-            dept_cap = max(
-                elective_credits_required * DEPT_CREDIT_CAP_RATIO,
-                DEFAULT_CREDITS,
-            )
-            if dept_credits_used[dept] + cr > dept_cap:
-                continue
+            if not is_choice_group:
+                dept = code[:4]
+                dept_cap = max(
+                    elective_credits_required * DEPT_CREDIT_CAP_RATIO,
+                    DEFAULT_CREDITS,
+                )
+                if dept_credits_used[dept] + cr > dept_cap:
+                    continue
 
             group = code_to_group.get(code)
             if group:
@@ -162,7 +181,9 @@ def rank_electives(
 
             selected_electives.append(code)
             credits_accumulated += cr
-            dept_credits_used[dept] += cr
+
+            if not is_choice_group:
+                dept_credits_used[dept] += cr
 
             if group:
                 group_credits_used[group["section_id"]] += cr

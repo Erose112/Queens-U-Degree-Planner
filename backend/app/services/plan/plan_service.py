@@ -24,6 +24,7 @@ from app.services.plan.prereq_utils import (
     build_prereq_maps,
     course_level_floor,
     has_cycle_in_graph,
+    prereqs_satisfiable,
 )
 from app.services.plan.scheduler import schedule
 
@@ -257,7 +258,13 @@ def generate_plan(
         while remaining_group_budget > 0:
             candidates = [
                 c for c in group["codes"]
-                if c not in set(committed_plan) and c not in already_tried
+                if c not in set(committed_plan) 
+                and c not in already_tried
+                and prereqs_satisfiable(  #precheck that prereqs can be satisfied, reduces rank_electives calls
+                    db, c,
+                    current_plan=set(committed_plan),
+                    elective_pool=all_choice_group_codes | ALL_COURSES,
+                )
             ]
 
             if not candidates:
@@ -276,6 +283,7 @@ def generate_plan(
                 elective_credits_required=remaining_group_budget,
                 year_credits_used=_year_credits_used(committed_plan, completed_set, db),
                 choice_groups=[group],
+                use_candidate_ranking=False
             )
 
             if not highest_rated:
@@ -343,6 +351,48 @@ def generate_plan(
             if group.get("logic_type") == LOGIC_CHOOSE_COUNT:
                 break
 
+    
+    # Try to add interested courses directly
+    if interested:
+        current_committed = set(committed_plan)
+        for code in interested:
+            if code in current_committed:
+                continue  # already in plan
+
+            # Check it exists in DB and fits in remaining gap
+            course = get_course_by_code(db, code)
+            if not course:
+                logger.info(
+                    "[generate_plan] Interested course '%s' not found in DB, skipping.", code
+                )
+                continue
+
+            if not prereqs_satisfiable(db, code, current_committed, ALL_COURSES):
+                logger.info(
+                    "[generate_plan] Interested course '%s' has unsatisfiable prereqs, skipping.", code
+                )
+                continue
+
+            resolved, remaining_credit_gap = resolve_elective_prereqs(
+                db,
+                selected=[code],
+                required_set=current_committed,
+                elective_pool=ALL_COURSES,
+                credit_budget=remaining_credit_gap,
+            )
+
+            if resolved:
+                new_codes = [c for c in resolved if c not in current_committed]
+                committed_plan.extend(new_codes)
+                current_committed.update(new_codes)
+                logger.info(
+                    "[generate_plan] Interested course '%s' added to plan (pulled %d prereqs).",
+                    code, len(new_codes) - 1,
+                )
+            else:
+                logger.info(
+                    "[generate_plan] Interested course '%s' could not be resolved, skipping.", code
+                )
 
 
     # Free Elective Backfill
@@ -365,18 +415,25 @@ def generate_plan(
 
             current_committed = set(committed_plan) | completed_set
             ycu = _year_credits_used(committed_plan, completed_set, db)
-            target_level = next(
-                (yr * 100 for yr in range(1, MAX_YEARS + 1)
-                if CREDITS_PER_YEAR - ycu.get(yr, 0.0) >= 3.0),
-                100  # fallback to year 1
-            )
+
+            underfilled_levels = [
+                yr * 100 for yr in range(1, MAX_YEARS + 1)
+                if CREDITS_PER_YEAR - ycu.get(yr, 0.0) >= 3.0
+            ]
+
+            if not underfilled_levels:
+                break
 
             exclude = current_committed | all_group_codes | rejected
-            free_pool = get_free_electives_by_level(db, level=target_level, exclude=exclude)
-            free_pool_codes = [c.course_code for c in free_pool]
+
+            free_pool_codes: list[str] = []
+            for level in underfilled_levels:
+                free_pool = get_free_electives_by_level(db, level=level, exclude=exclude)
+                free_pool_codes.extend(c.course_code for c in free_pool)
 
             if not free_pool_codes:
                 break
+
 
             ranked = rank_electives(
                 db,
@@ -387,6 +444,7 @@ def generate_plan(
                 elective_credits_required=remaining_credit_gap,
                 year_credits_used=ycu,
                 choice_groups=[],  # free electives have no group caps
+                use_candidate_ranking=True,
             )
 
             if not ranked:
