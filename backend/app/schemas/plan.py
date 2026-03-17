@@ -17,7 +17,6 @@ class CourseNode(BaseModel):
     title: str
     units: float | None = None
     year: int
-    semester: str | None = None
     is_required: bool
     is_choice: bool = False  # True if course is from a choice group
 
@@ -25,7 +24,6 @@ class CourseNode(BaseModel):
 class CourseEdge(BaseModel):
     from_course: str
     to_course: str
-    edge_type: str
 
 
 class CourseStatus(str, Enum):

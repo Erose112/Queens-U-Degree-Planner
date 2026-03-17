@@ -89,7 +89,7 @@ def get_free_electives_by_level(
     has_prereqs = (
         db.query(PrerequisiteSet.course_id)
         .distinct()
-        .subquery()
+        .scalar_subquery()
     )
 
     # Fetch all courses with no prerequisites, excluding already-scheduled ones
