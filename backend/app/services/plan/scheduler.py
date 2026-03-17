@@ -134,7 +134,6 @@ def schedule(
                     title=course.title or "",
                     units=float(course.credits) if course.credits else None,
                     year=year,
-                    semester=None,
                     is_required=code in required_set,
                 )
             )
@@ -177,7 +176,6 @@ def schedule(
                     CourseEdge(
                         from_course=prereq_code,
                         to_course=code,
-                        edge_type="prerequisite",
                     )
                 )
 
@@ -194,7 +192,6 @@ def schedule(
                     title=course.title or "",
                     units=float(course.credits) if course.credits else None,
                     year=0,
-                    semester="Completed",
                     is_required=False,
                 )
             )

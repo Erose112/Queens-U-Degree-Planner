@@ -90,6 +90,33 @@ def are_prerequisites_met(
     return True
 
 
+
+def get_db_prereq_groups(db: Session, code: str) -> list[set[str]]:
+    """Return prerequisite OR-groups for a course as a list of sets."""
+    course = get_course_by_code(db, code)
+    if not course:
+        return []
+    psets = db.query(PrerequisiteSet).filter(
+        PrerequisiteSet.course_id == course.course_id
+    ).all()
+    groups = []
+    for pset in psets:
+        pset_courses = db.query(PrerequisiteSetCourse).filter(
+            PrerequisiteSetCourse.set_id == pset.set_id
+        ).all()
+        codes_in_set = set()
+        for psc in pset_courses:
+            prereq = db.query(Course).filter(
+                Course.course_id == psc.required_course_id
+            ).first()
+            if prereq:
+                codes_in_set.add(prereq.course_code)
+        if codes_in_set:
+            groups.append(codes_in_set)
+    return groups
+
+
+
 # Prerequisite map builder
 def build_prereq_maps(
     db: Session,
