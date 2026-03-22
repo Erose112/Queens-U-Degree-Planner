@@ -1,8 +1,8 @@
 from pydantic import BaseModel
-from app.schemas.course import CourseResponse
 
 class CourseRecommendationResponse(BaseModel):
-    course: CourseResponse
+    course_id1: int
+    course_id2: int
     score: float
 
     model_config = {"from_attributes": True}

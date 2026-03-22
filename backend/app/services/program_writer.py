@@ -1,5 +1,5 @@
 """
-Writes Program / Program_Section / Section_Courses / Program_Section_Logic
+Writes Program / Program_Section / Section_Courses
 objects to MySQL.
 
 1.  Load a course_lookup dict (course_code → course_id) from the courses table.
@@ -22,7 +22,6 @@ from app.models.course import Course
 from app.models.program import (
     Program,
     Program_Section,
-    Program_Section_Logic,
     Section_Courses,
 )
 from app.services.program_builder import build_all_programs
@@ -50,14 +49,12 @@ def _clear_program_tables(session: Session) -> None:
     must not proceed to write new data if clearing fails.
     """
     try:
-        session.query(Program_Section_Logic).delete()
         session.query(Section_Courses).delete()
         session.query(Program_Section).delete()
         session.query(Program).delete()
         session.commit()
 
         for table in (
-            "program_section_logic",
             "section_courses",
             "program_section",
             "programs",

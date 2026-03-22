@@ -11,17 +11,11 @@ export interface CourseEdgeData extends Record<string, unknown> {
 
 // ── Tunable knobs ─────────────────────────────────────────────────────────────
 const CONFIG = {
-  // Vertical distance to travel straight out of a node before turning sideways
   EXIT_SPACE: 20,
-  // Minimum px gap between node bands to be treated as a usable row gap
   ROW_GAP_THRESHOLD: 16,
-  // Minimum px width for a vertical corridor to be usable
   MIN_CORRIDOR_WIDTH: 8,
-  // Extra clearance added around every node bounding box
   NODE_CLEARANCE: 8,
-  // Radius of rounded corners at each direction change
   CORNER_RADIUS: 20,
-  // Spread sibling edges apart by this many px each within a shared corridor
   SIBLING_SPREAD_PX: 12,
 };
 
@@ -31,12 +25,9 @@ interface Point    { x: number; y: number; }
 
 // ── Row gap detection ─────────────────────────────────────────────────────────
 
-// Cluster all boxes into horizontal bands, then return the Y midpoints of
-// the whitespace gaps between consecutive bands that fall inside [minY, maxY].
 function findRowGapYs(boxes: Box[], minY: number, maxY: number): number[] {
   if (boxes.length === 0) return [];
 
-  // Merge boxes into horizontal bands sorted by Y
   const sorted = [...boxes].sort((a, b) => a.y - b.y);
   const bands: { top: number; bot: number }[] = [];
 
@@ -50,7 +41,6 @@ function findRowGapYs(boxes: Box[], minY: number, maxY: number): number[] {
     }
   }
 
-  // Return midpoints of gaps between bands that fall in [minY, maxY]
   const gaps: number[] = [];
   for (let i = 0; i < bands.length - 1; i++) {
     const mid = (bands[i].bot + bands[i + 1].top) / 2;
@@ -61,8 +51,6 @@ function findRowGapYs(boxes: Box[], minY: number, maxY: number): number[] {
 
 // ── Corridor detection ────────────────────────────────────────────────────────
 
-// Find all vertical corridors (column whitespace) among boxes that overlap
-// the given Y range. Each corridor is the gap between two merged node bands.
 function findCorridorsInYRange(boxes: Box[], minY: number, maxY: number): Corridor[] {
   const relevant = boxes.filter(
     b => b.y < maxY + CONFIG.NODE_CLEARANCE && b.y + b.h > minY - CONFIG.NODE_CLEARANCE
@@ -95,7 +83,6 @@ function findCorridorsInYRange(boxes: Box[], minY: number, maxY: number): Corrid
   return corridors;
 }
 
-// Pick the best corridor closest to preferredX, spread siblings within it
 function pickCorridorX(
   corridors:    Corridor[],
   preferredX:   number,
@@ -113,28 +100,25 @@ function pickCorridorX(
   return best.x + offset;
 }
 
+// ── Check if a vertical line at x is obstacle-free in [minY, maxY] ───────────
+function isXClearInYRange(x: number, boxes: Box[], minY: number, maxY: number): boolean {
+  return !boxes.some(
+    b =>
+      b.x - CONFIG.NODE_CLEARANCE < x &&
+      b.x + b.w + CONFIG.NODE_CLEARANCE > x &&
+      b.y - CONFIG.NODE_CLEARANCE < maxY &&
+      b.y + b.h + CONFIG.NODE_CLEARANCE > minY,
+  );
+}
+
 // ── Waypoint assembler ────────────────────────────────────────────────────────
 
-// Builds an ordered list of (x,y) turning points for the path.
-//
-// Structure for an edge crossing 2 row gaps:
-//
-//   (sourceX, sourceY)
-//   (sourceX, exitY)          ← straight down EXIT_SPACE
-//   (corrX_0, exitY)          ← step sideways into corridor for source row
-//   (corrX_0, gap0)           ← drop to first row gap
-//   (corrX_1, gap0)           ← step sideways into corridor for next segment
-//   (corrX_1, gap1)           ← drop to second row gap
-//   (targetX, gap1)           ← step sideways to target column
-//   (targetX, entryY)         ← rise EXIT_SPACE above target
-//   (targetX, targetY)        ← arrive at target handle
-//
 function buildWaypoints(
-  sourceX:     number,
-  sourceY:     number,
-  targetX:     number,
-  targetY:     number,
-  boxes:       Box[],
+  sourceX:      number,
+  sourceY:      number,
+  targetX:      number,
+  targetY:      number,
+  boxes:        Box[],
   siblingIndex: number,
   siblingCount: number,
   fallbackGapY: number,
@@ -142,36 +126,46 @@ function buildWaypoints(
   const exitY  = sourceY + CONFIG.EXIT_SPACE;
   const entryY = targetY - CONFIG.EXIT_SPACE;
 
-  // Find all row gaps between the exit and entry points
   let gapYs = findRowGapYs(boxes, exitY, entryY);
-
-  // Fallback: use provided gapY if no structural gaps detected
   if (gapYs.length === 0) gapYs = [fallbackGapY];
 
-  const pts: Point[] = [];
+  // The direct source→target X band. We strongly prefer to stay within this
+  // range when choosing corridors — this prevents edges from looping far off
+  // to the side just because an obstacle spans the full width at some Y level.
+  const xLo = Math.min(sourceX, targetX);
+  const xHi = Math.max(sourceX, targetX);
 
-  // Exit the source node straight down
+  const pts: Point[] = [];
   pts.push({ x: sourceX, y: sourceY });
   pts.push({ x: sourceX, y: exitY });
 
   let currentX = sourceX;
 
-  // For each row gap, find the best corridor for the vertical segment
-  // leading INTO that gap, then step sideways within the gap
   for (let i = 0; i < gapYs.length; i++) {
     const gapY    = gapYs[i];
     const segTopY = i === 0 ? exitY : gapYs[i - 1];
 
-    // Nodes that obstruct the vertical segment from segTopY to gapY
+    // Fast path: if the current X is already clear, go straight down.
+    // This avoids unnecessary lateral hops into a far-off corridor.
+    if (isXClearInYRange(currentX, boxes, segTopY, gapY)) {
+      pts.push({ x: currentX, y: gapY });
+      continue;
+    }
+
     const corridors = findCorridorsInYRange(boxes, segTopY, gapY);
 
-    // Preferred X: progress toward target each segment
     const progress   = (i + 1) / (gapYs.length + 1);
     const preferredX = currentX + (targetX - currentX) * progress;
 
-    const corrX = pickCorridorX(corridors, preferredX, siblingIndex, siblingCount, currentX);
+    // Prefer corridors within the source↔target X range.
+    // Only fall back to all corridors if nothing usable is in-range.
+    const inRange = corridors.filter(
+      c => c.x >= xLo - CONFIG.NODE_CLEARANCE && c.x <= xHi + CONFIG.NODE_CLEARANCE,
+    );
+    const candidates = inRange.length > 0 ? inRange : corridors;
 
-    // Step sideways into the corridor (at current height), then drop to gap
+    const corrX = pickCorridorX(candidates, preferredX, siblingIndex, siblingCount, currentX);
+
     if (Math.abs(corrX - currentX) > 0.5) {
       pts.push({ x: corrX, y: segTopY });
     }
@@ -179,14 +173,20 @@ function buildWaypoints(
     currentX = corrX;
   }
 
-  // In the final gap, step sideways to the target X column
+  // ── Final segment: step sideways to targetX and approach the node ─────────
   const lastGapY = gapYs[gapYs.length - 1];
 
-  // Check the final vertical segment (lastGap → entryY) for its corridor
-  const finalCorridors = findCorridorsInYRange(boxes, lastGapY, entryY);
-  const finalCorrX     = pickCorridorX(finalCorridors, targetX, siblingIndex, siblingCount, targetX);
+  let finalCorrX = targetX;
 
-  // Step to corridor first if needed, then to target X
+  if (!isXClearInYRange(targetX, boxes, lastGapY, entryY)) {
+    const finalCorridors = findCorridorsInYRange(boxes, lastGapY, entryY);
+    const inRangeFinal = finalCorridors.filter(
+      c => c.x >= xLo - CONFIG.NODE_CLEARANCE && c.x <= xHi + CONFIG.NODE_CLEARANCE,
+    );
+    const candidatesFinal = inRangeFinal.length > 0 ? inRangeFinal : finalCorridors;
+    finalCorrX = pickCorridorX(candidatesFinal, targetX, siblingIndex, siblingCount, targetX);
+  }
+
   if (Math.abs(finalCorrX - currentX) > 0.5 && Math.abs(finalCorrX - targetX) > 0.5) {
     pts.push({ x: finalCorrX, y: lastGapY });
   }
@@ -195,7 +195,6 @@ function buildWaypoints(
     pts.push({ x: targetX, y: lastGapY });
   }
 
-  // Approach the target node straight down
   if (entryY < targetY - 0.5) {
     pts.push({ x: targetX, y: entryY });
   }
@@ -211,7 +210,6 @@ function buildWaypoints(
 
 // ── SVG path builder ──────────────────────────────────────────────────────────
 
-// Converts waypoints into an orthogonal SVG path with rounded corners.
 function buildSVGPath(pts: Point[]): string {
   if (pts.length < 2) return '';
   if (pts.length === 2) {
@@ -237,10 +235,8 @@ function buildSVGPath(pts: Point[]): string {
 
     const cr = Math.min(r, len1 / 2, len2 / 2);
 
-    // Point just before the corner
     const bx = curr.x - (d1x / len1) * cr;
     const by = curr.y - (d1y / len1) * cr;
-    // Point just after the corner
     const ax = curr.x + (d2x / len2) * cr;
     const ay = curr.y + (d2y / len2) * cr;
 

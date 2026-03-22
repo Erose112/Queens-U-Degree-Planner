@@ -35,10 +35,10 @@ def format_program_name(slug: str) -> str:
 
 
 
-def extract_data(url, session, program):
+def extract_data(url, session, program, retries=3, retry_delay=15):
     """
     Extracts academic program data including sections and courses.
-    
+
     Returns a dictionary with:
     - program_name
     - program_type
@@ -48,15 +48,28 @@ def extract_data(url, session, program):
         - section_credits
         - courses: list of course codes
     """
+    # Retry loop to handle non-200 responses (e.g. 202 Accepted)
+    response = None
+    for attempt in range(1, retries + 1):
+        try:
+            response = session.get(url, timeout=10)
+            print(f"[{url}] Status: {response.status_code} (attempt {attempt})")
+
+            if response.status_code == 200:
+                break
+
+            print(f"  Non-200 response. Retrying in {retry_delay}s...")
+            time.sleep(retry_delay)
+
+        except RequestException as e:
+            print(f"  Request error on attempt {attempt}: {e}")
+            if attempt < retries:
+                time.sleep(retry_delay)
+    else:
+        print(f"  Failed after {retries} attempts: {url}")
+        return {}
+
     try:
-        response = session.get(url, timeout=10)
-
-        if response.status_code == 200:
-            print("Request was successful (Status 200 OK)")
-        else:
-            print(f"Request failed with status code: {response.status_code}")
-            return {}
-
         soup = BeautifulSoup(response.text, 'lxml')
 
         program_data = {
@@ -128,8 +141,8 @@ def extract_data(url, session, program):
 
         return program_data
 
-    except RequestException as e:
-        print(f"Error extracting data: {e}")
+    except Exception as e:
+        print(f"Error parsing data from {url}: {e}")
         return {}
 
 
@@ -151,50 +164,61 @@ def scrape_program_courses():
         'Sec-Fetch-Mode': 'navigate',
         'Sec-Fetch-Site': 'none',
         'Cache-Control': 'max-age=0',
+        'Referer': 'https://www.queensu.ca/academic-calendar/arts-science/schools-departments-programs/',
     })
+
+    # Warm-up request to establish cookies before scraping begins
+    print("Warming up session...")
+    try:
+        session.get(
+            "https://www.queensu.ca/academic-calendar/arts-science/schools-departments-programs/",
+            timeout=10
+        )
+        time.sleep(2)
+    except RequestException as e:
+        print(f"Warm-up request failed: {e}")
 
     ###
     # All program links are stored in queens_programs.json
     # Test run is in queens_programs_test.json
     base_dir = Path(__file__).parent
-    test_programs_path = base_dir / "queens_programs.json"
+    test_programs_path = base_dir / "queens_programs_test.json"
     with open(test_programs_path, "r", encoding="utf-8") as f:
         url_program_links = json.load(f)
 
     all_program_courses = []
-    # Track any program slugs that yield no useful data so we can
-    # remove them from queens_programs_test.json
     invalid_programs_by_faculty: dict[str, list[str]] = {}
 
-    for faculty, programs in url_program_links.items():
-        for program in list(programs):
-            # Skip PDF files and hash links
-            if program.endswith('.pdf') or program.startswith('#'):
-                continue
+    # Flatten all (faculty, program) pairs so we can sleep only between requests
+    program_pairs = [
+        (faculty, program)
+        for faculty, programs in url_program_links.items()
+        for program in list(programs)
+        if not program.endswith('.pdf') and not program.startswith('#')
+    ]
 
-            url = f"https://www.queensu.ca/academic-calendar/arts-science/schools-departments-programs/{faculty}/{program}"
+    for i, (faculty, program) in enumerate(program_pairs):
+        # Sleep between requests (skip before the first one)
+        if i > 0:
+            time.sleep(10.2)
 
-            print(f"\nScraping: {url}")
+        url = f"https://www.queensu.ca/academic-calendar/arts-science/schools-departments-programs/{faculty}/{program}"
+        print(f"\nScraping: {url}")
 
-            program_data = extract_data(url, session, program)
+        program_data = extract_data(url, session, program)
 
-            # If we couldn't extract any useful information (e.g., no sections/courses),
-            # do not add this as program data and remove the URL from queens_programs_test.
-            if not program_data or not program_data.get("sections"):
-                invalid_programs_by_faculty.setdefault(faculty, []).append(program)
-            else:
-                all_program_courses.append(program_data)
+        if not program_data or not program_data.get("sections"):
+            invalid_programs_by_faculty.setdefault(faculty, []).append(program)
+        else:
+            all_program_courses.append(program_data)
 
-            time.sleep(10)
-
-    # If we found any invalid program URLs, remove them from queens_programs_test.json
+    # Remove invalid program URLs from queens_programs_test.json
     if invalid_programs_by_faculty:
         for faculty, invalid_programs in invalid_programs_by_faculty.items():
             if faculty in url_program_links:
                 url_program_links[faculty] = [
                     p for p in url_program_links[faculty] if p not in invalid_programs
                 ]
-                # Optionally drop faculty keys that no longer have any programs
                 if not url_program_links[faculty]:
                     del url_program_links[faculty]
 

@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, Text, ForeignKey
+    Column, Integer, Text, ForeignKey, String
 )
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -26,27 +26,18 @@ class Program(Base):
 class Program_Section(Base):
     __tablename__ = "program_section"
 
-    section_id = Column(Integer, primary_key=True, autoincrement=True)
-    program_id = Column(Integer, ForeignKey('programs.program_id'))
-    credit_req = Column(Integer)
+    section_id   = Column(Integer, primary_key=True, autoincrement=True)
+    program_id   = Column(Integer, ForeignKey('programs.program_id'))
+    section_name = Column(String(100), nullable=False)
+    credit_req   = Column(Integer)                  # 0 when logic_type=1, otherwise the credit requirement for the section
+    logic_type   = Column(Integer, nullable=False)  # 1=required, 2=choose credits
 
     program = relationship("Program", back_populates="sections")
-
     section_courses = relationship(
         "Section_Courses",
         back_populates="section",
         cascade="all, delete-orphan"
     )
-
-    logic_rules = relationship(
-        "Program_Section_Logic",
-        back_populates="section",
-        cascade="all, delete-orphan",
-        foreign_keys="Program_Section_Logic.section_id",
-    )
-
-    def __repr__(self):
-        return f"<Program_Section(section_id='{self.section_id}')>"
 
 
 class Section_Courses(Base):
@@ -54,32 +45,7 @@ class Section_Courses(Base):
 
     section_id = Column(Integer, ForeignKey('program_section.section_id'), primary_key=True)
     course_id = Column(Integer, ForeignKey('courses.course_id'), primary_key=True)
+    is_required = Column(Integer, default=1)   # 1=required(red), 0=choice(yellow)
 
     section = relationship("Program_Section", back_populates="section_courses")
     course = relationship("Course")  # One-way relationship to Course
-
-
-class Program_Section_Logic(Base):
-    # logic_type: 0 = "complete all of the following"
-    # logic_type: 1 = "complete N of the following"
-    # logic_value: N
-    __tablename__ = "program_section_logic"
-
-    logic_id = Column(Integer, primary_key=True, autoincrement=True)
-    section_id = Column(Integer, ForeignKey('program_section.section_id'))
-    logic_type = Column(Integer)
-    logic_value = Column(Integer)
-
-    section = relationship(
-        "Program_Section",
-        back_populates="logic_rules",
-        foreign_keys=[section_id],
-    )
-
-    def __repr__(self):
-        return (
-            f"<Program_Section_Logic("
-            f"logic_id={self.logic_id}, "
-            f"section_id={self.section_id}, "
-            f"logic_type={self.logic_type})>"
-        )

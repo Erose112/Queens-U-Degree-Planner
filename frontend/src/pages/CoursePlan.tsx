@@ -21,35 +21,8 @@ import { YEAR_BAR_WIDTH, YEAR_BAR_COURSE_OFFSET } from '../utils/coursePlanLayou
 import { COLOURS } from '../utils/colours';
 import { convertCoursePlanToFlow } from '../utils/coursePlanConverter';
 import type { CoursePlan, YearSection } from '../types';
-import { CourseStatus } from '../types';
+import { CourseStatus, CourseData, EdgeData, PlanResponseData } from '../services/api';
 import { formatProgramName } from "../utils/formatProgramName";
-
-// TypeScript interfaces for API response data
-interface CourseData {
-  course_code?: string;
-  title?: string;
-  units?: number | null;
-  year?: number | null;
-  semester?: string | null;
-  is_required?: boolean;
-}
-
-interface EdgeData {
-  from_course?: string;
-  to_course?: string;
-}
-
-interface PlanResponseData {
-  program_name?: string;
-  program_code?: string;
-  total_units?: number;
-  core_units?: number;
-  option_units?: number;
-  elective_units?: number;
-  courses?: CourseData[];
-  edges?: EdgeData[];
-}
-
 
 const nodeTypes: NodeTypes = {
   course: CourseNode,
@@ -121,12 +94,9 @@ export default function CoursePlanPage() {
           units,
           year,
           position,
-          status:
-            c.semester === 'Completed'
-              ? CourseStatus.COMPLETED
-              : c.is_required
-              ? CourseStatus.REQUIRED
-              : CourseStatus.AVAILABLE,
+          status: Object.values(CourseStatus).includes(c.course_status as CourseStatus)
+            ? c.course_status as CourseStatus
+            : CourseStatus.ELECTIVE,
         };
       });
 
@@ -145,7 +115,6 @@ export default function CoursePlanPage() {
         programCode: planData.program_code ?? 'UNKNOWN',
         totalUnits: planData.total_units ?? 0,
         coreUnits: planData.core_units ?? 0,
-        optionUnits: planData.option_units ?? 0,
         electiveUnits: planData.elective_units ?? 0,
         courses: mappedCourses,
         connections: mappedConnections as any,

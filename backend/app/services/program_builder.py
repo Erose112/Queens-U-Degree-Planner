@@ -1,7 +1,7 @@
 """
 Converts the DataFrame produced by the program scraper into a list of fully
 populated SQLAlchemy ORM objects (Program → Program_Section →
-Section_Courses + Program_Section_Logic).
+Section_Courses).
 """
 
 from __future__ import annotations
@@ -12,9 +12,8 @@ from app.models.program import (
     Program,
     Program_Section,
     Section_Courses,
-    Program_Section_Logic,
 )
-from app.services.section_parser import parse_section_logic
+from app.services.section_parser import parse_section_logic, LOGIC_REQUIRED
 
 
 def normalize_code(raw: str) -> str:
@@ -32,7 +31,7 @@ def build_section(
 ) -> Program_Section | None:
     """
     Build a single Program_Section ORM object with its child
-    Section_Courses and Program_Section_Logic children.
+    Section_Courses.
 
     Returns None if the section is invalid or has no resolvable courses,
     so the caller can skip it rather than writing an empty section to the DB.
@@ -41,9 +40,18 @@ def build_section(
     ----------
     raw_section : dict
         One element of the 'sections' list from the scraper output, e.g.
-        {"section_id": 2, "section_credits": 6.0, "courses": ["CHEM109", ...]}
+        {
+            "section_id":      2,
+            "section_name":    "COMA Options",   # optional – generated if absent
+            "section_credits": 6.0,
+            "courses": [
+                "CHEM109",                        # plain string → is_required=1
+                {"code": "CISC121", "is_required": 0},  # dict form also accepted
+                ...
+            ]
+        }
     program_section_index : int
-        1-based display index within the parent program (used for logging).
+        1-based display index within the parent program (used for naming / logging).
     course_lookup : dict[str, int]
         Mapping of normalized course_code → course_id already in the DB.
 
@@ -58,23 +66,29 @@ def build_section(
     if not isinstance(raw_courses, list):
         return None
 
+    # ── section_name is required (NOT NULL) ──────────────────────────────────
+    section_name: str = str(
+        raw_section.get("section_name") or f"Section {program_section_index}"
+    )[:100]  # trim to column width
+
     logic_info = parse_section_logic(raw_section)
 
-    try:
-        credit_req = int(float(raw_section.get("section_credits") or 0))
-    except (TypeError, ValueError):
-        credit_req = 0
+    # is_required is section-wide: all courses are required when the logic is
+    # LOGIC_REQUIRED; they are optional choices for LOGIC_CHOOSE_CREDITS.
+    is_required = 1 if logic_info["logic_type"] == LOGIC_REQUIRED else 0
 
     section = Program_Section(
-        credit_req=credit_req,
+        section_name=section_name,
+        logic_type=logic_info["logic_type"],
+        credit_req=logic_info["credit_req"],
     )
 
     section_course_objects: list[Section_Courses] = []
     missing_codes: list[str] = []
 
-    for raw_code in raw_courses:
+    for raw_course in raw_courses:
         try:
-            code = normalize_code(str(raw_code))
+            code = normalize_code(str(raw_course))
         except Exception:
             continue
 
@@ -84,11 +98,14 @@ def build_section(
             missing_codes.append(code)
             continue
 
-        section_course_objects.append(Section_Courses(course_id=course_id))
+        section_course_objects.append(
+            Section_Courses(course_id=course_id, is_required=is_required)
+        )
 
     if missing_codes:
         print(
-            f"[program_builder] Section {program_section_index}: "
+            f"[program_builder] Section {program_section_index} "
+            f"('{section_name}'): "
             f"{len(missing_codes)} unresolved course(s): {missing_codes}"
         )
 
@@ -97,14 +114,6 @@ def build_section(
         return None
 
     section.section_courses = section_course_objects
-
-    section.logic_rules = [
-        Program_Section_Logic(
-            logic_type=logic_info["logic_type"],
-            logic_value=logic_info["logic_value"],
-        )
-    ]
-
     return section
 
 

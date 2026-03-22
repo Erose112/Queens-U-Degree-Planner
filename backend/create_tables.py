@@ -1,9 +1,10 @@
 # Run with set PYTHONPATH=. && python create_tables.py
-# Creates tables if not found
+# Recreates tables based on current models. Use with caution (will delete existing data).
 try:
     from app.database import engine, Base
-    from app.models import course, prerequisite, exclusion, program, course_similarity
+    from app.models import course, exclusion, prerequisite, program, course_similarity
 
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 except Exception as e:
     print(f"Error: {e}")

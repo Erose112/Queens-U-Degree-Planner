@@ -15,7 +15,6 @@ from app.models.program import (
     Program,
     Program_Section,
     Section_Courses,
-    Program_Section_Logic,
 )
 
 
@@ -61,7 +60,6 @@ def write_all_courses_to_mysql(all_course_info):
         try:
             #Clear existing data (child tables first to satisfy foreign keys)
             try:
-                session.query(Program_Section_Logic).delete()
                 session.query(Section_Courses).delete()
                 session.query(Program_Section).delete()
                 session.query(Program).delete()
@@ -72,7 +70,6 @@ def write_all_courses_to_mysql(all_course_info):
                 session.commit()
 
                 for table in (
-                    "program_section_logic",
                     "section_courses",
                     "program_section",
                     "programs",

@@ -41,12 +41,6 @@ def extract_course_logic(text):
 def parse_requirements(requirement_line):
     """
     Parse a requirement line into prerequisites, exclusions, and one-way exclusions.
-
-    This version:
-      - finds section headers flexibly (various hyphen/space/case)
-      - slices text between headers instead of removing matches
-      - extracts course-logic from each section
-      - converts square brackets to parentheses
     """
     result = {
         'prerequisites': '',
@@ -70,7 +64,6 @@ def parse_requirements(requirement_line):
     headers = []
     for m in header_pattern.finditer(text):
         header_text = m.group(1)
-        # normalize header to map to our keys
         h = header_text.lower()
         if re.match(r'one[\s-]*way\s+exclusion', h):
             key = 'one_way_exclusion'
@@ -87,25 +80,22 @@ def parse_requirements(requirement_line):
         })
 
     if not headers:
-        # No explicit headers: try to treat the whole line as prereq text
         result['prerequisites'] = extract_course_logic(text)
         return result
 
-    # Sort by start (should already be in order from finditer, but be safe)
     headers.sort(key=lambda x: x['start'])
 
-    # Extract content for each header as text between header end and next header start
     for i, h in enumerate(headers):
         content_start = h['end']
         content_end = headers[i+1]['start'] if i + 1 < len(headers) else len(text)
-        raw_content = text[content_start:content_end].strip(" .;:")  # trim common trailing punctuation
+        raw_content = text[content_start:content_end].strip(" .;:")
         result[h['key']] = extract_course_logic(raw_content)
 
     return result
 
 
 
-def extract_data(url, session):
+def extract_data(url, session, retries=3, retry_delay=15):
     """
     Data is stored:
 
@@ -118,16 +108,28 @@ def extract_data(url, session):
     exclusions: String of course codes
     one_way_exclusions: String of course codes
     """
+    # Retry loop to handle non-200 responses (e.g. 202 Accepted)
+    response = None
+    for attempt in range(1, retries + 1):
+        try:
+            response = session.get(url, timeout=10)
+            print(f"[{url}] Status: {response.status_code} (attempt {attempt})")
+
+            if response.status_code == 200:
+                break
+
+            print(f"  Non-200 response. Retrying in {retry_delay}s...")
+            time.sleep(retry_delay)
+
+        except RequestException as e:
+            print(f"  Request error on attempt {attempt}: {e}")
+            if attempt < retries:
+                time.sleep(retry_delay)
+    else:
+        print(f"  Failed after {retries} attempts: {url}")
+        return []
+
     try:
-        response = session.get(url, timeout=10)
-        print(response.status_code)
-
-        if response.status_code == 200:
-            print("Request was successful (Status 200 OK)")
-        else:
-            print(f"Request failed with status code: {response.status_code}")
-            return []
-
         soup = BeautifulSoup(response.text, 'lxml')
 
         courses = []
@@ -148,8 +150,8 @@ def extract_data(url, session):
             data.update(requirment_info)
             courses.append(data)
 
-    except RequestException as e:
-        print(f"Error extracting data from {url}: {e}")
+    except Exception as e:
+        print(f"Error parsing data from {url}: {e}")
         return []
 
     return courses
@@ -159,7 +161,6 @@ def extract_data(url, session):
 def clean_data(all_courses):
     df = pd.DataFrame(all_courses)
 
-    # If no courses were extracted, avoid indexing into an empty DataFrame
     if df.empty:
         print("No course data found; skipping DataFrame cleaning.")
         return df
@@ -171,7 +172,6 @@ def clean_data(all_courses):
                         .str.replace(r"\s+", " ", regex=True)
                         .str.strip())
 
-    # Safely show the first row for debugging
     print(df.iloc[0, :])
     return df
 
@@ -179,9 +179,8 @@ def clean_data(all_courses):
 
 def scrape_artsci_courses():
     """
-    Returns an list of df's. Each df in list representing data for a course.
+    Returns a list of DataFrames, each representing data for one department's courses.
     """
-    # Create a session with proper headers
     session = requests.Session()
     session.headers.update({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -194,12 +193,22 @@ def scrape_artsci_courses():
         'Sec-Fetch-Mode': 'navigate',
         'Sec-Fetch-Site': 'none',
         'Cache-Control': 'max-age=0',
+        'Referer': 'https://www.queensu.ca/academic-calendar/arts-science/course-descriptions/',
     })
 
-    # All Courses
+    # Warm-up request to establish cookies before scraping begins
+    print("Warming up session...")
+    try:
+        session.get(
+            "https://www.queensu.ca/academic-calendar/arts-science/course-descriptions/",
+            timeout=10
+        )
+        time.sleep(2)
+    except RequestException as e:
+        print(f"Warm-up request failed: {e}")
 
     degree_info = []
-    art_sci_degrees =  [
+    art_sci_degrees = [
         'ANAT', 'ANIM', 'ANSH', 'ARAB', 'ARTH', 'ARIN', 'ASCX', 'ASTR',
         'BISC', 'BCHM', 'BIOL', 'BLCK', 'CANC', 'CRSS', 'CHEM', 'CHIN',
         'CLST', 'COGS', 'CISC', 'COCA', 'COMP', 'CWRI', 'DISC',
@@ -213,12 +222,13 @@ def scrape_artsci_courses():
         'STAT', 'STAM', 'ARTV', 'WELL', 'WRIT'
     ]
 
-    for degree in art_sci_degrees:
+    for i, degree in enumerate(art_sci_degrees):
+        # Sleep between requests (skip only before the first one)
+        if i > 0:
+            time.sleep(10.2)
+
         url = "https://www.queensu.ca/academic-calendar/arts-science/course-descriptions/" + degree.lower() + "/"
         df = clean_data(extract_data(url, session))
         degree_info.append(df)
-
-        if len(degree_info) != len(art_sci_degrees):
-            time.sleep(10)
 
     return degree_info

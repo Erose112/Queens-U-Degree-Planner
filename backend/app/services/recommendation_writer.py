@@ -8,7 +8,7 @@ from itertools import combinations
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.queries.course_queries import get_all_courses
+from app.queries.course import get_all_courses
 from app.services.recommendation_builder import generate_course_recommendation
 from app.models.course_similarity import CourseSimilarity
 

@@ -1,6 +1,6 @@
 """
 Converts raw section dicts produced by the program scraper into structured
-logic descriptors that map directly onto the Program_Section_Logic model.
+logic descriptors
 
 Logic Types
 -----------
@@ -8,12 +8,10 @@ Logic Types
                            section_credits == 0 in the scraper output signals
                            this: the student must complete *all* listed courses.
 
-  LOGIC_CHOOSE_CREDITS (2) The student must accumulate exactly `logic_value`
+  LOGIC_CHOOSE_CREDITS (2) The student must accumulate exactly `credit_req`
                            credits from the courses listed in the section.
                            section_credits > 0 in the scraper output signals this.
 
-  LOGIC_CHOOSE_COUNT  (3) Reserved for future use: choose N courses from the
-                           section regardless of credit weight.
 
 Data contract
 -------------
@@ -27,17 +25,14 @@ Input  (from scraper):
 Output (one dict per section):
     {
         "logic_type":  int,   # LOGIC_* constant
-        "logic_value": int,   # credits required (0 when type == REQUIRED)
+        "credit_req":  int,   # credit requirement (0 when type == REQUIRED)
     }
 """
 
 from __future__ import annotations
 
-# Constants – stored in the logic_type column of Program_Section_Logic
 LOGIC_REQUIRED       = 1   # All courses in the section are mandatory
-LOGIC_CHOOSE_CREDITS = 2   # Choose enough courses to reach `logic_value` credits
-LOGIC_CHOOSE_COUNT   = 3   # Choose exactly `logic_value` courses (reserved)
-
+LOGIC_CHOOSE_CREDITS = 2   # Choose enough courses to reach `credit_req` credits
 
 
 def parse_section_logic(section: dict) -> dict:
@@ -52,7 +47,7 @@ def parse_section_logic(section: dict) -> dict:
 
     Returns
     -------
-    dict with keys ``logic_type`` (int) and ``logic_value`` (int).
+    dict with keys ``logic_type`` (int) and ``credit_req`` (int).
     """
     raw_credits = section.get("section_credits", 0) or 0
 
@@ -66,13 +61,13 @@ def parse_section_logic(section: dict) -> dict:
     if _credits > 0:
         return {
             "logic_type":  LOGIC_CHOOSE_CREDITS,
-            "logic_value": int(_credits),
+            "credit_req":  int(_credits),
         }
 
     # Default: all courses in this section are required
     return {
         "logic_type":  LOGIC_REQUIRED,
-        "logic_value": 0,
+        "credit_req":  0,
     }
 
 

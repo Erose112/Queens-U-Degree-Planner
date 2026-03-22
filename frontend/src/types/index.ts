@@ -1,16 +1,5 @@
-// src/types/index.ts
-
-export const CourseStatus = {
-  REQUIRED: 'required',
-  CHOICE: 'choice',
-  SELECTED_ELECTIVE: 'selected_elective',
-  COMPLETED: 'completed',
-  AVAILABLE: 'available',
-} as const;
-
-export type CourseStatus =
-  typeof CourseStatus[keyof typeof CourseStatus];
-
+import type { CourseStatus } from "../services/api";
+export type { CourseStatus };
 
 export interface Course {
   id: string;
@@ -20,16 +9,6 @@ export interface Course {
   year: number;
   position: number;
   status: CourseStatus;
-}
-
-export interface CourseChoice {
-  id: string;
-  label: string;
-  year: number;
-  position: number;
-  status: CourseStatus;
-  required: boolean;
-  options: Course[];
 }
 
 export interface CourseConnection {
@@ -45,22 +24,19 @@ export interface CoursePlan {
   programCode: string;
   totalUnits: number;
   coreUnits: number;
-  optionUnits: number;
   electiveUnits: number;
   courses: Course[];
   connections: CourseConnection[];
 }
 
-// Extend Record<string, unknown> to satisfy @xyflow/react generics
 export interface CourseNodeData extends Record<string, unknown> {
   course: Course;
-  incomingIds: string[];  // IDs of nodes that connect TO this node
-  outgoingIds: string[];  // IDs of nodes this node connects TO
+  incomingIds: string[];
+  outgoingIds: string[];
 }
 
-
 export interface YearSection {
-  year: number;   // e.g. 1, 2, 3, 4
-  y: number;      // the Y pixel position of this row in the ReactFlow canvas
-  height: number; // the height of this row in pixels
+  year: number;
+  y: number;
+  height: number;
 }
