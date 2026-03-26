@@ -1,6 +1,8 @@
 import type { Node, Edge } from '@xyflow/react';
-import type { CoursePlan, Course, CourseNodeData } from '../types';
+import type { GraphNode, PrerequisiteGraph, ProgramStructure } from '../types/plan';
+import type { SelectedCourse } from '../types/plan';
 import type { CourseEdgeData } from '../components/courseplan/CourseEdge';
+import type { CourseNodeData, YearSection } from '../types/plan';
 import {
   YEAR_BAR_WIDTH,
   YEAR_SECTION_PADDING,
@@ -12,78 +14,94 @@ import {
   YEAR_BAR_COURSE_OFFSET,
 } from './coursePlanLayout';
 
-export interface YearSection {
-  year: number;
-  y: number;
-  height: number;
-}
 
 const MAX_COLS = 5;
 
-
-export function convertCoursePlanToFlow(plan: CoursePlan): {
-  nodes: Node<CourseNodeData, string>[];
+export function coursePlanConverter(
+  selectedCourses: SelectedCourse[],
+  graph: PrerequisiteGraph,
+  // Available for multi-program coloring or section-aware rendering
+  _programs: ProgramStructure[],
+): {
+  nodes: Node<CourseNodeData>[];
   edges: Edge<CourseEdgeData, 'courseEdge'>[];
   yearSections: YearSection[];
 } {
-  const nodes: Node<CourseNodeData, string>[] = [];
+  const nodes: Node<CourseNodeData>[] = [];
   const edges: Edge<CourseEdgeData, 'courseEdge'>[] = [];
 
-  const incomingMap = new Map<string, string[]>();
-  const outgoingMap = new Map<string, string[]>();
+  // Lookup maps
+  const graphNodeMap = new Map<number, GraphNode>(
+    graph.nodes.map((n) => [n.course_id, n]),
+  );
 
-  for (const conn of plan.connections) {
-    if (!outgoingMap.has(conn.from_course)) outgoingMap.set(conn.from_course, []);
-    outgoingMap.get(conn.from_course)!.push(conn.to_course);
-    if (!incomingMap.has(conn.to_course)) incomingMap.set(conn.to_course, []);
-    incomingMap.get(conn.to_course)!.push(conn.from_course);
+  const courseYearMap = new Map<number, number>(
+    selectedCourses.map((c) => [c.courseId, c.year]),
+  );
+
+  // Only draw edges where both endpoints are in the plan
+  const selectedIds = new Set(selectedCourses.map((c) => c.courseId));
+  const relevantEdges = graph.edges.filter(
+    (e) => selectedIds.has(e.from_course_id) && selectedIds.has(e.to_course_id),
+  );
+
+  const incomingMap = new Map<number, number[]>();
+  const outgoingMap = new Map<number, number[]>();
+
+  for (const edge of relevantEdges) {
+    if (!outgoingMap.has(edge.from_course_id)) outgoingMap.set(edge.from_course_id, []);
+    outgoingMap.get(edge.from_course_id)!.push(edge.to_course_id);
+
+    if (!incomingMap.has(edge.to_course_id)) incomingMap.set(edge.to_course_id, []);
+    incomingMap.get(edge.to_course_id)!.push(edge.from_course_id);
   }
 
-
-  const years = new Set<number>();
-  plan.courses.forEach((c) => years.add(c.year));
-  const sortedYears = Array.from(years).sort((a, b) => a - b);
+  // Year sections 
+  const sortedYears = Array.from(new Set(selectedCourses.map((c) => c.year))).sort(
+    (a, b) => a - b,
+  );
 
   const yearSections: YearSection[] = [];
   let currentY = 0;
 
   for (const year of sortedYears) {
-    const yearCourses = plan.courses
+    // Preserve insertion order within each year as the sort key
+    const yearCourseIds = selectedCourses
       .filter((c) => c.year === year)
-      .sort((a, b) => a.position - b.position);
+      .map((c) => c.courseId);
 
-    const yearCourseIds = new Set(yearCourses.map((c) => c.id));
+    const yearCourseIdSet = new Set(yearCourseIds);
 
-    const columnRoots = yearCourses.filter((c) => {
-      const incoming = incomingMap.get(c.id) ?? [];
-      return !incoming.some((id) => yearCourseIds.has(id));
+    // Column building 
+    const columnRoots = yearCourseIds.filter((id) => {
+      const incoming = incomingMap.get(id) ?? [];
+      return !incoming.some((srcId) => yearCourseIdSet.has(srcId));
     });
 
-    type Column = Course[];
+    type Column = number[];
     const columns: Column[] = [];
-    const placed = new Set<string>();
+    const placed = new Set<number>();
 
-    for (const root of columnRoots) {
-      const column: Course[] = [];
-      let current: Course | undefined = root;
-      while (current && !placed.has(current.id)) {
-        column.push(current);
-        placed.add(current.id);
-        const nextId: string | undefined = (outgoingMap.get(current.id) ?? []).find((id) =>
-          yearCourseIds.has(id)
-        );
-        current = nextId ? yearCourses.find((c) => c.id === nextId) : undefined;
+    for (const rootId of columnRoots) {
+      const column: number[] = [];
+      let cur: number | undefined = rootId;
+      while (cur !== undefined && !placed.has(cur)) {
+        column.push(cur);
+        placed.add(cur);
+        cur = (outgoingMap.get(cur) ?? []).find((id) => yearCourseIdSet.has(id));
       }
       columns.push(column);
     }
 
-    for (const course of yearCourses) {
-      if (!placed.has(course.id)) {
-        columns.push([course]);
-        placed.add(course.id);
+    // Orphaned courses (not reachable from any root)
+    for (const id of yearCourseIds) {
+      if (!placed.has(id)) {
+        columns.push([id]);
+        placed.add(id);
       }
     }
 
+    // Row wrapping 
     const columnRows: Column[][] = [];
     for (let i = 0; i < columns.length; i += MAX_COLS) {
       columnRows.push(columns.slice(i, i + MAX_COLS));
@@ -96,9 +114,9 @@ export function convertCoursePlanToFlow(plan: CoursePlan): {
     }, 0);
 
     const sectionHeight = contentHeight + YEAR_SECTION_PADDING * 2;
-
     yearSections.push({ year, y: currentY, height: sectionHeight });
 
+    // Node placement 
     const courseStartX = YEAR_BAR_WIDTH + YEAR_BAR_COURSE_OFFSET;
     let rowY = currentY + YEAR_SECTION_PADDING;
 
@@ -109,15 +127,20 @@ export function convertCoursePlanToFlow(plan: CoursePlan): {
 
       for (const column of rowCols) {
         let y = rowY;
-        for (const course of column) {
+        for (const courseId of column) {
+          const graphNode = graphNodeMap.get(courseId);
+          if (!graphNode) continue; // should never happen if graph is consistent
+
           nodes.push({
-            id: course.id,
+            id: String(courseId),
             type: 'course',
             position: { x, y },
             data: {
-              course,
-              incomingIds: incomingMap.get(course.id) ?? [],
-              outgoingIds: outgoingMap.get(course.id) ?? [],
+              graphNode,
+              year,
+              incomingIds: incomingMap.get(courseId) ?? [],
+              outgoingIds: outgoingMap.get(courseId) ?? [],
+              manuallyPlaced: false,
             } satisfies CourseNodeData,
             measured: { width: NODE_WIDTH, height: NODE_HEIGHT },
             width: NODE_WIDTH,
@@ -130,22 +153,20 @@ export function convertCoursePlanToFlow(plan: CoursePlan): {
       }
 
       const isLastRow = rowIndex === columnRows.length - 1;
-      rowY += rowMaxLen * NODE_HEIGHT + (rowMaxLen - 1) * COLUMN_GAP + (isLastRow ? 0 : ROW_PADDING);
+      rowY +=
+        rowMaxLen * NODE_HEIGHT +
+        (rowMaxLen - 1) * COLUMN_GAP +
+        (isLastRow ? 0 : ROW_PADDING);
     }
+
     currentY += sectionHeight;
   }
 
-  // Build a year lookup for all nodes
-  const nodeYearMap = new Map<string, number>();
-  plan.courses.forEach((c) => nodeYearMap.set(c.id, c.year));
-
-  // Edges — attach gapY, edgeIndex, totalEdges for clean routing in CourseEdge
-  for (const conn of plan.connections) {
-    const sourceYear = nodeYearMap.get(conn.from_course) ?? sortedYears[0];
+  // Edges 
+  for (const edge of relevantEdges) {
+    const sourceYear = courseYearMap.get(edge.from_course_id) ?? sortedYears[0];
     const sourceSection = yearSections.find((s) => s.year === sourceYear);
 
-    // gapY sits in the whitespace below the source year band,
-    // exactly halfway between the bottom of that band and the top of the next
     const sourceSectionBottom = sourceSection
       ? sourceSection.y + sourceSection.height
       : 0;
@@ -154,15 +175,14 @@ export function convertCoursePlanToFlow(plan: CoursePlan): {
     const gapY = (sourceSectionBottom + nextSectionTop) / 2;
 
     edges.push({
-      id: conn.id,
-      source: conn.from_course,
-      target: conn.to_course,
+      // set_id included so two edges from the same prereq set get distinct IDs
+      id: `${edge.from_course_id}-${edge.to_course_id}-${edge.set_id}`,
+      source: String(edge.from_course_id),
+      target: String(edge.to_course_id),
       sourceHandle: 'source',
-      targetHandle: `target-${conn.from_course}`,
+      targetHandle: `target-${edge.from_course_id}`,
       type: 'courseEdge',
-      data: {
-        gapY,
-      },
+      data: { gapY },
     });
   }
 
