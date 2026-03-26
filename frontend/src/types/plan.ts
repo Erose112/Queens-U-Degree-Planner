@@ -72,3 +72,25 @@ export interface PrerequisiteGraph {
   edges: GraphEdge[];
   prerequisite_sets: PrereqSet[]; /** Full set metadata so the frontend can render OR/AND labels on edge groups */
 }
+
+
+export interface SelectedCourse {
+  courseId: number;
+  year: 1 | 2 | 3 | 4;
+  addedBy: "user" | "autofill";
+}
+
+
+export interface CourseNodeData extends Record<string, unknown> {
+  graphNode: GraphNode;
+  year: number;
+  incomingIds: number[];
+  outgoingIds: number[];
+  manuallyPlaced: boolean; // True if the course was explicitly placed by the user (vs auto-placed by prereq logic)
+}
+
+export interface YearSection {
+  year: number;
+  y: number;
+  height: number;
+}
