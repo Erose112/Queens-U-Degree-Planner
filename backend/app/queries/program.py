@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections import deque
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -17,69 +17,11 @@ from app.models.program import Program, Program_Section, Section_Courses
 from app.models.prerequisite import PrerequisiteSet, PrerequisiteSetCourse
 
 
-# ---------------------------------------------------------------------------
-# Basic program lookups
-# ---------------------------------------------------------------------------
-
-def get_program_by_id(db: Session, program_id: int) -> Program | None:
-    """Return a program by primary key, or None if not found."""
-    return db.query(Program).filter(Program.program_id == program_id).one_or_none()
-
-
-def get_program_by_name(db: Session, program_name: str) -> Program | None:
-    """Return the first program matching program_name (exact), or None."""
-    return (
-        db.query(Program)
-        .filter(Program.program_name == program_name.strip())
-        .one_or_none()
-    )
-
-
 def get_all_programs(db: Session) -> list[Program]:
     """Return all programs ordered by program_name."""
     return db.query(Program).order_by(Program.program_name).all()
 
 
-def get_program_with_sections(db: Session, program_id: int) -> Program | None:
-    """Return a program by id with sections and section_courses loaded."""
-    return (
-        db.query(Program)
-        .options(
-            joinedload(Program.sections).joinedload(Program_Section.section_courses)
-        )
-        .filter(Program.program_id == program_id)
-        .one_or_none()
-    )
-
-
-def get_program_with_sections_and_courses(db: Session, program_id: int) -> Program | None:
-    return (
-        db.query(Program)
-        .options(
-            joinedload(Program.sections)
-            .joinedload(Program_Section.section_courses)
-            .joinedload(Section_Courses.course),
-        )
-        .filter(Program.program_id == program_id)
-        .one_or_none()
-    )
-
-
-def get_courses_in_program(db: Session, program_id: int) -> list[Course]:
-    return (
-        db.query(Course)
-        .join(Section_Courses, Section_Courses.course_id == Course.course_id)
-        .join(Program_Section, Program_Section.section_id == Section_Courses.section_id)
-        .filter(Program_Section.program_id == program_id)
-        .distinct()
-        .order_by(Course.course_code)
-        .all()
-    )
-
-
-# ---------------------------------------------------------------------------
-# Structure query (sections + courses + logic rules, used by /structure route)
-# ---------------------------------------------------------------------------
 
 def get_program_structure(db: Session, program_id: int) -> Program | None:
     """
@@ -97,9 +39,6 @@ def get_program_structure(db: Session, program_id: int) -> Program | None:
     )
 
 
-# ---------------------------------------------------------------------------
-# Prerequisite graph query (used by /prerequisite-graph route)
-# ---------------------------------------------------------------------------
 
 def get_program_for_prereq_graph(db: Session, program_id: int) -> Program | None:
     """Load a program with sections and section_courses for BFS traversal."""

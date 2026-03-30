@@ -5,15 +5,10 @@ from __future__ import annotations
 
 import re
 
-from sqlalchemy.orm import Session, selectinload, joinedload
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.course import Course
 from app.models.prerequisite import PrerequisiteSet, PrerequisiteSetCourse
-
-
-def get_course_by_id(db: Session, course_id: int) -> Course | None:
-    """Return a course by primary key, or None if not found."""
-    return db.query(Course).filter(Course.course_id == course_id).one_or_none()
 
 
 def get_course_by_code(db: Session, course_code: str) -> Course | None:
@@ -30,27 +25,6 @@ def get_all_courses(db: Session) -> list[Course]:
     return db.query(Course).order_by(Course.course_code).all()
 
 
-def get_courses_by_ids(db: Session, course_ids: list[int]) -> list[Course]:
-    """Return courses whose course_id is in the given list, in id order."""
-    if not course_ids:
-        return []
-    return (
-        db.query(Course)
-        .filter(Course.course_id.in_(course_ids))
-        .order_by(Course.course_id)
-        .all()
-    )
-
-
-def get_courses_by_codes(db: Session, course_codes: list[str]) -> list[Course]:
-    """Return courses whose course_code is in the given list."""
-    if not course_codes:
-        return []
-    codes = [c.strip() for c in course_codes if c and c.strip()]
-    if not codes:
-        return []
-    return db.query(Course).filter(Course.course_code.in_(codes)).all()
-
 
 def get_course_with_prerequisites(db: Session, course_id: int) -> Course | None:
     return (
@@ -65,14 +39,73 @@ def get_course_with_prerequisites(db: Session, course_id: int) -> Course | None:
     )
 
 
-def get_course_with_exclusions(db: Session, course_id: int) -> Course | None:
-    """Return a course by id with exclusions loaded."""
-    return (
-        db.query(Course)
-        .options(joinedload(Course.exclusions))
-        .filter(Course.course_id == course_id)
-        .one_or_none()
-    )
+
+from collections import deque
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import select
+from app.models import Course, PrerequisiteSet
+
+
+def get_prerequisite_graph_data(
+    db: Session,
+    root_course_id: int,
+) -> tuple[dict[int, Course], dict[int, list[PrerequisiteSet]]]:
+    """
+    BFS from root_course_id outward through all transitive prerequisites.
+
+    Returns:
+        all_courses:      {course_id: Course}              — every node in the graph
+        all_prereq_sets:  {course_id: list[PrerequisiteSet]} — edges/sets per course
+    """
+    all_courses: dict[int, Course] = {}
+    all_prereq_sets: dict[int, list[PrerequisiteSet]] = {}
+
+    visited: set[int] = set()
+    queue: deque[int] = deque([root_course_id])
+
+    while queue:
+        # Batch-fetch everything in the current frontier in one query
+        frontier: list[int] = []
+        while queue:
+            cid = queue.popleft()
+            if cid not in visited:
+                visited.add(cid)
+                frontier.append(cid)
+
+        if not frontier:
+            break
+
+        # Single query: fetch courses + their prereq sets + the join rows
+        courses = (
+            db.execute(
+                select(Course)
+                .where(Course.course_id.in_(frontier))
+                .options(
+                    selectinload(Course.prerequisite_sets).selectinload(
+                        PrerequisiteSet.required_courses
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        for course in courses:
+            all_courses[course.course_id] = course
+
+            if course.prerequisite_sets:
+                all_prereq_sets[course.course_id] = course.prerequisite_sets
+
+                # Enqueue prerequisite courses not yet visited
+                for ps in course.prerequisite_sets:
+                    for psc in ps.required_courses:
+                        if psc.required_course_id not in visited:
+                            queue.append(psc.required_course_id)
+            else:
+                # Leaf node — include it in the graph with an empty list
+                all_prereq_sets[course.course_id] = []
+
+    return all_courses, all_prereq_sets
 
 
 

@@ -232,9 +232,9 @@ def ast_to_prerequisite_sets(
         List of PrerequisiteSet objects representing the prerequisite requirements
         
     Examples:
-        - CourseNode("CSC148") → One set with min_required=None (must take CSC148)
+        - CourseNode("CSC148") → One set with min_required=0 (must take CSC148)
         - OrNode([CSC148, CSC165]) → One set with min_required=1 (take either one)
-        - AndNode([CSC148, CSC165]) → Two sets with min_required=None (take both)
+        - AndNode([CSC148, CSC165]) → Two sets with min_required=0 (take both)
     """
     sets = []
 
@@ -244,7 +244,7 @@ def ast_to_prerequisite_sets(
         rid = course_lookup.get(node.code)
         if rid is None:
             return []  # Course not in catalog; skip this prereq
-        ps = PrerequisiteSet(course_id=course_id, min_required=None)
+        ps = PrerequisiteSet(course_id=course_id, min_required=0)
         ps.required_courses.append(PrerequisiteSetCourse(required_course_id=rid))
         return [ps]
 

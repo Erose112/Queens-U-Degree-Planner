@@ -2,7 +2,7 @@
 # Recreates tables based on current models. Use with caution (will delete existing data).
 try:
     from app.database import engine, Base
-    from app.models import course, exclusion, prerequisite, program, course_similarity
+    from app.models import course, prerequisite, program, course_similarity
 
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)

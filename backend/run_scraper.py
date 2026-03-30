@@ -19,7 +19,7 @@ def run(rc, rp, wr):
         precompute_all_similarities()
 
 if __name__ == "__main__":
-    run_courses=False
-    run_programs=True
+    run_courses=True
+    run_programs=False
     write_recommendations=False
     run(run_courses, run_programs, write_recommendations)

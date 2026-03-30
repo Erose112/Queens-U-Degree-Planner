@@ -14,9 +14,8 @@ class PrerequisiteSet(Base):
     set_id: Unique identifier for this set
     course_id: The course that has these prerequisites
     min_required:
-      - NULL → must take ALL courses in this set (AND within set)
+      - 0 → must take ALL courses in this set (AND within set)
       - 1    → must take at least 1 course in this set (OR within set)
-      - 2+   → must take at least N courses in this set
 
     Example: "CSC148 AND (CSC165 OR CSC240)" → two sets: one with [CSC148],
     one with [CSC165, CSC240] and min_required=1.
@@ -25,7 +24,7 @@ class PrerequisiteSet(Base):
 
     set_id = Column(Integer, primary_key=True, autoincrement=True)
     course_id = Column(Integer, ForeignKey('courses.course_id'), nullable=False, index=True)
-    min_required = Column(Integer, nullable=True)
+    min_required = Column(Integer, nullable=False, default=0)
 
     # Relationships
     course = relationship("Course", back_populates="prerequisite_sets")
@@ -47,7 +46,6 @@ class PrerequisiteSet(Base):
 class PrerequisiteSetCourse(Base):
     """
     Join table linking prerequisite sets to the required courses.
-
     id: The unique identifier for the prerequisite set course
     set_id: The prerequisite set that the course is required for
     required_course_id: The course that is required for the prerequisite set
@@ -62,12 +60,5 @@ class PrerequisiteSetCourse(Base):
         UniqueConstraint('set_id', 'required_course_id'),
     )
 
-    # Relationships
     prerequisite_set = relationship("PrerequisiteSet", back_populates="required_courses")
     required_course = relationship("Course")
-
-    def __repr__(self):
-        return (
-            f"<PrerequisiteSetCourse(set_id={self.set_id}, "
-            f"required_course_id={self.required_course_id})>"
-        )

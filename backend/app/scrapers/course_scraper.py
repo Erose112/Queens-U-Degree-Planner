@@ -14,67 +14,72 @@ def safe_find(soup, tag, class_name):
 
 
 def extract_course_logic(text):
-    """
-    Extract only course codes and logical operators (and, or) from any string.
-    Keeps parentheses if present.
-    """
-    course_pattern = r"[A-Z]{3,4}\s\d{3}"   # allow 3- or 4-letter dept codes (e.g., CSC, BIOL)
-    # Tokenize while keeping course codes and parentheses
+    course_pattern = r"[A-Z]{3,4}\s\d{3}"
     tokens = re.split(f"({course_pattern}|\\(|\\))", text)
 
     cleaned = []
+
     for token in tokens:
         if not token:
             continue
         token = token.strip()
         if re.fullmatch(course_pattern, token):
+            if cleaned and cleaned[-1] not in {"and", "or", "("}:
+                cleaned.append("and")
             cleaned.append(token)
         elif token in {"(", ")"}:
             cleaned.append(token)
-        elif token.lower() in {"and", "or"}:
-            cleaned.append(token.lower())
+        elif token.lower() == "or":
+            cleaned.append("or")
+        elif token.lower() == "and":
+            cleaned.append("and")
+        else:
+            # Check if the non-course segment contains or/and
+            if re.search(r'\bor\b', token, re.IGNORECASE):
+                if cleaned and cleaned[-1] not in {"and", "or", "("}:
+                    cleaned.append("or")
+            elif re.search(r'\band\b', token, re.IGNORECASE):
+                if cleaned and cleaned[-1] not in {"and", "or", "("}:
+                    cleaned.append("and")
 
-    return " ".join(cleaned).strip()
+    result = " ".join(cleaned).strip()
+
+    result = re.sub(r'\(\s*\)', '', result).strip()
+    result = re.sub(r'\s+', ' ', result).strip()
+
+    # Remove leading/trailing logical operators left over from empty groups
+    result = re.sub(r'^(and|or)\s+', '', result, flags=re.IGNORECASE)
+    result = re.sub(r'\s+(and|or)$', '', result, flags=re.IGNORECASE)
+    return result
 
 
 
 def parse_requirements(requirement_line):
     """
-    Parse a requirement line into prerequisites, exclusions, and one-way exclusions.
+    Parse a requirement line into just it's prerequisites.
     """
     result = {
         'prerequisites': '',
-        'exclusions': '',
-        'one_way_exclusion': ''
     }
 
-    # Remove "Requirements:" prefix if present
     text = re.sub(r'^\s*Requirements?\s*:\s*', '', requirement_line, flags=re.IGNORECASE).strip()
-
-    # Convert square brackets to parentheses
     text = text.replace('[', '(').replace(']', ')')
 
-    # Combined header pattern with flexible variants and optional plural 's'
     header_pattern = re.compile(
-        r'(One[\s-]*Way\s+Exclusion[s]?|Exclusion[s]?|Prerequisite[s]?)',
+        r'(One[\s-]*Way\s+Exclusion[s]?|Exclusion[s]?|Corequisite[s]?|Prerequisite[s]?|Recommended)',
         flags=re.IGNORECASE
     )
 
-    # Find all headers and their spans
+    def classify_header(header_text):
+        h = header_text.lower()
+        if re.match(r'prerequisite', h):
+            return 'prerequisites'
+        return None  # discard everything else
+
     headers = []
     for m in header_pattern.finditer(text):
-        header_text = m.group(1)
-        h = header_text.lower()
-        if re.match(r'one[\s-]*way\s+exclusion', h):
-            key = 'one_way_exclusion'
-        elif re.match(r'exclusion', h):
-            key = 'exclusions'
-        elif re.match(r'prerequisite', h):
-            key = 'prerequisites'
-        else:
-            continue
         headers.append({
-            'key': key,
+            'key': classify_header(m.group(1)),
             'start': m.start(),
             'end': m.end()
         })
@@ -86,8 +91,11 @@ def parse_requirements(requirement_line):
     headers.sort(key=lambda x: x['start'])
 
     for i, h in enumerate(headers):
+        if h['key'] is None:
+            continue  # discard Corequisite / Recommended content
+
         content_start = h['end']
-        content_end = headers[i+1]['start'] if i + 1 < len(headers) else len(text)
+        content_end = headers[i + 1]['start'] if i + 1 < len(headers) else len(text)
         raw_content = text[content_start:content_end].strip(" .;:")
         result[h['key']] = extract_course_logic(raw_content)
 

@@ -19,6 +19,7 @@ engine = create_engine(
     f"@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}",
     echo=False,
     pool_pre_ping=True,
+    connect_args={"connect_timeout": 5},
 )
 
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)

@@ -12,6 +12,8 @@ from app.schemas.program import (
     ProgramOut,
     ProgramStructureOut,
     ProgramSectionOut,
+)
+from app.schemas.course import (
     CourseInSection,
     PrerequisiteGraphOut,
     GraphNode,
@@ -19,6 +21,7 @@ from app.schemas.program import (
     PrereqSetOut,
 )
 
+print("program router loaded")
 router = APIRouter(prefix="/programs", tags=["programs"])
 
 @router.get("/", response_model=list[ProgramOut])
@@ -66,7 +69,7 @@ def get_program_structure_route(program_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{program_id}/prerequisite-graph", response_model=PrerequisiteGraphOut)
-def get_prerequisite_graph(program_id: int, db: Session = Depends(get_db)):
+def get_prerequisite_program_graph(program_id: int, db: Session = Depends(get_db)):
     program = get_program_for_prereq_graph(db, program_id)
     if program is None:
         raise HTTPException(status_code=404, detail="Program not found")

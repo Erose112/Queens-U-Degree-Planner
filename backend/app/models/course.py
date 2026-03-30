@@ -20,10 +20,3 @@ class Course(Base):
         'PrerequisiteSet',
         back_populates='course',
         cascade='all, delete-orphan')
-
-    exclusions = relationship(
-        'Exclusion',
-        back_populates='course',
-        foreign_keys='Exclusion.course_id',
-        cascade='all, delete-orphan'
-    )

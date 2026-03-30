@@ -33,7 +33,8 @@ def get_course_recommendations(
             detail=f"Course {course_code} not found."
         )
 
+
     return [
-        CourseRecommendationResponse(course=course, score=round(score, 4))
+        CourseRecommendationResponse(course_id1=course_code, course_id2=course, score=round(score, 4))
         for course, score in results
     ]
