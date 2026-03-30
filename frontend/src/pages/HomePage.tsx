@@ -142,8 +142,8 @@ export default function HomePage() {
                   <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
                 </svg>
               ),
-              title: "Track Completed Courses",
-              desc: "Mark courses you've already taken and let the planner build on top of your progress.",
+              title: "Select your Plan",
+              desc: "Choose the academic program you're pursuing. The planner will use this to determine your degree requirements and course options.",
               color: COLOURS.blue,
             },
             {
@@ -152,8 +152,8 @@ export default function HomePage() {
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                 </svg>
               ),
-              title: "Highlight Favourites",
-              desc: "Tell us about the subjects you love; we'll prioritize similar courses in your plan.",
+              title: "Fill out your Plan",
+              desc: "Select courses from the available options and customize your academic path.",
               color: COLOURS.yellow,
             },
           ].map((card, i) => (
@@ -186,53 +186,6 @@ export default function HomePage() {
         <div
           className="flex flex-col gap-6 py-6 rounded-2xl"
         >
-
-          {/* Instructions */}
-          <div className="flex gap-8 p-7 rounded-2xl"
-            style={{
-              background: COLOURS.white,
-              boxShadow: `0 2px 16px rgba(0,0,0,0.06)`,
-              border: `1px solid ${COLOURS.grey}`,
-              width: "100%",
-            }}
-          >
-            
-            {/* Icon */}
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: `${COLOURS.black}18`, color: COLOURS.black }}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-              </svg>
-            </div>
-
-            {/* Text */}
-            <div className="flex flex-col gap-3">
-              <h3 className="font-semibold text-[18px]" style={{ color: COLOURS.blue }}>
-                Instructions
-              </h3>
-
-              <ol className="flex flex-col gap-3" style={{ color: COLOURS.darkGrey }}>
-                {[
-                  "Select your program and courses from the list.",
-                  "Pick your favourite subjects and interested courses to personalize your plan.",
-                  'Click "Generate Plan" to see your personalized degree roadmap.',
-                ].map((step, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[16px] leading-[1.65]">
-                    <span
-                      className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold mt-[2px]"
-                      style={{ background: COLOURS.blue, color: COLOURS.white }}
-                    >
-                      {i + 1}
-                    </span>
-                    {step}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
 
           {/* Warnings */}
           <div className="flex gap-8 p-7 rounded-2xl"
@@ -272,8 +225,8 @@ export default function HomePage() {
               <ol className="flex flex-col gap-3" style={{ color: COLOURS.darkGrey }}>
                 {[
                   "Not all program/course data is guaranteed to be accurate or up-to-date. Always double-check with official resources.",
-                  "Be careful to only add courses that you have taken when adding courses to your plan.",
                   "This tools is only for students in the Arts & Science faculty at Queen's, and will not work for other faculties or universities.",
+                  "This tools is in active development and may contain bugs or incomplete features. If you encounter any issues, please report them to the developer.",
                 ].map((step, i) => (
                   <li key={i} className="flex items-start gap-2 text-[16px] leading-[1.65]">
                     <span

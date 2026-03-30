@@ -11,7 +11,6 @@ export const Legend = () => {
         Legend
       </h3>
       <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-        <LegendItem colour={COLOURS.brightBlue} label="Completed" />
         <LegendItem colour={COLOURS.red} label="Required" />
         <LegendItem colour={COLOURS.yellow} label="Choice" />
         <LegendItem colour={COLOURS.green} label="Elective" />

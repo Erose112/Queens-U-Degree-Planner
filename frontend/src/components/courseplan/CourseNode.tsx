@@ -1,82 +1,109 @@
-import { memo } from 'react';
+import { memo, useRef, useEffect, useState } from 'react';
 import type { Node, NodeProps } from '@xyflow/react';
-import { Handle, Position } from '@xyflow/react';
-import type { CourseNodeData } from '../../types';
-import { CourseStatus } from '../../services/api';
+import { Handle, Position, useEdges } from '@xyflow/react';
+import type { CourseNodeData } from '../../types/plan';
 import { NODE_WIDTH, NODE_HEIGHT } from '../../utils/coursePlanLayout';
-import { COLOURS } from "../../utils/colours";
+import { COLOURS } from '../../utils/colours';
+import { formatCourseName } from '../../utils/formatNames';
 
-export const CourseNode = memo(({ data }: NodeProps<Node<CourseNodeData, 'course'>>) => {
-  const { course } = data;
+function useFitText(text: string, maxSize: number, minSize: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [fontSize, setFontSize] = useState(maxSize);
 
-  const isCompleted = course.status === CourseStatus.COMPLETED;
-  const isRequired  = course.status === CourseStatus.REQUIRED;
-  const isElective    = course.status === CourseStatus.ELECTIVE;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let size = maxSize;
+    el.style.fontSize = `${size}px`;
+    while (el.scrollHeight > el.clientHeight && size > minSize) {
+      size -= 0.5;
+      el.style.fontSize = `${size}px`;
+    }
+    setFontSize(size);
+  }, [text, maxSize, minSize]);
 
-  const borderColour = isCompleted
-    ? COLOURS.brightBlue
-    : isRequired
-      ? COLOURS.red
-      : COLOURS.yellow
+  return { ref, fontSize };
+}
 
+export const CourseNode = memo(({ id, data }: NodeProps<Node<CourseNodeData, 'course'>>) => {
+  const { graphNode } = data;
+  const allEdges = useEdges();
 
+  const isRequired = graphNode.node_type === 'required';
+  const isChoice   = graphNode.node_type === 'choice';
+
+  const borderColour = isRequired ? COLOURS.red : isChoice ? COLOURS.yellow : COLOURS.green;
   const handleStyle = { width: 6, height: 6 };
-  const hasIncoming = data.incomingIds.length > 0;
-  const hasOutgoing = data.outgoingIds.length > 0;
+
+  const hasIncoming = allEdges.some(e => e.target === id);
+  const hasOutgoing = allEdges.some(e => e.source === id);
+
+  // Cluster handles in the centre third of the node
+  const incomingIds = data.incomingIds;
+  const count = incomingIds.length;
+  const CLUSTER_WIDTH = NODE_WIDTH * 0.2; // handles span 20% of node width
+  const clusterStart = 50 - (CLUSTER_WIDTH / NODE_WIDTH) * 50;
+
+  const { ref: titleRef, fontSize: titleSize } = useFitText(graphNode.course_code, 18, 10);
+  const { ref: subtitleRef, fontSize: subtitleSize } = useFitText(graphNode.title ?? '', 16, 9);
 
   return (
     <div
       className="course-node"
       style={{ width: NODE_WIDTH, height: NODE_HEIGHT, position: 'relative', boxSizing: 'border-box' }}
     >
-      {data.incomingIds.map((fromId, i) => (
+      {hasIncoming && incomingIds.map((fromId, i) => (
         <Handle
-          key={`target-${fromId}`}
-          id={`target-${fromId}`}
+          key={`target-${String(fromId)}`}
+          id={`target-${String(fromId)}`}
           type="target"
           position={Position.Top}
           style={{
-            left: `${((i + 1) / (data.incomingIds.length + 1)) * 100}%`,
+            left: count === 1
+              ? '50%'
+              : `${clusterStart + (i / (count - 1)) * (CLUSTER_WIDTH / NODE_WIDTH) * 100}%`,
             ...handleStyle,
-            visibility: hasIncoming ? 'visible' : 'hidden',
           }}
         />
       ))}
 
       <div
-        className="p-1.5 rounded-md bg-white border-2 text-black cursor-default"
+        className="p-1.5 rounded-md bg-white border-2 text-black cursor-default flex flex-col"
         style={{
           width: NODE_WIDTH,
           height: NODE_HEIGHT,
           boxSizing: 'border-box',
           borderColor: borderColour,
-          boxShadow: isElective
+          boxShadow: isChoice
             ? `0 2px 8px rgba(0,0,0,0.08), inset 0 0 0 1px ${COLOURS.yellow}22`
             : '0 2px 8px rgba(0,0,0,0.08)',
         }}
       >
-        <div className="font-bold text-[18px] mb-0.3">{course.code}</div>
-        <div className="text-[16px] leading-tight">{course.name}</div>
-        {isElective && (
-          <div
-            className="absolute top-1.5 right-1.5 text-[10px] font-semibold px-1 py-0.5 rounded"
-            style={{ background: COLOURS.yellow, color: '#000', opacity: 0.85 }}
-          >
-            ELECTIVE
-          </div>
-        )}
+        <div
+          ref={titleRef}
+          className="font-bold mb-0.5 overflow-hidden"
+          style={{ fontSize: titleSize, flexShrink: 0 }}
+        >
+          {formatCourseName(graphNode.course_code)}
+        </div>
+        <div
+          ref={subtitleRef}
+          className="leading-tight overflow-hidden flex-1"
+          style={{ fontSize: subtitleSize }}
+        >
+          {graphNode.title ?? ''}
+        </div>
       </div>
 
-      <Handle
-        id="source"
-        type="source"
-        position={Position.Bottom}
-        style={{
-          left: '50%',
-          ...handleStyle,
-          visibility: hasOutgoing ? 'visible' : 'hidden',
-        }}
-      />
+      {/* Only render when there are actual outgoing edges */}
+      {hasOutgoing && (
+        <Handle
+          id="source"
+          type="source"
+          position={Position.Bottom}
+          style={{ left: '50%', ...handleStyle }}
+        />
+      )}
     </div>
   );
 });

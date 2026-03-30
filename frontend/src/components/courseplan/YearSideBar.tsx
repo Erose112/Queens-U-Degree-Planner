@@ -1,4 +1,4 @@
-import type { YearSection } from '../../utils/coursePlanConverter';
+import type { YearSection } from '../../types/plan';
 import { YEAR_BAR_WIDTH } from '../../utils/coursePlanLayout';
 import { COLOURS } from "../../utils/colours";
 

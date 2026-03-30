@@ -5,7 +5,7 @@ import Footer from "../components/Footer";
 import ScrollToTop from "../components/ScrollToTop";
 import NextPageButton from "../components/NextPageButton";
 import { COLOURS } from "../utils/colours";
-import { formatProgramName } from "../utils/formatProgramName";
+import { formatProgramName } from "../utils/formatNames";
 import { getPrograms, getProgramStructure } from "../services/api";
 import { Program, SelectedPrograms, StructureCache } from "../types/plan";
 import { usePlanStore } from "../store/planStore";
@@ -22,8 +22,7 @@ import {
   allStructuresLoaded,
 } from "../utils/programCombination";
 
-// ─── Dropdown component ───────────────────────────────────────────────────────
-
+// Dropdown component 
 const dropdownStyle = (accentColor: string): React.CSSProperties => ({
   top: "calc(100% + 4px)",
   left: 0,
@@ -256,8 +255,7 @@ function CreditBar({
   );
 }
 
-// ─── Combination pill picker ──────────────────────────────────────────────────
-
+// Combination pill picker 
 function CombinationPicker({
   selected,
   onSelect,
@@ -348,10 +346,11 @@ function CombinationPicker({
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// Main page 
 
 export default function PlannerPage() {
   const navigate = useNavigate();
+  const loadProgram = usePlanStore(s => s.loadProgram);
 
   // All programs list (for dropdowns)
   const [allPrograms, setAllPrograms] = useState<Program[]>([]);
@@ -385,7 +384,7 @@ export default function PlannerPage() {
   const [loading, setLoading]         = useState(false);
   const isSubmitting                  = useRef(false);
 
-  // ── Fetch all programs on mount ──
+  // ── Fetch all programs on mount 
   useEffect(() => {
     getPrograms()
       .then(setAllPrograms)
@@ -393,7 +392,7 @@ export default function PlannerPage() {
       .finally(() => setProgramsLoading(false));
   }, []);
 
-  // ── Reset slots when combination changes ──
+  // ── Reset slots when combination changes 
   useEffect(() => {
     setSelections(emptySelections(combination));
     setInputVals({});
@@ -402,7 +401,7 @@ export default function PlannerPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [combinationId]);
 
-  // ── Close dropdowns on outside click ──
+  // ── Close dropdowns on outside click 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       for (const slot of combination.slots) {
@@ -495,11 +494,13 @@ export default function PlannerPage() {
     setLoading(true);
 
     try {
-      const loadProgram = usePlanStore(s => s.loadProgram);
+      // Load all selected programs into the store before navigating
+      const programIds = Object.values(selections)
+        .map(s => s?.program_id)
+        .filter((id): id is number => id != null);
+      await Promise.all(programIds.map(id => loadProgram(id)));
 
-      <select onChange={e => loadProgram(Number(e.target.value))} />
-
-      navigate("/visualizer", {});
+      navigate("/visualizer");
     } catch (e) {
       setServerError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {

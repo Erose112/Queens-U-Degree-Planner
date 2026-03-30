@@ -24,3 +24,7 @@ export function formatProgramName(rawName: string): string {
 
   return name.replace(/\s+/g, " ").trim();
 }
+
+export function formatCourseName(code: string): string {
+  return code.replace(/([A-Z]+)(\d+)/, "$1 $2");
+}

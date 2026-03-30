@@ -1,5 +1,6 @@
+// pages/CoursePlanPage.tsx
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from 'react-router-dom';
 import {
   ReactFlow,
   Background,
@@ -11,26 +12,23 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
+import { getCourses } from '../services/api';
 import { CourseNode } from '../components/courseplan/CourseNode';
 import { CourseEdge } from '../components/courseplan/CourseEdge';
 import { Legend } from '../components/courseplan/Legend';
 import { YearSideBar } from '../components/courseplan/YearSideBar';
+import { SectionSideBar } from '../components/courseplan/SectionSideBar';
 import Footer from '../components/Footer';
 import ScrollToTop from '../components/ScrollToTop';
+import { usePlanLayout } from '../hooks/planLayout';
+import { usePlanStore } from '../store/planStore';
 import { YEAR_BAR_WIDTH, YEAR_BAR_COURSE_OFFSET } from '../utils/coursePlanLayout';
 import { COLOURS } from '../utils/colours';
-import { convertCoursePlanToFlow } from '../utils/coursePlanConverter';
-import type { CoursePlan, YearSection } from '../types';
-import { CourseStatus, CourseData, EdgeData, PlanResponseData } from '../services/api';
-import { formatProgramName } from "../utils/formatProgramName";
+import { formatProgramName } from '../utils/formatNames';
+import type { Course, YearSection } from '../types/plan';
 
-const nodeTypes: NodeTypes = {
-  course: CourseNode,
-};
-
-const edgeTypes: EdgeTypes = {
-  courseEdge: CourseEdge,
-};
+const nodeTypes: NodeTypes = { course: CourseNode };
+const edgeTypes: EdgeTypes = { courseEdge: CourseEdge };
 
 function NodeInternalsUpdater() {
   const nodes = useNodes();
@@ -39,7 +37,7 @@ function NodeInternalsUpdater() {
   useEffect(() => {
     if (nodes.length > 0 && !didUpdate.current) {
       didUpdate.current = true;
-      updateNodeInternals(nodes.map((n) => n.id));
+      updateNodeInternals(nodes.map(n => n.id));
     }
   }, [nodes, updateNodeInternals]);
   return null;
@@ -52,82 +50,20 @@ function ChartInner({ yearSections }: { yearSections: YearSection[] }) {
 
 export default function CoursePlanPage() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { planData, programName, secondProgramName } = (location.state ?? {}) as {
-    planData?: PlanResponseData;
-    programName?: string;
-    secondProgramName?: string;
-  };
+  const { programs, graph, selectedCourses, addCourse, removeCourse, courseErrors, redoSection } = usePlanStore();
+  const { nodes, edges, yearSections, onNodesChange, onEdgesChange } = usePlanLayout();
 
-  const [coursePlan, setCoursePlan] = useState<CoursePlan | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [allCourses, setAllCourses] = useState<Course[]>([]);
 
-  // Map planData → CoursePlan synchronously on mount.
-  // No fetch needed — the planner page fetched and passed the result via navigate state.
   useEffect(() => {
-    if (!programName || !planData) {
-      navigate('/planner');
-      return;
-    }
+    getCourses().then(setAllCourses).catch(() => {});
+  }, []);
 
-    try {
-      if (!planData.courses || !Array.isArray(planData.courses))
-        throw new Error('Invalid response: courses array missing');
-      if (!planData.edges || !Array.isArray(planData.edges))
-        throw new Error('Invalid response: edges array missing');
 
-      const coursesByYear: Record<number, number> = {};
-
-      const mappedCourses = planData.courses.map((c: CourseData) => {
-        if (!c.course_code) throw new Error('Course missing course_code');
-
-        const year = Math.min(Math.max(c.year ?? 1, 1), 4);
-        if (coursesByYear[year] === undefined) coursesByYear[year] = 0;
-        const position = coursesByYear[year]++;
-
-        const units = Math.max(c.units || 3, 0.5);
-
-        return {
-          id: c.course_code,
-          code: c.course_code,
-          name: c.title ?? c.course_code,
-          units,
-          year,
-          position,
-          status: Object.values(CourseStatus).includes(c.course_status as CourseStatus)
-            ? c.course_status as CourseStatus
-            : CourseStatus.ELECTIVE,
-        };
-      });
-
-      const mappedConnections = planData.edges
-        .filter((e: EdgeData) => e.from_course && e.to_course)
-        .map((e: EdgeData) => ({
-          id: `${e.from_course}-${e.to_course}`,
-          from_course: e.from_course!,
-          to_course: e.to_course!,
-        }));
-
-      setCoursePlan({
-        id: programName,
-        programName: formatProgramName(planData.program_name ?? '') ?? 'Unknown Program',
-        secondProgramName: secondProgramName ? formatProgramName(secondProgramName) : undefined,
-        programCode: planData.program_code ?? 'UNKNOWN',
-        totalUnits: planData.total_units ?? 0,
-        coreUnits: planData.core_units ?? 0,
-        electiveUnits: planData.elective_units ?? 0,
-        courses: mappedCourses,
-        connections: mappedConnections as any,
-      });
-    } catch (err: any) {
-      setError(err.message ?? 'Unknown error');
-    }
-  }, []); // runs once on mount — data is already present in navigation state
-
-  const { nodes: initialNodes, edges: initialEdges, yearSections } = useMemo(
-    () => coursePlan ? convertCoursePlanToFlow(coursePlan) : { nodes: [], edges: [], yearSections: [] },
-    [coursePlan]
-  );
+  useEffect(() => {
+    if (programs.length === 0) navigate('/planner');
+  }, [programs, navigate]);
 
   const flowHeight = useMemo(() => {
     if (yearSections.length === 0) return 600;
@@ -135,40 +71,44 @@ export default function CoursePlanPage() {
     return last.y + last.height;
   }, [yearSections]);
 
-  const [nodes, setNodes] = useState(initialNodes);
-  const [edges, setEdges] = useState(initialEdges);
-
-  useEffect(() => {
-    setNodes(initialNodes);
-    setEdges(initialEdges);
-  }, [initialNodes, initialEdges]);
-
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-
   const visibleEdges = useMemo(() => {
     if (!hoveredNodeId) return edges;
     return edges.map(edge => ({
       ...edge,
       style: {
         ...edge.style,
-        opacity: edge.source === hoveredNodeId || edge.target === hoveredNodeId ? 1 : 0.05,
+        opacity:
+          edge.source === hoveredNodeId || edge.target === hoveredNodeId ? 1 : 0.05,
       },
-      zIndex: edge.source === hoveredNodeId || edge.target === hoveredNodeId ? 10 : 0,
+      zIndex:
+        edge.source === hoveredNodeId || edge.target === hoveredNodeId ? 10 : 0,
     }));
   }, [edges, hoveredNodeId]);
 
-  if (error || !coursePlan) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p className="text-red-400 text-lg">Error: {error ?? 'No plan data found.'}</p>
-    </div>
-  );
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const raw = e.dataTransfer.getData('application/json');
+    if (!raw) return;
+    try {
+      const { courseId } = JSON.parse(raw) as { courseId: number };
+      const { courseCode } = JSON.parse(raw) as { courseCode: string };
+      
+      if (typeof courseId === 'number') addCourse(courseCode, courseId);
+    } catch {
+      // malformed drag payload — ignore
+    }
+  };
+
+  const programNames = programs.map(p => formatProgramName(p.program_name)).join(' + ');
+  const totalCredits = programs.reduce((sum, p) => sum + p.total_credits, 0);
+
+  if (programs.length === 0 || !graph) return null;
 
   return (
-    <div className='min-h-screen flex flex-col gap-6' style={{ background: COLOURS.warmWhite }}>
+    <div className="min-h-screen flex flex-col gap-6" style={{ background: COLOURS.warmWhite }}>
       <ScrollToTop />
-      <div className="px-8">
+      <div className="px-8 flex-1">
         <div className="py-6 flex items-center gap-0">
-
           <div className="flex items-stretch gap-4 pr-10 border-r border-gray-200">
             <div className="w-1 rounded-full" style={{ background: COLOURS.blue }} />
             <div>
@@ -186,57 +126,78 @@ export default function CoursePlanPage() {
             </div>
           </div>
 
-          {/* Program info */}
           <div className="flex-1 px-8">
             <span className="text-2xl font-bold leading-tight" style={{ color: COLOURS.blue }}>
-              {coursePlan.programName + (coursePlan.secondProgramName ? ` + ${coursePlan.secondProgramName}` : '')}
+              {programNames}
             </span>
-            <p className="text-m text-gray-400 mt-0.5">{coursePlan.programCode}</p>
             <div className="flex items-center gap-3 mt-1.5 text-s text-gray-400">
-              <span>Core: <span className="text-gray-600 font-medium">{coursePlan.coreUnits}u</span></span>
+              <span>
+                Credits:{' '}
+                <span className="font-bold" style={{ color: COLOURS.blue }}>{totalCredits}</span>
+              </span>
               <span className="text-gray-200">|</span>
-              <span>Electives: <span className="text-gray-600 font-medium">{coursePlan.electiveUnits}u</span></span>
-              <span className="text-gray-200">|</span>
-              <span className="font-bold" style={{ color: COLOURS.blue }}>
-                Total: {coursePlan.totalUnits}u
+              <span>
+                Courses selected:{' '}
+                <span className="text-gray-600 font-medium">{selectedCourses.length}</span>
               </span>
             </div>
           </div>
 
-          {/* Legend */}
           <div className="pl-8 border-l border-gray-200">
             <Legend />
           </div>
         </div>
 
-        <div
-          className="border border-gray-200 bg-white rounded-lg overflow-hidden relative"
-          style={{ height: flowHeight }}
-        >
-          <ReactFlow
-            nodes={nodes}
-            edges={visibleEdges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
-            onNodeMouseLeave={() => setHoveredNodeId(null)}
-            defaultViewport={{ x: YEAR_BAR_WIDTH + YEAR_BAR_COURSE_OFFSET, y: 0, zoom: 1 }}
-            nodesDraggable={false}
-            nodesConnectable={false}
-            elementsSelectable={true}
-            panOnDrag={false}
-            panOnScroll={false}
-            zoomOnScroll={false}
-            zoomOnPinch={false}
-            zoomOnDoubleClick={false}
-            preventScrolling={false}
-            minZoom={1}
-            maxZoom={1}
+        <div className="flex gap-6 items-start w-full">
+          <div
+            className="w-[70%] border border-gray-200 bg-white rounded-lg overflow-hidden relative"
+            style={{ height: flowHeight }}
+            onDragOver={e => e.preventDefault()}
+            onDrop={handleDrop}
           >
-            <NodeInternalsUpdater />
-            <Background color="#f3f4f6" gap={16} />
-            <ChartInner yearSections={yearSections} />
-          </ReactFlow>
+            <ReactFlow
+              nodes={nodes}
+              edges={visibleEdges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
+              onNodeMouseLeave={() => setHoveredNodeId(null)}
+              defaultViewport={{
+                x: YEAR_BAR_WIDTH + YEAR_BAR_COURSE_OFFSET,
+                y: 0,
+                zoom: 1,
+              }}
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable={true}
+              panOnDrag={false}
+              panOnScroll={false}
+              zoomOnScroll={false}
+              zoomOnPinch={false}
+              zoomOnDoubleClick={false}
+              preventScrolling={false}
+              minZoom={1}
+              maxZoom={1}
+            >
+              <NodeInternalsUpdater />
+              <Background color="#f3f4f6" gap={16} />
+              <ChartInner yearSections={yearSections} />
+            </ReactFlow>
+          </div>
+
+          <div style={{ height: flowHeight }} className="w-[30%]">
+            <SectionSideBar
+              programs={programs}
+              selectedCourses={selectedCourses}
+              courseErrors={courseErrors ?? new Map()}
+              onAdd={addCourse}
+              onRemove={removeCourse}
+              allCourses={allCourses}
+              onRedoSection={redoSection}
+            />
+          </div>
         </div>
       </div>
 
