@@ -1,48 +1,18 @@
-import { PrerequisiteGraph, ProgramSection, ProgramStructure, SelectedCourse } from "../types/plan";
-import { getCourseCredits, getSectionCredits, getPlanCredits, getYearCredits } from "./creditUtils";
-import { findSection, checkPrereqs, prereqsStillValid } from "./prerequisiteUtils";
+import { PrerequisiteGraph, ProgramStructure, SelectedCourse } from "../types/plan";
+import { getCourseCredits, getSectionCredits, getPlanCredits, getYearCredits } from "./credits";
+import { findSections, checkPrereqs, prereqsStillValid } from "./prerequisites";
 
 export const LOGIC_REQUIRED = 1;       // All courses in the section are mandatory
 export const LOGIC_CHOOSE_CREDITS = 2; // Student can choose from a set of courses to meet the credit requirement
 export const YEAR_CREDIT_CAP = 30;
 
 
-/**
- * Build a minimal selection of course IDs that satisfies a section's logic rule.
- * Returns null if the section cannot be satisfied by any combination of its courses.
- */
-export function buildSatisfyingSelection(section: ProgramSection): number[] | null {
-
-  if (section.logic_type === 1) {
-    // LOGIC_REQUIRED: all courses
-    return section.courses.map((c) => c.course_id);
-  }
-
-  // LOGIC_CHOOSE_CREDITS: accumulate until credit_req is met
-  const target = section.credit_req ?? 0;
-  let accumulated = 0;
-  const selected: number[] = [];
-  for (const course of section.courses) {
-    if (accumulated >= target) break;
-    accumulated += course.credits ?? 0;
-    selected.push(course.course_id);
-  }
-  return accumulated >= target ? selected : null;
-}
-
-
-
-type InvalidReason =
-  | "missing_prereqs"
-  | "exceeds_section_credits"
-  | "exceeds_program_credits"
-  | "exceeds_year_credits";
-
 interface CanTakeCourseResult {
   valid: boolean;
-  reason?: InvalidReason;
-  /** IDs of courses blocking validity (prereqs not met, or the course itself for credit overflows). */
-  missing?: number[];
+  reason?: string;
+
+  /** Codes of courses blocking validity (prereqs not met, or the course itself for credit overflows). */
+  missing?: string[];
 }
 
 /**
@@ -65,91 +35,56 @@ export function canTakeCourse(
   programs: ProgramStructure[]
 ): CanTakeCourseResult {
   const credits = getCourseCredits(courseId, graph);
+  const courseCode = graph.nodes.find(n => n.course_id === courseId)?.course_code ?? `Course ${courseId}`;
 
   // 1. Section credit cap
-  const section = findSection(courseId, programs);
-  if (section !== null && section.logic_type !== LOGIC_REQUIRED) {
+  const sections = findSections(courseId, programs);
+  for (const section of sections) {
     const cap = section.credit_req ?? 0;
-    const used = getSectionCredits(section.section_id, plan, programs);
-    if (used + credits > cap) {
-      return { valid: false, reason: "exceeds_section_credits", missing: [courseId] };
+    if (cap > 0) {
+      const used = getSectionCredits(section.section_id, plan, programs);
+      if (used + credits > cap) {
+        return { valid: false, reason: `${courseCode} exceeds the ${cap} credit cap for "${section.section_name}"`, missing: [courseCode] };
+      }
     }
   }
   // 2. Total program credit cap
+  const totalCap = programs.reduce((sum, p) => sum + p.total_credits, 0);
   const totalUsed = getPlanCredits(plan, graph);
   if (totalUsed + credits > programs.reduce((sum, p) => sum + p.total_credits, 0)) {
-    return { valid: false, reason: "exceeds_program_credits", missing: [courseId] };
+    return { valid: false, reason: `Adding ${courseCode} would exceed the total program cap of ${totalCap} credits`, missing: [courseCode] };
   }
 
   // 3. Per-year credit cap (30 credits / year)
   const yearUsed = getYearCredits(targetYear, plan, graph);
   if (yearUsed + credits > YEAR_CREDIT_CAP) {
-    return { valid: false, reason: "exceeds_year_credits", missing: [courseId] };
+    return { valid: false, reason: `Adding ${courseCode} would exceed the Year ${targetYear} cap of ${YEAR_CREDIT_CAP} credits`, missing: [courseCode] };
   }
 
   // 4. Prerequisites
   const { satisfied, missing } = checkPrereqs(courseId, targetYear, plan, graph);
   if (!satisfied) {
-    return { valid: false, reason: "missing_prereqs", missing };
+    const missingCodes = missing.map(id =>
+      graph.nodes.find(n => n.course_id === id)?.course_code ?? `Course ${id}`
+    );
+    return { valid: false, reason: `Missing prerequisites from: ${missingCodes.join(', ')}`, missing: missingCodes };
   }
 
   return { valid: true };
 }
 
+
+
 /**
  * findEarliestYear
- *
- * Returns the earliest year (1–4) in which a course can be taken given
- * where its prerequisites are currently placed in the plan.
- *
- * - No prerequisites → returns 1.
- * - For each prerequisite set, the constraint year is the year of the
- *   Nth-placed prerequisite (where N = min_required). The course can
- *   start the year AFTER the latest such constraint.
- * - If a set has fewer courses placed than min_required, that set is
- *   skipped (treated as not yet constraining).
- *
- * @param courseId  The course to evaluate.
- * @param graph     The prerequisite graph.
- * @param plan      The current list of placed courses.
  */
-export function findEarliestYear(
-  courseId: number,
-  graph: PrerequisiteGraph,
-  plan: SelectedCourse[]
-): 1 | 2 | 3 | 4 {
-  const edges = graph.edges.filter((e) => e.to_course_id === courseId);
-  if (edges.length === 0) return 1;
-
-  const setMap = new Map<number, number[]>();
-  for (const edge of edges) {
-    if (!setMap.has(edge.set_id)) setMap.set(edge.set_id, []);
-    setMap.get(edge.set_id)!.push(edge.from_course_id);
-  }
-
-  const planMap = new Map(plan.map((p) => [p.courseId, p.year]));
-  let latestConstraint = 0;
-
-  for (const [setId, courseIds] of setMap) {
-    const prereqSet = graph.prerequisite_sets.find((s) => s.set_id === setId);
-    const required =
-      prereqSet?.min_required === null || prereqSet?.min_required === undefined
-        ? courseIds.length
-        : prereqSet.min_required;
-
-    const placedYears = courseIds
-      .map((id) => planMap.get(id))
-      .filter((y): y is 1 | 2 | 3 | 4 => y !== undefined)
-      .sort((a, b) => a - b);
-
-    if (placedYears.length < required) continue;
-
-    const constraintYear = placedYears[required - 1];
-    if (constraintYear > latestConstraint) latestConstraint = constraintYear;
-  }
-
-  const earliest = latestConstraint === 0 ? 1 : latestConstraint + 1;
-  return Math.min(earliest, 4) as 1 | 2 | 3 | 4;
+export function findEarliestYear(courseCode: string): 1 | 2 | 3 | 4 {
+  const match = courseCode.match(/\d+/);
+  if (!match) return 1;
+  
+  const num = parseInt(match[0]);
+  const prefixYear = Math.min(Math.floor(num / 100), 4) as 1 | 2 | 3 | 4;
+  return prefixYear;
 }
 
 /**

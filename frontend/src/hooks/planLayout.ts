@@ -5,15 +5,16 @@ import { usePlanStore } from '../store/planStore';
 import { coursePlanConverter } from '../utils/coursePlanConverter';
 import { reconcileNodes } from '../utils/reconcileNodes';
 import { useNodesState, useEdgesState, NodeChange } from '@xyflow/react';
-import { CourseNodeData } from '../types/plan';
+import { CourseNodeData, YearSection } from '../types/plan';
 
 export function usePlanLayout() {
   const { selectedCourses, graph, programs } = usePlanStore();
 
   // Recompute fresh layout whenever selectedCourses changes
-  const { nodes: freshNodes, edges: freshEdges } = useMemo(() => {
-    if (!graph || selectedCourses.length === 0) return { nodes: [], edges: [] };
-    return coursePlanConverter(selectedCourses, graph, programs);
+  const { nodes: freshNodes, edges: freshEdges, yearSections } = useMemo(() => {
+    if (!graph || selectedCourses.length === 0) 
+        return { nodes: [], edges: [], yearSections: [] as YearSection[] };
+    return coursePlanConverter(selectedCourses, graph, programs );
   }, [selectedCourses, graph, programs]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(freshNodes);
@@ -39,5 +40,5 @@ export function usePlanLayout() {
     });
   }, [onNodesChange]);
 
-  return { nodes, edges, onNodesChange: handleNodesChange, onEdgesChange };
+  return { nodes, edges, yearSections, onNodesChange: handleNodesChange, onEdgesChange };
 }

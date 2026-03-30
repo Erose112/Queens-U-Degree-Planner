@@ -1,4 +1,12 @@
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api`;
+
+
+// GET /courses/
+export async function getCourses() {
+  const res = await fetch(`${API_BASE}/courses/`);
+  if (!res.ok) throw new Error("Failed to fetch courses");
+  return res.json();
+}
 
 // GET /programs/
 export async function getPrograms() {
@@ -18,5 +26,12 @@ export async function getProgramStructure(programId: number) {
 export async function getPrerequisiteGraph(programId: number) {
   const res = await fetch(`${API_BASE}/programs/${programId}/prerequisite-graph`);
   if (!res.ok) throw new Error("Failed to fetch prerequisite graph");
+  return res.json();
+}
+
+// GET /courses/{course_id}/prerequisites
+export async function getPrerequisiteCourseGraph(courseId: number) {
+  const res = await fetch(`${API_BASE}/courses/${courseId}/prerequisites`);
+  if (!res.ok) throw new Error("Failed to fetch prerequisite course graph");
   return res.json();
 }

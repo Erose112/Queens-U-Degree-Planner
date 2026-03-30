@@ -15,9 +15,7 @@
  */
 
 import type { Program, ProgramStructure, CourseSection } from "../types/plan";
-
-// Re-export api types so callers only need one import
-export type { Program, ProgramStructure };
+import { SelectedPrograms, StructureCache } from "../types/plan"
 
 
 export type CombinationId =
@@ -52,18 +50,7 @@ export interface CombinationConfig {
 }
 
 
-/** Slot key → selected Program (null = nothing chosen yet). */
-export type SelectedPrograms = Record<string, Program | null>;
-
-/**
- * Lazily-populated cache of ProgramStructure objects keyed by program_id.
- * Fetched once per program when the user selects it; avoids loading
- * every structure upfront.
- */
-export type StructureCache = Record<number, ProgramStructure>;
-
-// ─── Combination configs ───────────────────────────────────────────────────────
-
+//  Combination configs 
 export const COMBINATIONS: CombinationConfig[] = [
   {
     id: "specialization",
@@ -333,14 +320,6 @@ export function validateCombination(
   }
 
   return errors;
-}
-
-
-/** Returns the CombinationConfig for a given id (throws if unknown). */
-export function getCombination(id: CombinationId): CombinationConfig {
-  const combo = COMBINATIONS.find((c) => c.id === id);
-  if (!combo) throw new Error(`Unknown combination id: ${id}`);
-  return combo;
 }
 
 /** Creates a blank selections map (all slots null) for a combination. */

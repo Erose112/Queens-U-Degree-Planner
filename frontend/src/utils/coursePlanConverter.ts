@@ -14,8 +14,7 @@ import {
   YEAR_BAR_COURSE_OFFSET,
 } from './coursePlanLayout';
 
-
-const MAX_COLS = 5;
+const MAX_COLS = 4;
 
 export function coursePlanConverter(
   selectedCourses: SelectedCourse[],
@@ -180,7 +179,7 @@ export function coursePlanConverter(
       source: String(edge.from_course_id),
       target: String(edge.to_course_id),
       sourceHandle: 'source',
-      targetHandle: `target-${edge.from_course_id}`,
+      targetHandle: `target-${String(edge.from_course_id)}`,
       type: 'courseEdge',
       data: { gapY },
     });

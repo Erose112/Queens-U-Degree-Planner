@@ -1,5 +1,6 @@
 import { PrerequisiteGraph, ProgramStructure, SelectedCourse } from "../types/plan";
 import { getPrograms, getPrerequisiteGraph } from "../services/api";
+import { LOGIC_REQUIRED } from "./program";
 
 
 const programs = await getPrograms();
@@ -22,12 +23,10 @@ export function coursesWithNoPrereqs(): number[] {
 }
 
 
-/** Find the program section that owns the given course, or null. */
-export function findSection(courseId: number, programs: ProgramStructure[]) {
-  return (
-    programs.flatMap(p => p.sections).find((s) =>
-      s.courses.some((c) => c.course_id === courseId)
-    ) ?? null
+/** Find the sections that own the given course, or null. */
+export function findSections(courseId: number, programs: ProgramStructure[]) {
+  return programs.flatMap(p => p.sections).filter(s =>
+    s.courses.some(c => c.course_id === courseId) && s.logic_type !== LOGIC_REQUIRED
   );
 }
 
@@ -38,7 +37,7 @@ export function findSection(courseId: number, programs: ProgramStructure[]) {
  *  - Each set must be satisfied independently (sets are AND-ed together).
  *  - Within a set, `min_required` courses must be present in the plan
  *    AND placed in a year strictly less than `targetYear`.
- *  - `min_required === null` means every course in the set is required (ALL).
+ *  - `min_required === 0` means every course in the set is required (ALL).
  *
  * Returns { satisfied, missing } where `missing` is a flat list of
  * course IDs that would need to be added/moved to satisfy unmet sets.
@@ -68,14 +67,14 @@ export function checkPrereqs(
 
   for (const [setId, courseIds] of setMap) {
     const prereqSet = graph.prerequisite_sets.find((s) => s.set_id === setId);
-    const required =
-      prereqSet?.min_required === null || prereqSet?.min_required === undefined
-        ? courseIds.length // null → ALL
-        : prereqSet.min_required;
+    const isOrLogic = prereqSet?.min_required === 1;
 
-    const satisfiedCount = courseIds.filter((id) => priorIds.has(id)).length;
-
-    if (satisfiedCount < required) {
+    if (isOrLogic) {
+      // At least one must be satisfied
+      const satisfied = courseIds.some((id) => priorIds.has(id));
+      if (!satisfied) missing.push(...courseIds);
+    } else {
+      // All must be satisfied (min_required === 0)
       const unmet = courseIds.filter((id) => !priorIds.has(id));
       missing.push(...unmet);
     }
@@ -111,7 +110,7 @@ export function prereqsStillValid(
   for (const [setId, courseIds] of setMap) {
     const prereqSet = graph.prerequisite_sets.find((s) => s.set_id === setId);
     const required =
-      prereqSet?.min_required === null || prereqSet?.min_required === undefined
+      prereqSet?.min_required === 0 || prereqSet?.min_required === undefined
         ? courseIds.length
         : prereqSet.min_required;
 

@@ -1,3 +1,11 @@
+export interface Course {
+  course_id: number;
+  course_code: string;
+  title: string | null;
+  credits: number | null;
+  description: string | null;
+}
+
 export interface Program {
   program_id: number;
   program_name: string;
@@ -5,7 +13,6 @@ export interface Program {
   total_credits: number;
 }
 
-// Change to Course
 export interface CourseSection {
   course_id: number;
   course_code: string;
@@ -39,7 +46,7 @@ export interface ProgramStructure {
  */
 export interface PrereqSet {
   set_id: number;
-  min_required: number | null;
+  min_required: number;
   required_course_ids: number[];
 }
 
@@ -64,7 +71,7 @@ export interface GraphEdge {
   from_course_id: number; /** The prerequisite course */
   to_course_id: number; /** The course that requires it */
   set_id: number;  /** Which PrerequisiteSet this edge belongs to */
-  min_required: number | null;
+  min_required: number;
 }
 
 export interface PrerequisiteGraph {
@@ -94,3 +101,14 @@ export interface YearSection {
   y: number;
   height: number;
 }
+
+
+/** Slot key → selected Program (null = nothing chosen yet). */
+export type SelectedPrograms = Record<string, Program | null>;
+
+/**
+ * Lazily-populated cache of ProgramStructure objects keyed by program_id.
+ * Fetched once per program when the user selects it; avoids loading
+ * every structure upfront.
+ */
+export type StructureCache = Record<number, ProgramStructure>;
