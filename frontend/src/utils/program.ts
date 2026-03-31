@@ -1,6 +1,6 @@
 import { PrerequisiteGraph, ProgramStructure, SelectedCourse } from "../types/plan";
 import { getCourseCredits, getSectionCredits, getPlanCredits, getYearCredits } from "./credits";
-import { findSections, checkPrereqs, prereqsStillValid } from "./prerequisites";
+import { findSections, isCourseRequired, checkPrereqs, prereqsStillValid } from "./prerequisites";
 
 export const LOGIC_REQUIRED = 1;       // All courses in the section are mandatory
 export const LOGIC_CHOOSE_CREDITS = 2; // Student can choose from a set of courses to meet the credit requirement
@@ -100,11 +100,13 @@ export function findEarliestYear(courseCode: string): 1 | 2 | 3 | 4 {
  * @param courseId  The course being removed.
  * @param plan      The current list of placed courses.
  * @param graph     The prerequisite graph.
+ * @param programs  The full program structure, used to check if dependents are required courses that can't be removed.
  */
 export function getCoursesToRemove(
   courseId: number,
   plan: SelectedCourse[],
-  graph: PrerequisiteGraph
+  graph: PrerequisiteGraph,
+  programs: ProgramStructure[]
 ): number[] {
   const removedIds = new Set<number>([courseId]);
   const queue: number[] = [courseId];
@@ -124,7 +126,7 @@ export function getCoursesToRemove(
       if (removedIds.has(depId)) continue;
       if (!plan.some((p) => p.courseId === depId)) continue;
 
-      if (!prereqsStillValid(depId, plan, graph, removedIds)) {
+      if (!prereqsStillValid(depId, plan, graph, removedIds) && !isCourseRequired(depId, programs)) {
         removedIds.add(depId);
         queue.push(depId);
       }

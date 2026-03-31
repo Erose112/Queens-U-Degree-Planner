@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { ProgramStructure, PrerequisiteGraph, SelectedCourse } from '../types/plan';
 import { LOGIC_REQUIRED, canTakeCourse, findEarliestYear, getCoursesToRemove } from '../utils/program';
 import { mergeGraphs, pruneGraph } from '../utils/graph';
+import { isCourseRequired } from '../utils/prerequisites';
 import { getPrerequisiteCourseGraph, getPrerequisiteGraph, getProgramStructure } from '../services/api';
 
 interface PlanStore {
@@ -22,13 +23,7 @@ interface PlanStore {
   resetPlan: () => void;
 }
 
-function isCourseRequired(courseId: number, programs: ProgramStructure[]): boolean {
-  return programs
-    .flatMap(p => p.sections)
-    .filter(s => s.logic_type === LOGIC_REQUIRED)
-    .flatMap(s => s.courses)
-    .some(c => c.course_id === courseId);
-}
+
 
 export const usePlanStore = create<PlanStore>((set, get) => ({
   programs: [],
@@ -118,8 +113,6 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       }
 
       lastFailReason = result.reason ?? lastFailReason;
-      const isCreditCapFailure = result.missing?.every(code => code === courseCode);
-      if (!isCreditCapFailure) break;
     }
 
     if (placedYear === null) {
@@ -129,7 +122,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       return;
     }
 
-    // Successfully adding — clear this course's error and re-evaluate all other errored courses
+    // Successfully adding, clear this course's error and re-evaluate all other errored courses
     set(state => {
       const newSelectedCourses = [
         ...state.selectedCourses,
@@ -166,7 +159,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       return;
     }
 
-    const toRemove = new Set([courseId, ...getCoursesToRemove(courseId, selectedCourses, graph)]);
+    const toRemove = new Set([courseId, ...getCoursesToRemove(courseId, selectedCourses, graph, programs)]);
     set({
       selectedCourses: selectedCourses.filter(c => !toRemove.has(c.courseId)),
     });
@@ -225,7 +218,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
     for (const courseId of courseIds) {
       if (isCourseRequired(courseId, programs)) continue; // never remove required
       toRemove.add(courseId);
-      getCoursesToRemove(courseId, selectedCourses, graph).forEach(id => toRemove.add(id));
+      getCoursesToRemove(courseId, selectedCourses, graph, programs).forEach(id => toRemove.add(id));
     }
 
     set({

@@ -30,6 +30,14 @@ export function findSections(courseId: number, programs: ProgramStructure[]) {
   );
 }
 
+export function isCourseRequired(courseId: number, programs: ProgramStructure[]): boolean {
+  return programs
+    .flatMap(p => p.sections)
+    .filter(s => s.logic_type === LOGIC_REQUIRED)
+    .flatMap(s => s.courses)
+    .some(c => c.course_id === courseId);
+}
+
 /**
  * Evaluate whether all prerequisite sets for a course are satisfied.
  *

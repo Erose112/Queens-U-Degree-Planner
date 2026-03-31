@@ -61,6 +61,7 @@ export interface GraphNode {
   title: string | null;
   credits: number | null;
   node_type: NodeType;
+  description: string | null;
 }
 
 /**
