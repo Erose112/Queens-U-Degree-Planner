@@ -20,6 +20,6 @@ def run(rc, rp, wr):
 
 if __name__ == "__main__":
     run_courses=True
-    run_programs=False
+    run_programs=True
     write_recommendations=False
     run(run_courses, run_programs, write_recommendations)

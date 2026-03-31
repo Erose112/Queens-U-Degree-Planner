@@ -83,6 +83,7 @@ def get_prerequisite_program_graph(program_id: int, db: Session = Depends(get_db
             title=course.title,
             credits=course.credits,
             node_type=section_course_type[cid],
+            description=course.description,
         )
         for cid, course in all_courses.items()
     ]

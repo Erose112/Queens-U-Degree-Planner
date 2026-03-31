@@ -26,6 +26,7 @@ def get_prerequisite_course_graph(course_id: int, db: Session = Depends(get_db))
             title=course.title,
             credits=course.credits,
             node_type='prereq',
+            description=course.description,
         )
         for cid, course in all_courses.items()
     ]

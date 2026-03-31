@@ -46,6 +46,7 @@ class GraphNode(BaseModel):
     #   "choice"   → yellow node (is_required=False)
     #   "prereq"   → grey node  (only appears as a prerequisite, not in any section)
     node_type: str
+    description: Optional[str]
 
 
 class GraphEdge(BaseModel):

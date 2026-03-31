@@ -28,13 +28,16 @@ def extract_course_logic(text):
                 cleaned.append("and")
             cleaned.append(token)
         elif token in {"(", ")"}:
-            cleaned.append(token)
-        elif token.lower() == "or":
-            cleaned.append("or")
-        elif token.lower() == "and":
-            cleaned.append("and")
+            # Only add parens if they are next to a course code or operator
+            if token == "(" :
+                cleaned.append(token)
+            elif token == ")":
+                # Remove the paren and everything back to its matching open if empty
+                if cleaned and cleaned[-1] == "(":
+                    cleaned.pop()  # remove the dangling open paren
+                else:
+                    cleaned.append(token)
         else:
-            # Check if the non-course segment contains or/and
             if re.search(r'\bor\b', token, re.IGNORECASE):
                 if cleaned and cleaned[-1] not in {"and", "or", "("}:
                     cleaned.append("or")
@@ -43,11 +46,8 @@ def extract_course_logic(text):
                     cleaned.append("and")
 
     result = " ".join(cleaned).strip()
-
     result = re.sub(r'\(\s*\)', '', result).strip()
     result = re.sub(r'\s+', ' ', result).strip()
-
-    # Remove leading/trailing logical operators left over from empty groups
     result = re.sub(r'^(and|or)\s+', '', result, flags=re.IGNORECASE)
     result = re.sub(r'\s+(and|or)$', '', result, flags=re.IGNORECASE)
     return result
@@ -64,6 +64,8 @@ def parse_requirements(requirement_line):
 
     text = re.sub(r'^\s*Requirements?\s*:\s*', '', requirement_line, flags=re.IGNORECASE).strip()
     text = text.replace('[', '(').replace(']', ')')
+    text = text.replace('\xa0', ' ')
+    text = re.sub(r'\s+', ' ', text).strip()
 
     header_pattern = re.compile(
         r'(One[\s-]*Way\s+Exclusion[s]?|Exclusion[s]?|Corequisite[s]?|Prerequisite[s]?|Recommended)',
@@ -89,6 +91,9 @@ def parse_requirements(requirement_line):
         return result
 
     headers.sort(key=lambda x: x['start'])
+    print(f"headers found: {headers}")
+    print(f"raw text: '{text}'")
+
 
     for i, h in enumerate(headers):
         if h['key'] is None:
@@ -96,7 +101,9 @@ def parse_requirements(requirement_line):
 
         content_start = h['end']
         content_end = headers[i + 1]['start'] if i + 1 < len(headers) else len(text)
-        raw_content = text[content_start:content_end].strip(" .;:")
+        raw_content = text[content_start:content_end].strip()
+
+        print(raw_content)
         result[h['key']] = extract_course_logic(raw_content)
 
     return result
@@ -217,6 +224,9 @@ def scrape_artsci_courses():
 
     degree_info = []
     art_sci_degrees = [
+        'MATH'
+    ]
+    test = [
         'ANAT', 'ANIM', 'ANSH', 'ARAB', 'ARTH', 'ARIN', 'ASCX', 'ASTR',
         'BISC', 'BCHM', 'BIOL', 'BLCK', 'CANC', 'CRSS', 'CHEM', 'CHIN',
         'CLST', 'COGS', 'CISC', 'COCA', 'COMP', 'CWRI', 'DISC',
@@ -239,4 +249,7 @@ def scrape_artsci_courses():
         df = clean_data(extract_data(url, session))
         degree_info.append(df)
 
+    df.to_csv("artsci_courses.csv", index=False)
     return degree_info
+
+scrape_artsci_courses()
