@@ -25,6 +25,7 @@ import { usePlanStore } from '../store/planStore';
 import { YEAR_BAR_WIDTH, YEAR_BAR_COURSE_OFFSET } from '../utils/coursePlanLayout';
 import { COLOURS } from '../utils/colours';
 import { formatProgramName } from '../utils/formatNames';
+import { getPlanCredits } from '../utils/credits';
 import type { Course, YearSection } from '../types/plan';
 
 const nodeTypes: NodeTypes = { course: CourseNode };
@@ -54,12 +55,12 @@ export default function CoursePlanPage() {
   const { nodes, edges, yearSections, onNodesChange, onEdgesChange } = usePlanLayout();
 
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [allCourses, setAllCourses] = useState<Course[]>([]);
+  const [lockedNodeId, setLockedNodeId]   = useState<string | null>(null);
+  const [allCourses, setAllCourses]       = useState<Course[]>([]);
 
   useEffect(() => {
     getCourses().then(setAllCourses).catch(() => {});
   }, []);
-
 
   useEffect(() => {
     if (programs.length === 0) navigate('/planner');
@@ -71,19 +72,33 @@ export default function CoursePlanPage() {
     return last.y + last.height;
   }, [yearSections]);
 
+  // The active node for highlight is the locked one if set, otherwise hovered.
+  // While locked, hovering other nodes has no effect.
+  const activeNodeId = lockedNodeId ?? hoveredNodeId;
+
   const visibleEdges = useMemo(() => {
-    if (!hoveredNodeId) return edges;
+    if (!activeNodeId) return edges;
     return edges.map(edge => ({
       ...edge,
       style: {
         ...edge.style,
         opacity:
-          edge.source === hoveredNodeId || edge.target === hoveredNodeId ? 1 : 0.05,
+          edge.source === activeNodeId || edge.target === activeNodeId ? 1 : 0.05,
       },
       zIndex:
-        edge.source === hoveredNodeId || edge.target === hoveredNodeId ? 10 : 0,
+        edge.source === activeNodeId || edge.target === activeNodeId ? 10 : 0,
     }));
-  }, [edges, hoveredNodeId]);
+  }, [edges, activeNodeId]);
+
+  const handleNodeClick = (_: React.MouseEvent, node: { id: string }) => {
+    // Clicking the already-locked node unlocks it; clicking another locks it.
+    setLockedNodeId(prev => prev === node.id ? null : node.id);
+  };
+
+  const handlePaneClick = () => {
+    setLockedNodeId(null);
+    setHoveredNodeId(null);
+  };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -92,7 +107,6 @@ export default function CoursePlanPage() {
     try {
       const { courseId } = JSON.parse(raw) as { courseId: number };
       const { courseCode } = JSON.parse(raw) as { courseCode: string };
-      
       if (typeof courseId === 'number') addCourse(courseCode, courseId);
     } catch {
       // malformed drag payload — ignore
@@ -109,15 +123,15 @@ export default function CoursePlanPage() {
       <ScrollToTop />
       <div className="px-8 flex-1">
         <div className="py-6 flex items-center gap-0">
-          <div className="flex items-stretch gap-4 pr-10 border-r border-gray-200">
+          <div className="flex items-stretch gap-4 pr-10 border-r border-gray-300">
             <div className="w-1 rounded-full" style={{ background: COLOURS.blue }} />
             <div>
               <button
                 onClick={() => navigate('/planner')}
-                className="flex items-center gap-1.5 mb-1 text-xs font-medium tracking-wide cursor-pointer bg-transparent border-none p-0 transition-opacity opacity-50 hover:opacity-100"
+                className="flex items-center gap-1.5 mb-1 text-[14px] font-medium tracking-wide cursor-pointer bg-transparent border-none p-0 transition-opacity opacity-50 hover:opacity-100"
                 style={{ color: COLOURS.blue }}
               >
-                ⬅ Back to Planner
+                Back to Planner
               </button>
               <div style={{ color: COLOURS.blue, fontFamily: "'Playfair Display', serif" }}>
                 <div className="text-5xl font-black leading-none">Queen's</div>
@@ -130,12 +144,20 @@ export default function CoursePlanPage() {
             <span className="text-2xl font-bold leading-tight" style={{ color: COLOURS.blue }}>
               {programNames}
             </span>
-            <div className="flex items-center gap-3 mt-1.5 text-s text-gray-400">
+            <div className="flex items-center gap-3 mt-1.5 text-s text-gray-500">
               <span>
-                Credits:{' '}
+                Plan Credits:{' '}
+                <span className="font-bold" style={{ color: COLOURS.blue }}>{getPlanCredits(selectedCourses, graph) + "/"}</span>
                 <span className="font-bold" style={{ color: COLOURS.blue }}>{totalCredits}</span>
+                
               </span>
-              <span className="text-gray-200">|</span>
+              <span className="text-gray-500">|</span>
+              <span>
+                Total Credits:{' '}
+                <span className="font-bold" style={{ color: COLOURS.blue }}>{getPlanCredits(selectedCourses, graph) + "/"}</span>
+                <span className="font-bold" style={{ color: COLOURS.blue }}>{"120"}</span>
+              </span>
+              <span className="text-gray-500">|</span>
               <span>
                 Courses selected:{' '}
                 <span className="text-gray-600 font-medium">{selectedCourses.length}</span>
@@ -143,14 +165,14 @@ export default function CoursePlanPage() {
             </div>
           </div>
 
-          <div className="pl-8 border-l border-gray-200">
+          <div className="pl-6 border-l border-gray-300">
             <Legend />
           </div>
         </div>
 
         <div className="flex gap-6 items-start w-full">
           <div
-            className="w-[70%] border border-gray-200 bg-white rounded-lg overflow-hidden relative"
+            className="w-[73%] border border-gray-300 bg-white rounded-lg overflow-hidden relative"
             style={{ height: flowHeight }}
             onDragOver={e => e.preventDefault()}
             onDrop={handleDrop}
@@ -162,8 +184,10 @@ export default function CoursePlanPage() {
               edgeTypes={edgeTypes}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
-              onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
-              onNodeMouseLeave={() => setHoveredNodeId(null)}
+              onNodeMouseEnter={(_, node) => { if (!lockedNodeId) setHoveredNodeId(node.id); }}
+              onNodeMouseLeave={() => { if (!lockedNodeId) setHoveredNodeId(null); }}
+              onNodeClick={handleNodeClick}
+              onPaneClick={handlePaneClick}
               defaultViewport={{
                 x: YEAR_BAR_WIDTH + YEAR_BAR_COURSE_OFFSET,
                 y: 0,
@@ -187,7 +211,7 @@ export default function CoursePlanPage() {
             </ReactFlow>
           </div>
 
-          <div style={{ height: flowHeight }} className="w-[30%]">
+          <div style={{ height: flowHeight }} className="w-[27%]">
             <SectionSideBar
               programs={programs}
               selectedCourses={selectedCourses}

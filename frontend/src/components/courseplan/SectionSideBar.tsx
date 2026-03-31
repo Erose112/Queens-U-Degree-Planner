@@ -261,7 +261,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
             </span>
           )}
         </div>
-        <p className="text-[16px] text-gray-400 mt-0.5">
+        <p className="text-[16px] text-gray-500 mt-0.5">
           Drag and Drop or Click · Click
           <span className="font-bold text-gray-800"> ✕</span> to remove
         </p>
@@ -291,7 +291,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
             </div>
           )}
 
-          <div className={isComplete ? 'opacity-60' : ''}>
+          <div className={isComplete ? 'opacity-75' : ''}>
             <button
               onClick={() => toggle(section.key)}
               className="w-full text-left px-4 py-2.5 transition-colors hover:bg-gray-50/100 cursor-pointer"
@@ -311,7 +311,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                   >
                     {section.sectionName}
                   </p>
-                  <p className="text-[14px] text-gray-400 mt-0.5">
+                  <p className="text-[14px] text-gray-500 mt-0.5">
                     {requirementLabel(section.creditReq, section.courses.length)}
                   </p>
                 </div>
@@ -333,16 +333,16 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                       </button>
                     </div>
                   ) : section.creditReq > 0 ? (
-                    <span className="text-[14px] text-gray-400 tabular-nums whitespace-nowrap">
+                    <span className="text-[15px] text-gray-500 tabular-nums whitespace-nowrap">
                       {selCredits}/{section.creditReq}u
                     </span>
                   ) : (
-                    <span className="text-[14px] text-gray-400 tabular-nums whitespace-nowrap">
+                    <span className="text-[15px] text-gray-500 tabular-nums whitespace-nowrap">
                       {selCount}/{section.courses.length}
                     </span>
                   )}
                   <svg
-                    className={`w-3.5 h-3.5 text-gray-300 flex-none transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
+                    className={`w-3.5 h-3.5 text-gray-500 flex-none transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
                     viewBox="0 0 16 16"
                     fill="none"
                     stroke="currentColor"
@@ -406,7 +406,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
           {selectedElectives.length > 0 && (
             <button
               onClick={() => setElectiveOpen(o => !o)}
-              className="flex items-center gap-1 text-[14px] text-gray-400 hover:text-gray-600 transition-colors"
+              className="flex items-center gap-1 text-[14px] text-gray-500 hover:text-gray-600 transition-colors"
             >
               <span>{selectedElectives.length} added</span>
               <svg
@@ -424,7 +424,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
           type="text"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search by code or name..."
+          placeholder="Search by course code..."
           className="w-full text-[14px] px-3 py-1.5 rounded border border-gray-200 outline-none focus:border-gray-400 transition-colors"
         />
 

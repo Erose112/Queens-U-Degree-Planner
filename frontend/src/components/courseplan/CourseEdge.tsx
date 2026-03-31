@@ -73,6 +73,16 @@ function findCorridorsInYRange(boxes: Box[], minY: number, maxY: number): Corrid
   }
 
   const corridors: Corridor[] = [];
+
+  // Always include flanking corridors on the left and right of all
+  // obstacles. 
+  const FLANK_DIST = CONFIG.NODE_CLEARANCE * 3;
+  corridors.push({
+    x:    merged[0].left - FLANK_DIST,
+    left: merged[0].left - FLANK_DIST * 2,
+    right: merged[0].left,
+  });
+
   for (let i = 0; i < merged.length - 1; i++) {
     const left  = merged[i].right;
     const right = merged[i + 1].left;
@@ -80,6 +90,13 @@ function findCorridorsInYRange(boxes: Box[], minY: number, maxY: number): Corrid
       corridors.push({ x: (left + right) / 2, left, right });
     }
   }
+
+  corridors.push({
+    x:    merged[merged.length - 1].right + FLANK_DIST,
+    left: merged[merged.length - 1].right,
+    right: merged[merged.length - 1].right + FLANK_DIST * 2,
+  });
+
   return corridors;
 }
 
@@ -129,9 +146,6 @@ function buildWaypoints(
   let gapYs = findRowGapYs(boxes, exitY, entryY);
   if (gapYs.length === 0) gapYs = [fallbackGapY];
 
-  // The direct source→target X band. We strongly prefer to stay within this
-  // range when choosing corridors — this prevents edges from looping far off
-  // to the side just because an obstacle spans the full width at some Y level.
   const xLo = Math.min(sourceX, targetX);
   const xHi = Math.max(sourceX, targetX);
 
@@ -145,8 +159,6 @@ function buildWaypoints(
     const gapY    = gapYs[i];
     const segTopY = i === 0 ? exitY : gapYs[i - 1];
 
-    // Fast path: if the current X is already clear, go straight down.
-    // This avoids unnecessary lateral hops into a far-off corridor.
     if (isXClearInYRange(currentX, boxes, segTopY, gapY)) {
       pts.push({ x: currentX, y: gapY });
       continue;
@@ -157,8 +169,6 @@ function buildWaypoints(
     const progress   = (i + 1) / (gapYs.length + 1);
     const preferredX = currentX + (targetX - currentX) * progress;
 
-    // Prefer corridors within the source↔target X range.
-    // Only fall back to all corridors if nothing usable is in-range.
     const inRange = corridors.filter(
       c => c.x >= xLo - CONFIG.NODE_CLEARANCE && c.x <= xHi + CONFIG.NODE_CLEARANCE,
     );
@@ -200,7 +210,6 @@ function buildWaypoints(
   }
   pts.push({ x: targetX, y: targetY });
 
-  // Deduplicate consecutive identical points
   return pts.filter((p, i) =>
     i === 0 ||
     Math.abs(p.x - pts[i - 1].x) > 0.5 ||
