@@ -4,14 +4,7 @@ A full-stack web application designed to help Queen's University students plan t
 
 ## 🎯 Project Overview
 
-This project has a complete backend implementation with thoughtful database design and RESTful API architecture. It solves a real problem for students: navigating Queen's complex prerequisite chains and course dependencies across a 4-year degree.
-
-### Why This Project?
-
-- **Real-world problem**: Queen's students struggle to find valid course sequences
-- **Complex data**: Handles prerequisites and program requirements
-- **Generates Recommendations**: Finds interesting electives based on chosen courses
-
+This project aggregates course and program data from multiple Queen’s University sources, helping students navigate complex prerequisite chains and course dependencies throughout a 4-year degree.
 
 ## ✨ Key Features
 
@@ -47,8 +40,6 @@ This project has a complete backend implementation with thoughtful database desi
 
 **Courses**
 - Course code, title, description, credit weight
-- Semester offered (Fall/Winter/Spring)
-- Year level (1-4)
 
 **Prerequisites**
 - Supports complex prerequisite chains
@@ -56,9 +47,12 @@ This project has a complete backend implementation with thoughtful database desi
 - Enables efficient prerequisite validation via tree traversal
 
 **Programs**
-- Program requirements (e.g., COMA-P-BCH)
-- Required vs. elective course groups
-- Core unit requirements
+- Stores program requirements
+- Handles required vs. elective sections
+- Tracks core unit requirements
+
+**Subplans**
+- Offsets of main program requirements
 
 
 ## Frontend UI (In Development)
@@ -71,8 +65,6 @@ This project has a complete backend implementation with thoughtful database desi
 - Interactive semester planner
 - Real-time prerequisite validation
 - Visual degree progress
-- Course availability calendar
-
 
 ## 📚 Technical Highlights
 
@@ -84,14 +76,12 @@ This project has a complete backend implementation with thoughtful database desi
 ### API Design
 - ✅ RESTful conventions (proper HTTP methods and status codes)
 - ✅ Resource-based URL structure
-- ✅ Pagination support for large datasets
 - ✅ Comprehensive error messages
 
 ### Database Efficiency
 - ✅ Strategic indexing on frequently queried columns
 - ✅ Normalized schema to minimize storage and update complexity
 - ✅ Foreign key constraints for data integrity
-- ✅ Connection pooling for production readiness
 
 ## ⚖️ Legal & Attribution
 
@@ -104,23 +94,14 @@ This project scrapes publicly available course data from Queen's University for 
 
 ## 📝 License
 
-This project is for educational and portfolio purposes.
-
-
+This project is licensed under the MIT License.
 
 ## 👤 Author
 
 **Ethan Rose**
 - Email: ethan.rose.to@gmail.com
 
-
-## Acknowledgments
-
-- Queen's University for publicly available course data
-- FastAPI framework for excellent documentation and developer experience
-- The open-source community for amazing tools and libraries
-
 ---
 
-**Last Updated**: January 2025  
+**Last Updated**: March 2025  
 **Current Version**: 0.2.0-beta
