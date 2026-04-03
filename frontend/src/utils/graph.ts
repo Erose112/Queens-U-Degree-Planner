@@ -72,13 +72,13 @@ export function mergeGraphs(
  */
 export function pruneGraph(
   graph: PrerequisiteGraph,
-  remainingPrograms: { sections: { courses: { course_id: number }[] }[] }[]
+  remainingPrograms: { sections: { section_courses: { course_id: number }[] }[] }[]
 ): PrerequisiteGraph {
   // Step 1: collect all course_ids explicitly listed in remaining programs
   const programCourseIds = new Set<number>(
     remainingPrograms
       .flatMap(p => p.sections)
-      .flatMap(s => s.courses)
+      .flatMap(s => s.section_courses)
       .map(c => c.course_id)
   );
 

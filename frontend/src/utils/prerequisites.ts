@@ -26,7 +26,7 @@ export function coursesWithNoPrereqs(): number[] {
 /** Find the sections that own the given course, or null. */
 export function findSections(courseId: number, programs: ProgramStructure[]) {
   return programs.flatMap(p => p.sections).filter(s =>
-    s.courses.some(c => c.course_id === courseId) && s.logic_type !== LOGIC_REQUIRED
+    s.section_courses.some(c => c.course_id === courseId) && s.logic_type !== LOGIC_REQUIRED
   );
 }
 
@@ -34,7 +34,7 @@ export function isCourseRequired(courseId: number, programs: ProgramStructure[])
   return programs
     .flatMap(p => p.sections)
     .filter(s => s.logic_type === LOGIC_REQUIRED)
-    .flatMap(s => s.courses)
+    .flatMap(s => s.section_courses)
     .some(c => c.course_id === courseId);
 }
 

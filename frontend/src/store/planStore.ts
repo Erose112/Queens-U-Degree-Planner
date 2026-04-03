@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ProgramStructure, PrerequisiteGraph, SelectedCourse } from '../types/plan';
+import { ProgramStructure, PrerequisiteGraph, SelectedCourse, ProgramSection } from '../types/plan';
 import { LOGIC_REQUIRED, canTakeCourse, findEarliestYear, getCoursesToRemove } from '../utils/program';
 import { mergeGraphs, pruneGraph } from '../utils/graph';
 import { isCourseRequired } from '../utils/prerequisites';
@@ -14,12 +14,13 @@ interface PlanStore {
   electiveGraphCache: Map<number, PrerequisiteGraph>;
 
 
-  loadProgram: (programId: number) => Promise<void>;
+  loadProgram: (programId: number, subplanId?: number | null) => Promise<void>;
   unloadProgram: (programId: number) => void;
   addCourse: (courseCode: string, courseId: number) => void;
   removeCourse: (courseId: number) => void;
   autoFillRequired: () => void;
   redoSection: (courseIds: number[]) => void;
+  resetPrograms: () => void;
   resetPlan: () => void;
 }
 
@@ -33,17 +34,27 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
   loadError: null,
   electiveGraphCache: new Map(),
 
-  loadProgram: async (programId) => {
+  loadProgram: async (programId: number, subplanId?: number | null) => {
     const { programs } = get();
     if (programs.some(p => p.program_id === programId)) return;
+
+    console.group(`loadProgram: id=${programId} subplanId=${subplanId ?? "none"}`);
 
     try {
       const [structure, graph] = await Promise.all([
         getProgramStructure(programId),
         getPrerequisiteGraph(programId),
       ]);
+
+      const filteredStructure = {
+        ...structure,
+        sections: structure.sections.filter(
+          (s: ProgramSection) => s.subplan_id == null || s.subplan_id === (subplanId ?? null)
+        ),
+      };
+
       set(state => ({
-        programs: [...state.programs, structure],
+        programs: [...state.programs, filteredStructure],
         graph: mergeGraphs(state.graph, graph),
       }));
       get().autoFillRequired();
@@ -64,7 +75,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
     get().autoFillRequired();
   },
 
-  addCourse: async (courseCode, courseId) => {
+  addCourse: async (courseCode, courseId, isElective = false) => {
     const { graph, programs, selectedCourses, electiveGraphCache } = get();
     if (!graph || programs.length === 0) return;
     if (selectedCourses.some(c => c.courseId === courseId)) return;
@@ -103,7 +114,8 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
 
     for (let y = earliestYear; y <= 4; y++) {
       const year = y as 1 | 2 | 3 | 4;
-      const result = canTakeCourse(courseId, year, selectedCourses, activeGraph, programs);
+
+      const result = canTakeCourse(courseId, year, selectedCourses, activeGraph, programs, isElective);
       console.log(`[addCourse] Validation for course ${courseCode} (ID: ${courseId}) in year ${year}:`, activeGraph, result);
 
       if (result.valid) {
@@ -137,7 +149,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
         const erroredNode = activeGraph.nodes.find(n => n.course_id === erroredId);
         if (!erroredNode) continue;
         const erroredYear = findEarliestYear(erroredNode.course_code);
-        const recheck = canTakeCourse(erroredId, erroredYear, newSelectedCourses, activeGraph, programs);
+        const recheck = canTakeCourse(erroredId, erroredYear, newSelectedCourses, activeGraph, programs, isElective);
         if (recheck.valid) errors.delete(erroredId);
       }
 
@@ -176,7 +188,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
         programs
           .flatMap(p => p.sections)
           .filter(s => s.logic_type === LOGIC_REQUIRED)
-          .flatMap(s => s.courses)
+          .flatMap(s => s.section_courses)
           .map(c => [c.course_id, { courseId: c.course_id, courseCode: c.course_code }])
       ).values(),
     ];
@@ -224,6 +236,17 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
     set({
       selectedCourses: selectedCourses.filter(c => !toRemove.has(c.courseId)),
       courseErrors: new Map(),
+    });
+  },
+
+  resetPrograms: () => {
+    set({
+      programs: [],
+      graph: null,
+      selectedCourses: [],
+      courseErrors: new Map(),
+      loadError: null,
+      electiveGraphCache: new Map(),
     });
   },
 

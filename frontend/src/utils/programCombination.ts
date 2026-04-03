@@ -14,8 +14,9 @@
  *   Each qualifying course is deducted once even if shared across 3+ plans.
  */
 
-import type { Program, ProgramStructure, CourseSection } from "../types/plan";
+import type { Program, ProgramStructure, Course } from "../types/plan";
 import { SelectedPrograms, StructureCache } from "../types/plan"
+import { LOGIC_CHOOSE_CREDITS, LOGIC_REQUIRED } from "./program";
 
 
 export type CombinationId =
@@ -148,25 +149,21 @@ export function programsForSlot(
 }
 
 
-function flatCourses(structure: ProgramStructure): CourseSection[] {
-  return structure.sections.flatMap((s) => s.courses);
+function flatCourses(structure: ProgramStructure): Course [] {
+  return structure.sections.flatMap((s) => s.section_courses);
 }
 
-/**
- * Courses the student *must* take (is_required = true).
- * These are treated as mandatory for double-counting analysis.
- */
-export function mandatoryCourses(structure: ProgramStructure): CourseSection[] {
-  return flatCourses(structure).filter((c) => c.is_required);
+
+function mandatoryCourses(structure: ProgramStructure): Course[] {
+  return structure.sections
+    .filter((s) => s.logic_type === LOGIC_REQUIRED)
+    .flatMap((s) => s.section_courses);
 }
 
-/**
- * Choice/elective courses (is_required = false).
- * When one of these is also mandatory in another plan it qualifies
- * for double-counting.
- */
-export function supportingCourses(structure: ProgramStructure): CourseSection[] {
-  return flatCourses(structure).filter((c) => !c.is_required);
+function supportingCourses(structure: ProgramStructure): Course[] {
+  return structure.sections
+    .filter((s) => s.logic_type === LOGIC_CHOOSE_CREDITS)
+    .flatMap((s) => s.section_courses);
 }
 
 
@@ -202,7 +199,9 @@ export interface CreditSummary {
  */
 export function calculateCredits(
   selections: SelectedPrograms,
-  cache: StructureCache
+  cache: StructureCache,
+  selectedSubplans: Record<string, number | null>,
+  subplanCache: Record<number, { subplan_id: number; subplan_credits: number | null }[]>
 ): CreditSummary {
   const programs = Object.values(selections).filter(
     (p): p is Program => p !== null
@@ -219,7 +218,41 @@ export function calculateCredits(
     };
   }
 
-  const rawTotal = programs.reduce((sum, p) => sum + p.total_credits, 0);
+  const rawTotal = programs.reduce((sum, p) => {
+    // Base program credits
+    let credits = p.total_credits;
+
+    // Find if this program has a chosen subplan
+    const slotKey = Object.keys(selections).find(
+      k => selections[k]?.program_id === p.program_id
+    );
+    const chosenSubplanId = slotKey ? (selectedSubplans[slotKey] ?? null) : null;
+
+    if (chosenSubplanId !== null) {
+      const subplan = (subplanCache[p.program_id] ?? []).find(
+        s => s.subplan_id === chosenSubplanId
+      );
+      const subplanCredits = subplan?.subplan_credits ?? 0;
+
+      console.log(
+        `[${p.program_name}] total_credits=${p.total_credits}`,
+        `+ subplan_credits=${subplanCredits}`,
+        `= ${credits + subplanCredits}`
+      );
+
+      credits += subplanCredits;
+    } else {
+      console.log(
+        `[${p.program_name}] total_credits=${p.total_credits}`,
+        `(no subplan selected)`
+      );
+    }
+
+    return sum + credits;
+  }, 0);
+
+  console.log("rawTotal:", rawTotal);
+
 
   // Only run double-count analysis when ≥2 structures are loaded
   const structures = programs
@@ -239,13 +272,13 @@ export function calculateCredits(
 
   // Build per-structure maps: course_id → CourseSection
   const mandatoryMaps = structures.map((s) => {
-    const m = new Map<number, CourseSection>();
+  const m = new Map<number, Course>();
     mandatoryCourses(s).forEach((c) => m.set(c.course_id, c));
     return m;
   });
   const supportingMaps = structures.map((s) => {
-    const m = new Map<number, CourseSection>();
-    supportingCourses(s).forEach((c) => m.set(c.course_id, c));
+    const m = new Map<number, Course>();
+    supportingCourses(s).forEach((c) => m.set(c.course_id, c)); 
     return m;
   });
 
@@ -298,7 +331,9 @@ export type CombinationErrors = Partial<Record<string, string>>;
 export function validateCombination(
   combination: CombinationConfig,
   selections: SelectedPrograms,
-  cache: StructureCache
+  cache: StructureCache,
+  selectedSubplans: Record<string, number | null>,
+  subplanCache: Record<number, { subplan_id: number; subplan_credits: number | null }[]>
 ): CombinationErrors {
   const errors: CombinationErrors = {};
 
@@ -311,7 +346,7 @@ export function validateCombination(
   // Run credit check only when all slots are filled
   const allFilled = combination.slots.every((s) => selections[s.key] !== null);
   if (allFilled) {
-    const summary = calculateCredits(selections, cache);
+    const summary = calculateCredits(selections, cache, selectedSubplans, subplanCache);
     if (summary.exceedsLimit) {
       errors.credits =
         `This combination totals ${summary.effectiveTotal} units — ` +

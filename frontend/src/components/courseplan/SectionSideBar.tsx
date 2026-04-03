@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { ProgramStructure, SelectedCourse } from '../../types/plan';
 import { COLOURS } from '../../utils/colours';
 import { LOGIC_REQUIRED } from '../../utils/program';
-import { formatProgramName, formatCourseName } from '../../utils/formatNames';
+import { formatProgramName, formatCourseName, getSectionLabel } from '../../utils/formatNames';
 
 // Types 
 interface Props {
@@ -30,7 +30,7 @@ interface SideBarSection {
   key: string;
   sectionName: string;
   programName: string;
-  creditReq: number;
+  creditReq: number | null;
   courses: SideBarCourse[];
 }
 
@@ -57,10 +57,10 @@ function buildSections(
 
       sections.push({
         key: `${program.program_id}-${section.section_id}`,
-        sectionName: section.section_name,
+        sectionName: getSectionLabel(section.section_id),
         programName: formatProgramName(program.program_name),
-        creditReq: section.credit_req,
-        courses: section.courses.map(c => ({
+        creditReq: section.credit_req ?? null,
+        courses: section.section_courses.map(c => ({
           courseId: c.course_id,
           courseCode: formatCourseName(c.course_code),
           title: c.title,
@@ -75,8 +75,8 @@ function buildSections(
   return sections;
 }
 
-function requirementLabel(creditReq: number, totalCourses: number): string {
-  if (creditReq > 0) {
+function requirementLabel(creditReq: number | null, totalCourses: number): string {
+  if (creditReq !== null && creditReq > 0) {
     return `Choose ${creditReq} unit${creditReq !== 1 ? 's' : ''} from ${totalCourses} course${totalCourses !== 1 ? 's' : ''}`;
   }
   return `Choose from ${totalCourses} course${totalCourses !== 1 ? 's' : ''}`;
@@ -90,7 +90,7 @@ function selectedCredits(courses: SideBarCourse[]): number {
 
 // Completion check (pure, no hooks) 
 function isSectionComplete(section: SideBarSection): boolean {
-  if (section.creditReq > 0) {
+  if (section.creditReq !== null && section.creditReq > 0) {
     return selectedCredits(section.courses) >= section.creditReq;
   }
   return section.courses.every(c => c.isSelected);
@@ -178,7 +178,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
     // Build exclusion set from ALL sections (required + choice)
     const sectionCourseIds = new Set(
       programs.flatMap(p =>
-        p.sections.flatMap(s => s.courses.map(c => c.course_id))
+        p.sections.flatMap(s => s.section_courses.map(c => c.course_id))
       )
     );
 
@@ -274,7 +274,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
       const selCredits = selectedCredits(section.courses);
       const selCount = section.courses.filter(c => c.isSelected).length;
       const progressPct =
-        section.creditReq > 0
+        section?.creditReq !== null && section?.creditReq > 0
           ? Math.min(100, (selCredits / section.creditReq) * 100)
           : Math.min(100, (selCount / Math.max(1, section.courses.length)) * 100);
 
@@ -332,7 +332,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                         Redo
                       </button>
                     </div>
-                  ) : section.creditReq > 0 ? (
+                  ) : section?.creditReq !== null && section?.creditReq > 0 ? (
                     <span className="text-[15px] text-gray-500 tabular-nums whitespace-nowrap">
                       {selCredits}/{section.creditReq}u
                     </span>

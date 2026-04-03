@@ -15,6 +15,12 @@ export async function getPrograms() {
   return res.json();
 }
 
+export async function getSubplans(programId: number) {
+  const res = await fetch(`${API_BASE}/programs/${programId}/subplans`);
+  if (!res.ok) throw new Error("Failed to fetch subplans");
+  return res.json();
+}
+
 // GET /programs/{program_id}/structure
 export async function getProgramStructure(programId: number) {
   const res = await fetch(`${API_BASE}/programs/${programId}/structure`);

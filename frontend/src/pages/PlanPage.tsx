@@ -6,8 +6,8 @@ import ScrollToTop from "../components/ScrollToTop";
 import NextPageButton from "../components/NextPageButton";
 import { COLOURS } from "../utils/colours";
 import { formatProgramName } from "../utils/formatNames";
-import { getPrograms, getProgramStructure } from "../services/api";
-import { Program, SelectedPrograms, StructureCache } from "../types/plan";
+import { getPrograms, getProgramStructure, getSubplans } from "../services/api";
+import { Program, SelectedPrograms, StructureCache, Subplan } from "../types/plan";
 import { usePlanStore } from "../store/planStore";
 import {
   COMBINATIONS,
@@ -22,11 +22,15 @@ import {
   allStructuresLoaded,
 } from "../utils/programCombination";
 
-// Dropdown component 
+
+/** One selected subplan ID per slot key */
+type SelectedSubplans = Record<string, number | null>;
+
+/** Cache of subplan lists keyed by program_id */
+type SubplanCache = Record<number, Subplan[]>;
+
+
 const dropdownStyle = (accentColor: string): React.CSSProperties => ({
-  top: "calc(100% + 4px)",
-  left: 0,
-  right: 0,
   background: "white",
   border: `2px solid ${accentColor}`,
   borderRadius: "14px",
@@ -36,7 +40,9 @@ const dropdownStyle = (accentColor: string): React.CSSProperties => ({
   maxHeight: "220px",
   display: "flex",
   flexDirection: "column",
+  marginTop: "4px",
 });
+
 
 interface ProgramDropdownProps {
   programs: Program[];
@@ -191,6 +197,124 @@ function ProgramDropdown({
   );
 }
 
+// ── SubplanPicker ─────────────────────────────────────────────────────────────
+
+interface SubplanPickerProps {
+  subplans: Subplan[];
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+  loading: boolean; // true while structure is still being fetched
+  error?: string;
+}
+
+function SubplanPicker({ subplans, selectedId, onSelect, loading, error }: SubplanPickerProps) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node))
+        setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selectedSubplan = subplans.find((s) => s.subplan_id === selectedId) ?? null;
+
+  return (
+    <div className="flex flex-col gap-1.5 animate-slide-down">
+      <label
+        className="text-[14px] font-semibold uppercase tracking-wider"
+        style={{ color: COLOURS.darkGrey }}
+      >
+        Subplan
+        {loading && (
+          <span
+            className="ml-2 text-[14px] font-normal normal-case tracking-normal px-2 py-0.5 rounded-full"
+            style={{ background: `${COLOURS.blue}15`, color: COLOURS.blue }}
+          >
+            Loading subplans…
+          </span>
+        )}
+      </label>
+
+      <div ref={containerRef} className="relative">
+        <button
+          onClick={() => !loading && setOpen((v) => !v)}
+          disabled={loading}
+          className="w-full px-3 py-2.5 pr-9 rounded-xl border-2 bg-white font-sans text-[14px] font-medium text-left transition-colors focus:outline-none"
+          style={{
+            borderColor: error ? COLOURS.red : open ? COLOURS.blue : COLOURS.grey,
+            color: selectedSubplan ? COLOURS.blue : COLOURS.darkGrey,
+            cursor: loading ? "default" : "pointer",
+            opacity: loading ? 0.6 : 1,
+          }}
+        >
+          {loading
+            ? "Loading subplans…"
+            : selectedSubplan
+            ? selectedSubplan.subplan_name
+            : "Select a subplan…"}
+        </button>
+
+        {/* Chevron */}
+        <div
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 transition-transform duration-200"
+          style={{
+            color: COLOURS.blue,
+            transform: open ? "translateY(-50%) rotate(180deg)" : "translateY(-50%)",
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
+
+        {open && !loading && (
+          <div style={dropdownStyle(COLOURS.blue)}>
+            <div
+              className="px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider flex-shrink-0"
+              style={{ color: COLOURS.darkGrey, borderBottom: `1px solid ${COLOURS.grey}` }}
+            >
+              {subplans.length} subplan{subplans.length !== 1 ? "s" : ""}
+            </div>
+            <div className="dd-scroll">
+              {subplans.map((s) => (
+                <div
+                  key={s.subplan_id}
+                  className="dd-item px-3 py-2.5 text-[14px] font-medium"
+                  style={{
+                    color: selectedId === s.subplan_id ? COLOURS.white : COLOURS.blue,
+                    background: selectedId === s.subplan_id ? COLOURS.blue : "transparent",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedId !== s.subplan_id)
+                      (e.currentTarget as HTMLDivElement).style.background = `${COLOURS.grey}cc`;
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedId !== s.subplan_id)
+                      (e.currentTarget as HTMLDivElement).style.background = "transparent";
+                  }}
+                  onClick={() => { onSelect(s.subplan_id); setOpen(false); }}
+                >
+                  {s.subplan_name}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {error && (
+        <p className="text-[14px] font-medium" style={{ color: COLOURS.red }}>{error}</p>
+      )}
+    </div>
+  );
+}
+
+// ── CreditBar ─────────────────────────────────────────────────────────────────
 
 function CreditBar({
   effectiveTotal,
@@ -226,8 +350,6 @@ function CreditBar({
         <span style={{ color: COLOURS.darkGrey }}>
           <span className="font-semibold" style={{ color: barColor }}>{effectiveTotal}</span>
           <span className="opacity-60"> / {CREDIT_LIMIT} units</span>
-
-          {/* Only show savings badge once both structures are loaded */}
           {savings > 0 && structuresLoaded && (
             <span
               className="ml-2 px-1.5 py-0.5 rounded-md text-[14px] font-semibold"
@@ -237,7 +359,6 @@ function CreditBar({
             </span>
           )}
         </span>
-
         {exceedsLimit ? (
           <span className="font-semibold text-[14px]" style={{ color: COLOURS.red }}>Exceeds limit</span>
         ) : (
@@ -255,7 +376,7 @@ function CreditBar({
   );
 }
 
-// Combination pill picker 
+// Combination Picker 
 function CombinationPicker({
   selected,
   onSelect,
@@ -267,12 +388,10 @@ function CombinationPicker({
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node))
         setOpen(false);
-      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -281,19 +400,13 @@ function CombinationPicker({
   return (
     <div className="flex flex-col gap-2">
       <div ref={containerRef} className="relative">
-        {/* Trigger button */}
         <button
           onClick={() => setOpen((v) => !v)}
           className="w-full px-3 py-2.5 pr-9 rounded-xl border-2 bg-white font-sans text-[14px] font-medium text-left transition-colors focus:outline-none cursor-pointer"
-          style={{
-            borderColor: open ? COLOURS.blue : COLOURS.grey,
-            color: COLOURS.blue,
-          }}
+          style={{ borderColor: open ? COLOURS.blue : COLOURS.grey, color: COLOURS.blue }}
         >
           {selectedConfig.label}
         </button>
-
-        {/* Chevron */}
         <div
           className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 transition-transform duration-200"
           style={{ color: COLOURS.blue, transform: open ? "translateY(-50%) rotate(180deg)" : "translateY(-50%)" }}
@@ -303,7 +416,6 @@ function CombinationPicker({
           </svg>
         </div>
 
-        {/* Dropdown panel */}
         {open && (
           <div style={dropdownStyle(COLOURS.blue)}>
             <div
@@ -338,7 +450,6 @@ function CombinationPicker({
           </div>
         )}
       </div>
-
       <p className="text-[14px]" style={{ color: COLOURS.darkGrey }}>
         {selectedConfig.description}
       </p>
@@ -346,32 +457,33 @@ function CombinationPicker({
   );
 }
 
-// Main page 
 
+// Main Page 
 export default function PlannerPage() {
   const navigate = useNavigate();
   const loadProgram = usePlanStore(s => s.loadProgram);
+  const resetPrograms = usePlanStore(s => s.resetPrograms);
 
-  // All programs list (for dropdowns)
   const [allPrograms, setAllPrograms] = useState<Program[]>([]);
   const [programsLoading, setProgramsLoading] = useState(true);
   const [programsError, setProgramsError] = useState<string | null>(null);
 
-  // Lazily-loaded ProgramStructure cache, keyed by program_id
   const [structureCache, setStructureCache] = useState<StructureCache>({});
-  // Which program IDs are currently being fetched (prevents duplicate requests)
   const fetchingIds = useRef<Set<number>>(new Set());
 
-  // Active combination
+  // Subplan cache: program_id → Subplan[]
+  const [subplanCache, setSubplanCache] = useState<SubplanCache>({});
+  const fetchingSubplanIds = useRef<Set<number>>(new Set());
+
   const [combinationId, setCombinationId] = useState<CombinationId>("specialization");
   const combination: CombinationConfig = COMBINATIONS.find((c) => c.id === combinationId)!;
 
-  // Per-slot: selected program + search text + dropdown open
   const [selections, setSelections]       = useState<SelectedPrograms>(emptySelections(combination));
   const [inputVals, setInputVals]         = useState<Record<string, string>>({});
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
 
-  // Per-slot refs for outside-click handling
+  const [selectedSubplans, setSelectedSubplans] = useState<SelectedSubplans>({});
+
   const containerRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({});
   for (const slot of combination.slots) {
     if (!containerRefs.current[slot.key]) {
@@ -384,7 +496,7 @@ export default function PlannerPage() {
   const [loading, setLoading]         = useState(false);
   const isSubmitting                  = useRef(false);
 
-  // ── Fetch all programs on mount 
+  // ── Fetch all programs on mount ───────────────────────────────────────────
   useEffect(() => {
     getPrograms()
       .then(setAllPrograms)
@@ -392,23 +504,23 @@ export default function PlannerPage() {
       .finally(() => setProgramsLoading(false));
   }, []);
 
-  // ── Reset slots when combination changes 
+  // ── Reset slots when combination changes ──────────────────────────────────
   useEffect(() => {
     setSelections(emptySelections(combination));
     setInputVals({});
     setOpenDropdowns({});
     setErrors({});
+    setSelectedSubplans({});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [combinationId]);
 
-  // ── Close dropdowns on outside click 
+  // ── Close dropdowns on outside click ─────────────────────────────────────
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       for (const slot of combination.slots) {
         const ref = containerRefs.current[slot.key];
         if (ref?.current && !ref.current.contains(e.target as Node)) {
           setOpenDropdowns((prev) => ({ ...prev, [slot.key]: false }));
-          // Restore input text to selected name (or clear if nothing selected)
           setInputVals((prev) => ({
             ...prev,
             [slot.key]: selections[slot.key]
@@ -422,8 +534,25 @@ export default function PlannerPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, [combination.slots, selections]);
 
-  // ── Lazy structure fetch ──
-  const fetchStructure = useCallback(
+  // ── Lazy subplan fetch ────────────────────────────────────────────────────
+  const fetchSubplans = useCallback(
+    async (program: Program) => {
+      const id = program.program_id;
+      if (subplanCache[id] !== undefined || fetchingSubplanIds.current.has(id)) return;
+
+      fetchingSubplanIds.current.add(id);
+      try {
+        const subplans: Subplan[] = await getSubplans(id);
+        setSubplanCache((prev) => ({ ...prev, [id]: subplans }));
+      } catch {
+        // Store empty array so we don't retry on every render
+        setSubplanCache((prev) => ({ ...prev, [id]: [] }));
+      } finally {
+        fetchingSubplanIds.current.delete(id);
+      }
+    },
+    [subplanCache]
+  );  const fetchStructure = useCallback(
     async (program: Program) => {
       const id = program.program_id;
       if (structureCache[id] !== undefined || fetchingIds.current.has(id)) return;
@@ -433,7 +562,7 @@ export default function PlannerPage() {
         const structure = await getProgramStructure(id);
         setStructureCache((prev) => ({ ...prev, [id]: structure }));
       } catch {
-        // Silently ignore — credit bar will show "(loading credit details…)"
+        // Silently ignore
       } finally {
         fetchingIds.current.delete(id);
       }
@@ -441,33 +570,74 @@ export default function PlannerPage() {
     [structureCache]
   );
 
-  // ── Slot helpers ──
+  // Slot helpers 
   const setSlotSelection = (slotKey: string, program: Program) => {
+    console.group(`setSlotSelection: slot=${slotKey}`);
+    console.log("program:", program.program_name, `(id=${program.program_id})`);
+    console.log("has_subplans:", program.has_subplans);
+    console.groupEnd();
+
     setSelections((prev) => ({ ...prev, [slotKey]: program }));
     setInputVals((prev) => ({ ...prev, [slotKey]: formatProgramName(program.program_name) }));
     setOpenDropdowns((prev) => ({ ...prev, [slotKey]: false }));
     setErrors((prev) => { const e = { ...prev }; delete e[slotKey]; return e; });
-    fetchStructure(program); // kick off lazy load
+    // Clear any previously selected subplan for this slot
+    setSelectedSubplans((prev) => ({ ...prev, [slotKey]: null }));
+    fetchStructure(program);
+    // Kick off subplan fetch immediately if needed — ready before user reads the picker
+    if (program.has_subplans) fetchSubplans(program);
   };
 
   const clearSlotSelection = (slotKey: string) => {
     setSelections((prev) => ({ ...prev, [slotKey]: null }));
+    setSelectedSubplans((prev) => ({ ...prev, [slotKey]: null }));
   };
 
-  // ── Derived values ──
-  // Guard every derived value against the one-render gap that exists between
-  // combinationId changing (synchronous) and the useEffect that resets
-  // selections running (after render). During that gap, new slot keys are
-  // not yet present in `selections`, so selections[slotKey] === undefined.
+  // Derived values
   const safeSelections: SelectedPrograms = Object.fromEntries(
     combination.slots.map((s) => [s.key, selections[s.key] ?? null])
   );
 
-  const creditSummary   = calculateCredits(safeSelections, structureCache);
-  const structuresReady = allStructuresLoaded(combination, safeSelections, structureCache);
+  const filteredStructureCache: StructureCache = Object.fromEntries(
+    Object.entries(structureCache).map(([key, structure]) => {
+      const programId = parseInt(key);
+      const slot = combination.slots.find(
+        (s) => safeSelections[s.key]?.program_id === programId
+      );
+      const chosenSubplanId = slot ? (selectedSubplans[slot.key] ?? null) : null;
+
+      // No subplan chosen (or program has none) — keep all top-level sections only
+      // Subplan chosen — keep top-level + that subplan's sections
+      const allSections   = structure.sections;
+      const filteredSections = allSections.filter(
+        (s) => s.subplan_id === null || s.subplan_id === chosenSubplanId
+      );
+
+      console.group(`filteredStructureCache: program_id=${programId} (${structure.program_name})`);
+      console.log("chosenSubplanId:", chosenSubplanId ?? "none");
+      console.log("total sections in cache:", allSections.length);
+      console.table(allSections.map(s => ({
+        section_id:  s.section_id,
+        subplan_id:  s.subplan_id ?? "null",
+        logic_type:  s.logic_type,
+        credit_req:  s.credit_req,
+        kept:        filteredSections.includes(s),
+        courses:     s.section_courses.map(c => c.course_code).join(", "),
+      })));
+      console.log(
+        `kept ${filteredSections.length}/${allSections.length} sections,`,
+        `credit_req sum = ${filteredSections.reduce((s, sec) => s + (sec.credit_req ?? 0), 0)}`
+      );
+      console.groupEnd();
+
+      return [key, { ...structure, sections: filteredSections }];
+    })
+  );
+
+  const creditSummary   = calculateCredits(safeSelections, filteredStructureCache, selectedSubplans, subplanCache);
+  const structuresReady = allStructuresLoaded(combination, safeSelections, filteredStructureCache);
   const anySelected     = Object.values(safeSelections).some((p) => p !== null);
 
-  // Which slots are currently fetching their structure?
   const slotFetching = (slotKey: string): boolean => {
     const prog = safeSelections[slotKey];
     return (
@@ -477,12 +647,44 @@ export default function PlannerPage() {
     );
   };
 
-  // ── Submit ──
+  /** Returns the fetched subplan list for the program in a given slot. */
+  const sublansForSlot = (slotKey: string): Subplan[] => {
+    const prog = safeSelections[slotKey];
+    if (!prog) return [];
+    return subplanCache[prog.program_id] ?? [];
+  };
+
+  /**
+   * Whether the form is complete enough to show the generate button.
+   * All slots must be filled, and any program with subplans must have one selected.
+   */
+  const isFormComplete = (): boolean => {
+    // All slots filled
+    const allFilled = combination.slots.every((s) => safeSelections[s.key] !== null);
+    if (!allFilled) return false;
+
+    // Every has_subplans program must have a subplan chosen
+    for (const slot of combination.slots) {
+      const prog = safeSelections[slot.key];
+      if (!prog?.has_subplans) continue;
+
+      // Still fetching subplans — not complete yet
+      const subplans = subplanCache[prog.program_id];
+      if (subplans === undefined) return false;
+
+      // Subplans exist but none chosen
+      if (subplans.length > 0 && !selectedSubplans[slot.key]) return false;
+    }
+
+    return true;
+  };
+
+  // ── Submit ────────────────────────────────────────────────────────────────
   const handleGenerate = async () => {
     if (isSubmitting.current) return;
     isSubmitting.current = true;
 
-    const errs = validateCombination(combination, selections, structureCache);
+    const errs = validateCombination(combination, selections, structureCache, selectedSubplans, subplanCache);
     if (Object.keys(errs).length) {
       setErrors(errs);
       isSubmitting.current = false;
@@ -494,13 +696,24 @@ export default function PlannerPage() {
     setLoading(true);
 
     try {
-      // Load all selected programs into the store before navigating
-      const programIds = Object.values(selections)
-        .map(s => s?.program_id)
-        .filter((id): id is number => id != null);
-      await Promise.all(programIds.map(id => loadProgram(id)));
+      // Wipe any previously loaded programs before loading the new selection
+      resetPrograms();
 
-      navigate("/visualizer");
+      const loads = combination.slots
+        .map((slot) => {
+          const prog = safeSelections[slot.key];
+          if (!prog) return null;
+          const subplanId = prog.has_subplans
+            ? (selectedSubplans[slot.key] ?? null)
+            : null;
+          return { programId: prog.program_id, subplanId };
+        })
+        .filter((x): x is { programId: number; subplanId: number | null } => x !== null);
+
+      await Promise.all(loads.map(({ programId, subplanId }) => loadProgram(programId, subplanId)));
+
+      // Pass selectedSubplans through navigate state so the visualizer can use them
+      navigate("/visualizer", { state: { selectedSubplans } });
     } catch (e) {
       setServerError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
@@ -509,7 +722,9 @@ export default function PlannerPage() {
     }
   };
 
+  const formComplete = isFormComplete();
 
+  // Render 
   return (
     <div className="font-sans flex flex-col min-h-screen" style={{ background: COLOURS.warmWhite }}>
       <ScrollToTop />
@@ -528,6 +743,11 @@ export default function PlannerPage() {
           to   { opacity: 1; transform: translateY(0); }
         }
         .animate-slide-down { animation: slideDown 0.25s ease both; }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .animate-cta { animation: fadeIn 0.3s ease both; }
         .dd-item { transition: background 0.1s ease; cursor: pointer; }
         .dd-scroll {
           overflow-y: auto; flex: 1;
@@ -536,6 +756,12 @@ export default function PlannerPage() {
         }
         .dd-scroll::-webkit-scrollbar { width: 4px; }
         .dd-scroll::-webkit-scrollbar-thumb { background: ${COLOURS.grey}; border-radius: 99px; }
+        .slots-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: ${COLOURS.grey} transparent;
+        }
+        .slots-scroll::-webkit-scrollbar { width: 4px; }
+        .slots-scroll::-webkit-scrollbar-thumb { background: ${COLOURS.grey}; border-radius: 99px; }
       `}</style>
 
       <NavBar
@@ -589,11 +815,10 @@ export default function PlannerPage() {
               </p>
               <h2 className="text-[18px] font-bold" style={{ color: COLOURS.blue }}>Degree Combination</h2>
             </div>
-
             <CombinationPicker selected={combinationId} onSelect={setCombinationId} />
           </div>
 
-          {/* Step 2 — Program dropdowns */}
+          {/* Step 2 — Program dropdowns + subplan pickers */}
           <div
             className="animate-fade-in2 flex flex-col gap-5 p-6 rounded-2xl"
             style={{ background: COLOURS.white, border: `1px solid ${COLOURS.grey}`, boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
@@ -608,27 +833,58 @@ export default function PlannerPage() {
             {programsError ? (
               <p className="text-[14px] font-medium" style={{ color: COLOURS.red }}>{programsError}</p>
             ) : (
-              combination.slots.map((slot) => (
-                <ProgramDropdown
-                  key={slot.key}
-                  label={slot.label}
-                  programs={programsForSlot(allPrograms, slot, safeSelections, slot.key)}
-                  selected={safeSelections[slot.key]}
-                  inputVal={inputVals[slot.key] ?? ""}
-                  setInputVal={(v) => setInputVals((prev) => ({ ...prev, [slot.key]: v }))}
-                  open={openDropdowns[slot.key] ?? false}
-                  setOpen={(v) => setOpenDropdowns((prev) => ({ ...prev, [slot.key]: v }))}
-                  containerRef={containerRefs.current[slot.key] as React.RefObject<HTMLDivElement | null>}
-                  onSelect={(p) => setSlotSelection(slot.key, p)}
-                  onClear={() => clearSlotSelection(slot.key)}
-                  error={errors[slot.key]}
-                  loading={programsLoading}
-                  fetchingStructure={slotFetching(slot.key)}
-                />
-              ))
+              <div
+                className="slots-scroll flex flex-col gap-5"
+                style={{
+                  maxHeight: "480px",
+                  overflowY: "auto",
+                  paddingRight: "4px",
+                }}
+              >
+                {combination.slots.map((slot) => {
+                  const prog = safeSelections[slot.key];
+                  const subplans = sublansForSlot(slot.key);
+                  const subplansLoading = prog?.has_subplans === true && subplanCache[prog.program_id] === undefined;
+
+                  return (
+                    <div key={slot.key} className="flex flex-col gap-3">
+                      <ProgramDropdown
+                        label={slot.label}
+                        programs={programsForSlot(allPrograms, slot, safeSelections, slot.key)}
+                        selected={safeSelections[slot.key]}
+                        inputVal={inputVals[slot.key] ?? ""}
+                        setInputVal={(v) => setInputVals((prev) => ({ ...prev, [slot.key]: v }))}
+                        open={openDropdowns[slot.key] ?? false}
+                        setOpen={(v) => setOpenDropdowns((prev) => ({ ...prev, [slot.key]: v }))}
+                        containerRef={containerRefs.current[slot.key] as React.RefObject<HTMLDivElement | null>}
+                        onSelect={(p) => setSlotSelection(slot.key, p)}
+                        onClear={() => clearSlotSelection(slot.key)}
+                        error={errors[slot.key]}
+                        loading={programsLoading}
+                        fetchingStructure={slotFetching(slot.key)}
+                      />
+
+                      {/* Subplan picker — shown when program has_subplans is true */}
+                      {prog?.has_subplans && (
+                        <div className="pl-4 border-l-2" style={{ borderColor: COLOURS.grey }}>
+                          <SubplanPicker
+                            subplans={subplans}
+                            selectedId={selectedSubplans[slot.key] ?? null}
+                            onSelect={(id) =>
+                              setSelectedSubplans((prev) => ({ ...prev, [slot.key]: id }))
+                            }
+                            loading={subplansLoading}
+                            error={errors[`${slot.key}_subplan`]}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
 
-            {/* Credit bar — shown as soon as any program is selected */}
+            {/* Credit bar */}
             {anySelected && (
               <div
                 className="animate-slide-down pt-4 mt-1 border-t flex flex-col gap-1"
@@ -654,18 +910,21 @@ export default function PlannerPage() {
             )}
           </div>
 
-          {/* CTA */}
-          <div className="flex flex-col items-center gap-3 pt-2">
-            {serverError && (
-              <p className="text-[14px] font-medium" style={{ color: COLOURS.red }}>{serverError}</p>
-            )}
-            <NextPageButton
-              onClick={handleGenerate}
-              label="Generate My Plan"
-              loading={loading}
-              disabled={loading}
-            />
-          </div>
+          {/* CTA — only rendered when form is complete */}
+          {formComplete && (
+            <div className="animate-cta flex flex-col items-center gap-3 pt-2">
+              {serverError && (
+                <p className="text-[14px] font-medium" style={{ color: COLOURS.red }}>{serverError}</p>
+              )}
+              <NextPageButton
+                onClick={handleGenerate}
+                label="Generate My Plan"
+                loading={loading}
+                disabled={loading}
+              />
+            </div>
+          )}
+
         </div>
       </section>
 

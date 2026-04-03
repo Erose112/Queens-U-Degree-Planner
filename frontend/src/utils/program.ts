@@ -1,9 +1,10 @@
 import { PrerequisiteGraph, ProgramStructure, SelectedCourse } from "../types/plan";
 import { getCourseCredits, getSectionCredits, getPlanCredits, getYearCredits } from "./credits";
+import { getSectionLabel } from "./formatNames";
 import { findSections, isCourseRequired, checkPrereqs, prereqsStillValid } from "./prerequisites";
 
-export const LOGIC_REQUIRED = 1;       // All courses in the section are mandatory
-export const LOGIC_CHOOSE_CREDITS = 2; // Student can choose from a set of courses to meet the credit requirement
+export const LOGIC_REQUIRED = 0;       // All courses in the section are mandatory
+export const LOGIC_CHOOSE_CREDITS = 1; // Student can choose from a set of courses to meet the credit requirement
 export const YEAR_CREDIT_CAP = 30;
 
 
@@ -32,27 +33,30 @@ export function canTakeCourse(
   targetYear: 1 | 2 | 3 | 4,
   plan: SelectedCourse[],
   graph: PrerequisiteGraph,
-  programs: ProgramStructure[]
+  programs: ProgramStructure[],
+  isElective = false
 ): CanTakeCourseResult {
   const credits = getCourseCredits(courseId, graph);
   const courseCode = graph.nodes.find(n => n.course_id === courseId)?.course_code ?? `Course ${courseId}`;
 
-  // 1. Section credit cap
-  const sections = findSections(courseId, programs);
-  for (const section of sections) {
-    const cap = section.credit_req ?? 0;
-    if (cap > 0) {
-      const used = getSectionCredits(section.section_id, plan, programs);
-      if (used + credits > cap) {
-        return { valid: false, reason: `${courseCode} exceeds the ${cap} credit cap for "${section.section_name}"`, missing: [courseCode] };
+  if (!isElective) {
+    // 1. Section credit cap
+    const sections = findSections(courseId, programs);
+    for (const section of sections) {
+      const cap = section.credit_req ?? 0;
+      if (cap > 0) {
+        const used = getSectionCredits(section.section_id, plan, programs);
+        if (used + credits > cap) {
+          return { valid: false, reason: `${courseCode} exceeds the ${cap} credit cap for "${getSectionLabel(section.section_id)}"`, missing: [courseCode] };
+        }
       }
     }
-  }
-  // 2. Total program credit cap
-  const totalCap = programs.reduce((sum, p) => sum + p.total_credits, 0);
-  const totalUsed = getPlanCredits(plan, graph);
-  if (totalUsed + credits > programs.reduce((sum, p) => sum + p.total_credits, 0)) {
-    return { valid: false, reason: `Adding ${courseCode} would exceed the total program cap of ${totalCap} credits`, missing: [courseCode] };
+    // 2. Total program credit cap
+    const totalCap = programs.reduce((sum, p) => sum + p.total_credits, 0);
+    const totalUsed = getPlanCredits(plan, graph);
+    if (totalUsed + credits > programs.reduce((sum, p) => sum + p.total_credits, 0)) {
+      return { valid: false, reason: `Adding ${courseCode} would exceed the total program cap of ${totalCap} credits`, missing: [courseCode] };
+    }
   }
 
   // 3. Per-year credit cap (30 credits / year)

@@ -28,3 +28,7 @@ export function formatProgramName(rawName: string): string {
 export function formatCourseName(code: string): string {
   return code.replace(/([A-Z]+)(\d+)/, "$1 $2");
 }
+
+export function getSectionLabel(index: number): string {
+  return `Section ${index + 1}`;
+}
