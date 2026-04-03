@@ -1,20 +1,22 @@
 """
 Converts the DataFrame produced by the program scraper into a list of fully
-populated SQLAlchemy ORM objects (Program → Program_Section →
-Section_Courses).
+populated SQLAlchemy ORM objects:
+    Program → Program_Section → Section_Courses
+    Program → Subplan → Program_Section → Section_Courses
 """
 
 from __future__ import annotations
 
+import ast
 import pandas as pd
 
 from app.models.program import (
     Program,
     Program_Section,
     Section_Courses,
+    Subplan,
 )
-from app.services.section_parser import parse_section_logic, LOGIC_REQUIRED
-
+from app.services.section_parser import parse_section_logic
 
 def normalize_code(raw: str) -> str:
     """
@@ -24,36 +26,51 @@ def normalize_code(raw: str) -> str:
     return raw.replace("\xa0", "").replace(" ", "").upper().strip()
 
 
+def _parse_list_field(value) -> list:
+    """
+    Safely coerce a DataFrame field that may already be a list, or may be a
+    stringified list/None, into an actual Python list.
+    """
+    if isinstance(value, list):
+        return value
+    if not value or isinstance(value, float):   # NaN / None
+        return []
+    if isinstance(value, str):
+        try:
+            parsed = ast.literal_eval(value)
+            return parsed if isinstance(parsed, list) else []
+        except Exception:
+            return []
+    return []
+
+
+
 def build_section(
     raw_section: dict,
     program_section_index: int,
     course_lookup: dict[str, int],
 ) -> Program_Section | None:
     """
-    Build a single Program_Section ORM object with its child
-    Section_Courses.
+    Build a single Program_Section ORM object with its child Section_Courses.
 
-    Returns None if the section is invalid or has no resolvable courses,
-    so the caller can skip it rather than writing an empty section to the DB.
+    ``program_id`` and ``subplan_id`` are intentionally left unset here.
+    The caller (build_program) assigns them by setting the ORM relationships
+    on the parent Program / Subplan objects, which lets SQLAlchemy populate
+    the FK columns automatically on flush.
+
+    A section with no resolvable courses but a non-null wildcard is still
+    valid and is written with an empty section_courses list (the wildcard
+    captures open-ended requirements resolved at advising time).
+    Only sections with neither courses nor a wildcard are skipped.
 
     Parameters
     ----------
     raw_section : dict
-        One element of the 'sections' list from the scraper output, e.g.
-        {
-            "section_id":      2,
-            "section_name":    "COMA Options",   # optional – generated if absent
-            "section_credits": 6.0,
-            "courses": [
-                "CHEM109",                        # plain string → is_required=1
-                {"code": "CISC121", "is_required": 0},  # dict form also accepted
-                ...
-            ]
-        }
+        One element of the 'sections' list from the scraper output.
     program_section_index : int
-        1-based display index within the parent program (used for naming / logging).
+        1-based display index within the parent (used for logging).
     course_lookup : dict[str, int]
-        Mapping of normalized course_code → course_id already in the DB.
+        Normalised course_code → course_id already in the DB.
 
     Returns
     -------
@@ -64,23 +81,18 @@ def build_section(
 
     raw_courses = raw_section.get("courses", [])
     if not isinstance(raw_courses, list):
-        return None
+        raw_courses = []
 
-    # ── section_name is required (NOT NULL) ──────────────────────────────────
-    section_name: str = str(
-        raw_section.get("section_name") or f"Section {program_section_index}"
-    )[:100]  # trim to column width
+    wildcard: str | None = raw_section.get("wildcard") or None  # keep None, not ""
+
 
     logic_info = parse_section_logic(raw_section)
 
-    # is_required is section-wide: all courses are required when the logic is
-    # LOGIC_REQUIRED; they are optional choices for LOGIC_CHOOSE_CREDITS.
-    is_required = 1 if logic_info["logic_type"] == LOGIC_REQUIRED else 0
-
     section = Program_Section(
-        section_name=section_name,
         logic_type=logic_info["logic_type"],
         credit_req=logic_info["credit_req"],
+        wildcard=wildcard,
+        # program_id and subplan_id are set via relationships in the caller
     )
 
     section_course_objects: list[Section_Courses] = []
@@ -93,28 +105,99 @@ def build_section(
             continue
 
         course_id = course_lookup.get(code)
-
         if course_id is None:
             missing_codes.append(code)
             continue
 
         section_course_objects.append(
-            Section_Courses(course_id=course_id, is_required=is_required)
+            Section_Courses(course_id=course_id)
         )
 
     if missing_codes:
         print(
-            f"[program_builder] Section {program_section_index} "
-            f"('{section_name}'): "
+            f"[program_builder]   Section {program_section_index} "
             f"{len(missing_codes)} unresolved course(s): {missing_codes}"
         )
 
-    # If no courses resolved at all, skip the entire section
-    if not section_course_objects:
+    # Skip sections with neither resolved courses nor a wildcard
+    if not section_course_objects and wildcard is None:
+        print(
+            f"[program_builder]   Section {program_section_index} "
+        )
         return None
 
     section.section_courses = section_course_objects
     return section
+
+
+
+def build_subplan(
+    raw_subplan: dict,
+    course_lookup: dict[str, int],
+) -> Subplan | None:
+    """
+    Build a single Subplan ORM object with its child Program_Sections.
+
+    ``program_id`` on each child Program_Section is set by build_program
+    after this function returns, by assigning ``section.program = program``
+    on the fully-assembled Program object.  This ensures program_id is
+    never NULL on flush despite the integer PK not being available at
+    build time.
+
+    Parameters
+    ----------
+    raw_subplan : dict
+        One element of the 'subplans' list from the scraper output, e.g.
+        {
+            "subplan_name": "i. Biomedical Discovery (BMDS-O) (36.00 units)",
+            "subplan_code": "BMDS",
+            "subplan_credits": 36,
+            "sections":     [...],
+        }
+    course_lookup : dict[str, int]
+        Normalised course_code → course_id mapping.
+
+    Returns
+    -------
+    Subplan | None
+    """
+    if not isinstance(raw_subplan, dict):
+        return None
+
+    subplan_name = str(raw_subplan.get("subplan_name") or "Unknown Subplan")[:100]
+    subplan_code = str(raw_subplan.get("subplan_code") or "").strip().upper()
+
+    if not subplan_code:
+        print(f"[program_builder]   Skipped subplan '{subplan_name}' — missing code.")
+        return None
+
+    # Parse optional credit count out of the name, e.g. "(36.00 units)"
+    subplan_credits = str(raw_subplan.get("subplan_credits") or "").strip()
+    raw_sections = _parse_list_field(raw_subplan.get("sections"))
+
+    subplan = Subplan(
+        subplan_code=subplan_code,
+        subplan_name=subplan_name,
+        subplan_credits=subplan_credits,
+        # program_id set via relationship in build_program
+    )
+
+    built_sections: list[Program_Section] = []
+    for idx, raw_section in enumerate(raw_sections, start=1):
+        section = build_section(raw_section, idx, course_lookup)
+        if section is not None:
+            built_sections.append(section)
+
+    # Assigning via the relationship populates subplan_id on flush.
+    # program_id is populated separately in build_program (see below).
+    subplan.sections = built_sections
+
+    print(
+        f"[program_builder]   Subplan '{subplan_code}' — "
+        f"{len(built_sections)} section(s) built."
+    )
+    return subplan
+
 
 
 def build_program(
@@ -125,18 +208,19 @@ def build_program(
     Build a single Program ORM object (with all children) from one scraper
     result dict.
 
+    After assembling the full tree, every Program_Section that belongs to a
+    Subplan has its ``program`` relationship set to the parent Program object.
+    This ensures SQLAlchemy can resolve ``program_id`` (nullable=False) on
+    flush without requiring the integer PK to be known at build time.
+
     Parameters
     ----------
     program_data : dict
-        One row from the scraper DataFrame converted to a dict, e.g.
-        {
-            "program_name":   "computing-mathematics-and-analytics",
-            "program_type":   Either ["major, minor, specialization, general"],
-            "total_credits":  120,
-            "sections":       [...],
-        }
+        One row from the scraper DataFrame converted to a dict.  Expected keys:
+            program_name, program_code, program_type, total_credits,
+            has_subplans, sections, subplans
     course_lookup : dict[str, int]
-        Normalized course_code → course_id mapping from the database.
+        Normalised course_code → course_id mapping from the database.
 
     Returns
     -------
@@ -145,15 +229,13 @@ def build_program(
     if not program_data or not isinstance(program_data, dict):
         return None
 
-    program_name = program_data.get("program_name", "Unknown")
-    program_type = program_data.get("program_type").title()
-    raw_sections = program_data.get("sections")
+    program_name = str(program_data.get("program_name") or "Unknown")
+    program_code = str(program_data.get("program_code") or "").strip().upper()
+    program_type = (str(program_data.get("program_type") or "")).title() or None
+    has_subplans = bool(program_data.get("has_subplans", False))
 
-    # Validate sections field
-    if not isinstance(raw_sections, list):
-        return None
-
-    if not raw_sections:
+    if not program_code:
+        print(f"[program_builder] Skipped '{program_name}' — missing program_code.")
         return None
 
     try:
@@ -162,26 +244,58 @@ def build_program(
         total_credits = 0
 
     program = Program(
-        program_name=str(program_name),
-        program_type=str(program_type) if program_type else None,
+        program_code=program_code,
+        program_name=program_name,
+        program_type=str(program_type) if program_type else "Unknown",
         total_credits=total_credits,
+        has_subplans=has_subplans,
     )
 
+    # ── Top-level sections (belong directly to the program) ─────────────────
+    raw_sections = _parse_list_field(program_data.get("sections"))
     built_sections: list[Program_Section] = []
+
     for idx, raw_section in enumerate(raw_sections, start=1):
         section = build_section(raw_section, idx, course_lookup)
         if section is not None:
             built_sections.append(section)
 
-    if not built_sections:
+    # Setting via relationship populates program_id on flush
+    program.sections = built_sections
+
+    # ── Subplans (and their own sections) 
+    built_subplans: list[Subplan] = []
+
+    if has_subplans:
+        raw_subplans = _parse_list_field(program_data.get("subplans"))
+
+        for raw_subplan in raw_subplans:
+            subplan = build_subplan(raw_subplan, course_lookup)
+            if subplan is not None:
+                built_subplans.append(subplan)
+
+    # Setting via relationship populates program_id on Subplan rows on flush
+    program.subplans = built_subplans
+
+    for subplan in built_subplans:
+        for section in subplan.sections:
+            section.program = program
+
+    # A program is valid if it has at least one top-level section OR subplan
+    if not built_sections and not built_subplans:
         print(
             f"[program_builder] Skipped program '{program_name}' — "
-            f"no valid sections (course_lookup may be incomplete or sections are empty)."
+            f"no valid sections or subplans."
         )
         return None
 
-    program.sections = built_sections
+    print(
+        f"[program_builder] Built '{program_code}' — "
+        f"{len(built_sections)} top-level section(s), "
+        f"{len(built_subplans)} subplan(s)."
+    )
     return program
+
 
 
 def build_all_programs(
@@ -191,15 +305,15 @@ def build_all_programs(
     """
     Convert the full scraper DataFrame into a list of Program ORM objects.
 
-    The DataFrame is expected to have at minimum the columns that
-    ``scrape_program_courses()`` produces:
-        program_name, program_type, total_credits, sections
+    Expected DataFrame columns (at minimum):
+        program_name, program_code, program_type, total_credits,
+        has_subplans, sections, subplans
 
     Parameters
     ----------
     df : pd.DataFrame
     course_lookup : dict[str, int]
-        Normalized course_code → course_id already persisted in the DB.
+        Normalised course_code → course_id already persisted in the DB.
 
     Returns
     -------
@@ -208,7 +322,7 @@ def build_all_programs(
     if df is None or df.empty:
         return []
 
-    missing_cols = {"program_name", "sections"} - set(df.columns)
+    missing_cols = {"program_name", "program_code", "sections"} - set(df.columns)
     if missing_cols:
         print(f"[program_builder] Missing required columns: {missing_cols}")
         return []
@@ -217,15 +331,17 @@ def build_all_programs(
     skipped = 0
 
     for _, row in df.iterrows():
+        program_name = "unknown"
         try:
-            program = build_program(row.to_dict(), course_lookup)
+            row_dict = row.to_dict()
+            program_name = row_dict.get("program_name", "unknown")
+            program = build_program(row_dict, course_lookup)
             if program is not None:
                 programs.append(program)
             else:
                 skipped += 1
         except Exception as e:
-            program_name = row.get("program_name", "unknown") if hasattr(row, "get") else "unknown"
-            print(f"[program_builder] Exception building program '{program_name}': {e}")
+            print(f"[program_builder] Exception building '{program_name}': {e}")
             skipped += 1
 
     print(f"\n[program_builder] Done — {len(programs)} built, {skipped} skipped.")

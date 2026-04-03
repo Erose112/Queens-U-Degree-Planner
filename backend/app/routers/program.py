@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -12,21 +14,40 @@ from app.schemas.program import (
     ProgramOut,
     ProgramStructureOut,
     ProgramSectionOut,
+    SubplanOut,
 )
 from app.schemas.course import (
-    CourseInSection,
+    Course,
     PrerequisiteGraphOut,
     GraphNode,
     GraphEdge,
     PrereqSetOut,
 )
 
-print("program router loaded")
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/programs", tags=["programs"])
+
 
 @router.get("/", response_model=list[ProgramOut])
 def list_programs(db: Session = Depends(get_db)):
     return get_all_programs(db)
+
+
+@router.get("/{program_id}/subplans", response_model=list[SubplanOut])
+def list_subplans(program_id: int, db: Session = Depends(get_db)):
+    program = get_program_structure(db, program_id)
+    if program is None:
+        raise HTTPException(status_code=404, detail="Program not found")
+
+    return [
+        SubplanOut(
+            subplan_id=subplan.subplan_id,
+            subplan_name=subplan.subplan_name,
+            subplan_code=subplan.subplan_code,
+            subplan_credits=subplan.subplan_credits,
+        )
+        for subplan in program.subplans
+    ]
 
 
 @router.get("/{program_id}/structure", response_model=ProgramStructureOut)
@@ -35,16 +56,23 @@ def get_program_structure_route(program_id: int, db: Session = Depends(get_db)):
     if program is None:
         raise HTTPException(status_code=404, detail="Program not found")
 
+    # Flatten top-level sections and all subplan sections into one list
+    all_sections = program.sections + [
+        section
+        for subplan in program.subplans
+        for section in subplan.sections
+    ]
+    all_sections.sort(key=lambda s: s.section_id)
+
     sections_out: list[ProgramSectionOut] = []
-    for section in sorted(program.sections, key=lambda s: s.section_id):
-        courses_out: list[CourseInSection] = [
-            CourseInSection(
+    for section in all_sections:
+        courses_out: list[Course] = [
+            Course(
                 course_id=sc.course.course_id,
                 course_code=sc.course.course_code,
                 title=sc.course.title,
                 credits=sc.course.credits,
                 description=sc.course.description,
-                is_required=bool(sc.is_required),
             )
             for sc in section.section_courses
         ]
@@ -52,10 +80,12 @@ def get_program_structure_route(program_id: int, db: Session = Depends(get_db)):
         sections_out.append(
             ProgramSectionOut(
                 section_id=section.section_id,
-                section_name=section.section_name,
+                program_id=section.program_id,
+                subplan_id=section.subplan_id,
                 credit_req=section.credit_req,
                 logic_type=section.logic_type,
-                courses=courses_out,
+                section_courses=courses_out,
+                wildcard=section.wildcard,
             )
         )
 
@@ -91,7 +121,7 @@ def get_prerequisite_program_graph(program_id: int, db: Session = Depends(get_db
     edges: list[GraphEdge] = []
     prereq_sets_out: list[PrereqSetOut] = []
 
-    for course_id, prereq_sets in all_prereq_sets.items():
+    for cid, prereq_sets in all_prereq_sets.items():
         for ps in prereq_sets:
             prereq_sets_out.append(
                 PrereqSetOut(
@@ -104,7 +134,7 @@ def get_prerequisite_program_graph(program_id: int, db: Session = Depends(get_db
                 edges.append(
                     GraphEdge(
                         from_course_id=psc.required_course_id,
-                        to_course_id=course_id,
+                        to_course_id=cid,
                         set_id=ps.set_id,
                         min_required=ps.min_required,
                     )
