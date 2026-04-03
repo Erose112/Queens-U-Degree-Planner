@@ -4,11 +4,11 @@ logic descriptors
 
 Logic Types
 -----------
-  LOGIC_REQUIRED     (1) Every course in the section is mandatory.
+  LOGIC_REQUIRED     (0) Every course in the section is mandatory.
                            section_credits == 0 in the scraper output signals
                            this: the student must complete *all* listed courses.
 
-  LOGIC_CHOOSE_CREDITS (2) The student must accumulate exactly `credit_req`
+  LOGIC_CHOOSE_CREDITS (1) The student must accumulate exactly `credit_req`
                            credits from the courses listed in the section.
                            section_credits > 0 in the scraper output signals this.
 
@@ -31,8 +31,8 @@ Output (one dict per section):
 
 from __future__ import annotations
 
-LOGIC_REQUIRED       = 1   # All courses in the section are mandatory
-LOGIC_CHOOSE_CREDITS = 2   # Choose enough courses to reach `credit_req` credits
+LOGIC_REQUIRED       = 0   # All courses in the section are mandatory
+LOGIC_CHOOSE_CREDITS = 1   # Choose enough courses to reach `credit_req` credits
 
 
 def parse_section_logic(section: dict) -> dict:

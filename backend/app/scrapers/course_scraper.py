@@ -249,7 +249,4 @@ def scrape_artsci_courses():
         df = clean_data(extract_data(url, session))
         degree_info.append(df)
 
-    df.to_csv("artsci_courses.csv", index=False)
     return degree_info
-
-scrape_artsci_courses()

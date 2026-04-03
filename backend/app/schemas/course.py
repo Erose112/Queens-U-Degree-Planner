@@ -2,22 +2,12 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-class CourseOut(BaseModel):
+class Course(BaseModel):
     course_id: int
     course_code: str
     title: Optional[str]
     credits: Optional[int]
     description: Optional[str]
-
-    model_config = {"from_attributes": True}
-
-class CourseInSection(BaseModel):
-    course_id: int
-    course_code: str
-    title: Optional[str]
-    credits: Optional[int]
-    description: Optional[str]
-    is_required: bool          # True → red (required), False → yellow (choice)
 
     model_config = {"from_attributes": True}
 

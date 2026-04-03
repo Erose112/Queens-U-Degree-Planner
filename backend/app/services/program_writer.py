@@ -1,13 +1,13 @@
 """
-Writes Program / Program_Section / Section_Courses
-objects to MySQL.
+Writes Program / Subplan / Program_Section / Section_Courses
+objects to the database.
 
 1.  Load a course_lookup dict (course_code → course_id) from the courses table.
-    Fail immediately if the table is empty as course_writer must run first.
+    Fail immediately if the table is empty — course_writer must run first.
 2.  Call build_all_programs() to convert the scraper DataFrame into ORM objects.
-    Fail immediately if no programs were built as nothing to write.
-3.  Clear existing program tables in FK-safe order.
-4.  Add all Program objects and commit cascades handle every child table.
+    Fail immediately if no programs were built.
+3.  Clear existing program tables in FK-safe order (deepest children first).
+4.  Add all Program objects and let cascade handle every child table.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from app.models.program import (
     Program,
     Program_Section,
     Section_Courses,
+    Subplan,
 )
 from app.services.program_builder import build_all_programs
 
@@ -45,18 +46,22 @@ def _clear_program_tables(session: Session) -> None:
     Delete all existing program-related rows in FK-safe order (deepest
     children first), then reset AUTO_INCREMENT counters.
 
-    Raises SQLAlchemyError and rolls back if any step fails — the caller
-    must not proceed to write new data if clearing fails.
+    Delete order:
+        section_courses  →  program_section  →  subplans  →  programs
+
+    Raises SQLAlchemyError and rolls back if any step fails.
     """
     try:
         session.query(Section_Courses).delete()
         session.query(Program_Section).delete()
+        session.query(Subplan).delete()
         session.query(Program).delete()
         session.commit()
 
         for table in (
             "section_courses",
             "program_section",
+            "subplans",
             "programs",
         ):
             session.execute(text(f"ALTER TABLE {table} AUTO_INCREMENT = 1"))
@@ -64,10 +69,9 @@ def _clear_program_tables(session: Session) -> None:
 
         print("[program_writer] Existing program data cleared.")
 
-    except SQLAlchemyError as e:
+    except SQLAlchemyError:
         session.rollback()
         raise  # Propagate so the caller does not proceed to write
-
 
 
 def write_all_programs_to_mysql(df: pd.DataFrame) -> None:
@@ -78,8 +82,8 @@ def write_all_programs_to_mysql(df: pd.DataFrame) -> None:
     Parameters
     ----------
     df : pd.DataFrame
-        Must contain the columns: program_name, program_type,
-        total_credits, sections.
+        Must contain the columns: program_name, program_code, program_type,
+        total_credits, has_subplans, sections, subplans.
 
     Raises
     ------
@@ -101,12 +105,11 @@ def write_all_programs_to_mysql(df: pd.DataFrame) -> None:
 
             if not course_lookup:
                 raise RuntimeError(
-                    "[program_writer] course_lookup is empty "
+                    "[program_writer] course_lookup is empty — "
                     "run course_writer.py first before writing programs."
                 )
 
-
-            # Build ORM objects from the DataFrame 
+            # Build ORM objects from the DataFrame
             programs: list[Program] = build_all_programs(df, course_lookup)
 
             # Fail before touching the DB if nothing was built
@@ -122,14 +125,16 @@ def write_all_programs_to_mysql(df: pd.DataFrame) -> None:
             # Add all Program objects; cascades handle every child table
             session.add_all(programs)
 
-            # Flush so auto-generated PKs (program_id, section_id, sc_id) are
+            # Flush so auto-generated PKs are populated, then commit
             session.flush()
             session.commit()
 
+            print(f"[program_writer] Successfully wrote {len(programs)} program(s).")
+
         except RuntimeError:
-            # RuntimeErrors are raised before any DB mutation
+            # RuntimeErrors are raised before any DB mutation — no rollback needed
             raise
 
-        except SQLAlchemyError as e:
+        except SQLAlchemyError:
             session.rollback()
             raise
