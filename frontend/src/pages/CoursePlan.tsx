@@ -107,7 +107,8 @@ export default function CoursePlanPage() {
     try {
       const { courseId } = JSON.parse(raw) as { courseId: number };
       const { courseCode } = JSON.parse(raw) as { courseCode: string };
-      if (typeof courseId === 'number') addCourse(courseCode, courseId);
+      const { isElective } = JSON.parse(raw) as { isElective: boolean };
+      if (typeof courseId === 'number') addCourse(courseCode, courseId, isElective);
     } catch {
       // malformed drag payload — ignore
     }

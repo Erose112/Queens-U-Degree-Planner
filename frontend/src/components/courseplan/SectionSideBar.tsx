@@ -11,7 +11,7 @@ interface Props {
   programs: ProgramStructure[];
   selectedCourses: SelectedCourse[];
   allCourses: { course_id: number; course_code: string; title: string | null; credits: number | null }[];
-  onAdd: (courseCode: string, courseId: number) => void;
+  onAdd: (courseCode: string, courseId: number, isElective: boolean) => void;
   onRemove: (courseId: number) => void;
   onRedoSection: (courseIds: number[]) => void;
   courseErrors: Map<number, string>;
@@ -209,7 +209,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
 
   const pendingClearId = useRef<number | null>(null);
   const handleSearchAdd = (code: string, id: number) => {
-    onAdd(code, id);
+    onAdd(code, id, true);
     pendingClearId.current = id;
   };
 
@@ -381,7 +381,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                     <CourseRow
                       key={course.courseId}
                       course={course}
-                      onAdd={onAdd}
+                      onAdd={(code, id) => onAdd(code, id, false)}
                       onRemove={onRemove}
                       isLocked={isComplete}
                     />
@@ -462,7 +462,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
               <CourseRow
                 key={course.courseId}
                 course={course}
-                onAdd={onAdd}
+                onAdd={(code, id) => onAdd(code, id, true)}
                 onRemove={onRemove}
               />
             ))}
@@ -482,7 +482,7 @@ function CourseRow({
   isLocked = false,
 }: {
   course: SideBarCourse;
-  onAdd: (code: string, id: number) => void;
+  onAdd: (code: string, id: number, isElective?: boolean) => void;
   onRemove: (id: number) => void;
   isLocked?: boolean;
 }) {
@@ -493,8 +493,6 @@ function CourseRow({
     );
     e.dataTransfer.effectAllowed = 'move';
   };
-
-
 
   return (
     <div

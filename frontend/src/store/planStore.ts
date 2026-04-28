@@ -13,10 +13,9 @@ interface PlanStore {
   loadError: string | null;
   electiveGraphCache: Map<number, PrerequisiteGraph>;
 
-
   loadProgram: (programId: number, subplanId?: number | null) => Promise<void>;
   unloadProgram: (programId: number) => void;
-  addCourse: (courseCode: string, courseId: number) => void;
+  addCourse: (courseCode: string, courseId: number, isElective: boolean) => void;
   removeCourse: (courseId: number) => void;
   autoFillRequired: () => void;
   redoSection: (courseIds: number[]) => void;
@@ -75,7 +74,8 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
     get().autoFillRequired();
   },
 
-  addCourse: async (courseCode, courseId, isElective = false) => {
+  addCourse: async (courseCode, courseId, isElective) => {
+    console.log(`addCourse: ${courseCode} (ID: ${courseId}) elective=${isElective}`);
     const { graph, programs, selectedCourses, electiveGraphCache } = get();
     if (!graph || programs.length === 0) return;
     if (selectedCourses.some(c => c.courseId === courseId)) return;
