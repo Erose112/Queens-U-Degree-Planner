@@ -57,7 +57,7 @@ function buildSections(
 
       sections.push({
         key: `${program.program_id}-${section.section_id}`,
-        sectionName: getSectionLabel(section.section_id),
+        sectionName: getSectionLabel(sections.length),
         programName: formatProgramName(program.program_name),
         creditReq: section.credit_req ?? null,
         courses: section.section_courses.map(c => ({

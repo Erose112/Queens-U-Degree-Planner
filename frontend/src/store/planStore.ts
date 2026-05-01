@@ -12,6 +12,7 @@ interface PlanStore {
   courseErrors: Map<number, string>;
   loadError: string | null;
   electiveGraphCache: Map<number, PrerequisiteGraph>;
+  selectedSubplan: Record<number, number | null>; // program_id -> subplan_id
 
   loadProgram: (programId: number, subplanId?: number | null) => Promise<void>;
   unloadProgram: (programId: number) => void;
@@ -33,6 +34,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
   courseErrors: new Map(),
   loadError: null,
   electiveGraphCache: new Map(),
+  selectedSubplan: {},
 
   loadProgram: async (programId: number, subplanId?: number | null) => {
     const { programs } = get();
@@ -56,6 +58,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       set(state => ({
         programs: [...state.programs, filteredStructure],
         graph: mergeGraphs(state.graph, graph),
+        selectedSubplan: { ...state.selectedSubplan, [programId]: subplanId ?? null },
       }));
       get().autoFillRequired();
     } catch {
@@ -66,11 +69,14 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
   unloadProgram: (programId) => {
     const { programs, graph } = get();
     const remaining = programs.filter(p => p.program_id !== programId);
+    const newSubplan = { ...get().selectedSubplan };
+    delete newSubplan[programId];
     set({
       programs: remaining,
       graph: graph ? pruneGraph(graph, remaining) : null,
       selectedCourses: get().selectedCourses.filter(c => c.addedBy === 'user'),
       courseErrors: new Map(),
+      selectedSubplan: newSubplan,
     });
     get().autoFillRequired();
   },
@@ -286,6 +292,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       courseErrors: new Map(),
       loadError: null,
       electiveGraphCache: new Map(),
+      selectedSubplan: {},
     });
   },
 
