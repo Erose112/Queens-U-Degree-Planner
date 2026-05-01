@@ -206,6 +206,7 @@ export function calculateCredits(
   const programs = Object.values(selections).filter(
     (p): p is Program => p !== null
   );
+  // Debug logging disabled
 
   if (programs.length === 0) {
     return {
@@ -234,24 +235,10 @@ export function calculateCredits(
       );
       const subplanCredits = subplan?.subplan_credits ?? 0;
 
-      console.log(
-        `[${p.program_name}] total_credits=${p.total_credits}`,
-        `+ subplan_credits=${subplanCredits}`,
-        `= ${credits + subplanCredits}`
-      );
-
       credits += subplanCredits;
-    } else {
-      console.log(
-        `[${p.program_name}] total_credits=${p.total_credits}`,
-        `(no subplan selected)`
-      );
-    }
-
+    } 
     return sum + credits;
   }, 0);
-
-  console.log("rawTotal:", rawTotal);
 
 
   // Only run double-count analysis when ≥2 structures are loaded

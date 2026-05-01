@@ -1,26 +1,5 @@
 import { PrerequisiteGraph, ProgramStructure, SelectedCourse } from "../types/plan";
-import { getPrograms, getPrerequisiteGraph } from "../services/api";
 import { LOGIC_REQUIRED } from "./program";
-
-
-const programs = await getPrograms();
-const programId = programs[0]?.program_id;
-const graphJson = await getPrerequisiteGraph(programId);
-
-const graph     = graphJson    as unknown as PrerequisiteGraph;
-
-/** All course IDs that appear as an edge target (i.e. have at least one prereq). */
-export function coursesWithPrereqs(): number[] {
-  return [...new Set(graph.edges.map((e) => e.to_course_id))];
-}
-
-/** All course IDs in the graph that appear in NO edge (no prereqs at all). */
-export function coursesWithNoPrereqs(): number[] {
-  const hasPrereq = new Set(graph.edges.map((e) => e.to_course_id));
-  return graph.nodes
-    .map((n) => n.course_id)
-    .filter((id) => !hasPrereq.has(id));
-}
 
 
 /** Find the sections that own the given course, or null. */
@@ -37,6 +16,38 @@ export function isCourseRequired(courseId: number, programs: ProgramStructure[])
     .flatMap(s => s.section_courses)
     .some(c => c.course_id === courseId);
 }
+
+
+/**
+ * Returns the depth of the prerequisite chain that exists
+ * within the target year. 
+ * - depth 0: no prereqs in this year
+ * - depth 1: a direct prereq is in this year  
+ * - depth 2: a prereq of a prereq is also in this year → REJECT
+ */
+export function getPrereqChainDepthInYear(
+  courseId: number,
+  targetYear: number,
+  plan: SelectedCourse[],
+  graph: PrerequisiteGraph
+): number {
+  const credits = graph.nodes.find(n => n.course_id === courseId)?.credits ?? 3;
+  const selfDepth = credits >= 6 ? 2 : 1;
+
+  const prereqsInYear = graph.edges
+    .filter(e => e.to_course_id === courseId)
+    .map(e => e.from_course_id)
+    .filter(id => plan.some(c => c.courseId === id && c.year === targetYear));
+
+  if (prereqsInYear.length === 0) return selfDepth - 1; // 0 for 3-credit, 1 for 6-credit
+
+  const childDepths = prereqsInYear.map(id => getPrereqChainDepthInYear(id, targetYear, plan, graph));
+  const depth = selfDepth + Math.max(...childDepths);
+
+  console.log(`[chainDepth] course=${courseId} credits=${credits} year=${targetYear} prereqsInYear=${prereqsInYear} childDepths=${childDepths} → depth=${depth}`);
+  return depth;
+}
+
 
 /**
  * Evaluate whether all prerequisite sets for a course are satisfied.
@@ -66,9 +77,14 @@ export function checkPrereqs(
     setMap.get(edge.set_id)!.push(edge.from_course_id);
   }
 
-  // IDs of courses placed BEFORE targetYear
-  const priorIds = new Set(
-    plan.filter((p) => p.year < targetYear).map((p) => p.courseId)
+  const validIds = new Set(
+    plan.filter((p) => {
+      if (p.year < targetYear) return true;
+      if (p.year === targetYear) {
+        return getPrereqChainDepthInYear(p.courseId, targetYear, plan, graph) === 0;
+      }
+      return false;
+    }).map((p) => p.courseId)
   );
 
   const missing: number[] = [];
@@ -79,11 +95,11 @@ export function checkPrereqs(
 
     if (isOrLogic) {
       // At least one must be satisfied
-      const satisfied = courseIds.some((id) => priorIds.has(id));
+      const satisfied = courseIds.some((id) => validIds.has(id));
       if (!satisfied) missing.push(...courseIds);
     } else {
       // All must be satisfied (min_required === 0)
-      const unmet = courseIds.filter((id) => !priorIds.has(id));
+      const unmet = courseIds.filter((id) => !validIds.has(id));
       missing.push(...unmet);
     }
   }
@@ -117,10 +133,9 @@ export function prereqsStillValid(
 
   for (const [setId, courseIds] of setMap) {
     const prereqSet = graph.prerequisite_sets.find((s) => s.set_id === setId);
-    const required =
-      prereqSet?.min_required === 0 || prereqSet?.min_required === undefined
-        ? courseIds.length
-        : prereqSet.min_required;
+    const required = prereqSet?.min_required
+      ? prereqSet.min_required
+      : courseIds.length;
 
     const satisfiedCount = courseIds.filter((id) => activeIds.has(id)).length;
     if (satisfiedCount < required) return false;

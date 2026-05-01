@@ -1,7 +1,7 @@
 import { PrerequisiteGraph, ProgramStructure, SelectedCourse } from "../types/plan";
 import { getCourseCredits, getSectionCredits, getPlanCredits, getYearCredits } from "./credits";
 import { getSectionLabel } from "./formatNames";
-import { findSections, isCourseRequired, checkPrereqs, prereqsStillValid } from "./prerequisites";
+import { findSections, isCourseRequired, getPrereqChainDepthInYear, checkPrereqs, prereqsStillValid } from "./prerequisites";
 
 export const LOGIC_REQUIRED = 0;       // All courses in the section are mandatory
 export const LOGIC_CHOOSE_CREDITS = 1; // Student can choose from a set of courses to meet the credit requirement
@@ -15,6 +15,39 @@ interface CanTakeCourseResult {
   /** Codes of courses blocking validity (prereqs not met, or the course itself for credit overflows). */
   missing?: string[];
 }
+
+
+
+function inferYearFromCode(courseCode: string): 1 | 2 | 3 | 4 {
+  const num = parseInt(courseCode.match(/\d+/)?.[0] ?? '100');
+  return Math.max(1, Math.min(4, Math.floor(num / 100))) as 1 | 2 | 3 | 4;
+}
+
+
+/**
+ * findEarliestYear
+ * Infers the earliest year a course can be placed in based on its code, 
+ * then checks each year in order to find the first valid placement.
+ */
+export function findEarliestYear(
+  courseId: number,
+  selectedCourses: SelectedCourse[],
+  graph: PrerequisiteGraph,
+  programs: ProgramStructure[],
+  isElective: boolean
+): 1 | 2 | 3 | 4 | null {
+  const courseCode = graph.nodes.find(n => n.course_id === courseId)?.course_code ?? '';
+  const startYear = inferYearFromCode(courseCode);
+
+  for (let y = startYear; y <= 4; y++) {
+    if (canTakeCourse(courseId, y as 1|2|3|4, selectedCourses, graph, programs, isElective).valid) {
+      return y as 1|2|3|4;
+    }
+  }
+  return null;
+}
+
+
 
 /**
  * canTakeCourse
@@ -74,22 +107,20 @@ export function canTakeCourse(
     return { valid: false, reason: `Missing prerequisites from: ${missingCodes.join(', ')}`, missing: missingCodes };
   }
 
+  // 5. Prereq chain depth within year (max 1 level deep to simulate semesters)
+  const chainDepth = getPrereqChainDepthInYear(courseId, targetYear, plan, graph);
+  if (chainDepth >= 2) {
+    return {
+      valid: false,
+      reason: `${courseCode} has a prerequisite chain too deep for Year ${targetYear}. Move upstream prerequisites to an earlier year.`,
+      missing: [],
+    };
+  }
+
   return { valid: true };
 }
 
 
-
-/**
- * findEarliestYear
- */
-export function findEarliestYear(courseCode: string): 1 | 2 | 3 | 4 {
-  const match = courseCode.match(/\d+/);
-  if (!match) return 1;
-  
-  const num = parseInt(match[0]);
-  const prefixYear = Math.min(Math.floor(num / 100), 4) as 1 | 2 | 3 | 4;
-  return prefixYear;
-}
 
 /**
  * getCoursesToRemove  (also exported as getDependents)

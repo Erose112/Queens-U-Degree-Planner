@@ -87,6 +87,7 @@ export interface SelectedCourse {
   courseId: number;
   year: 1 | 2 | 3 | 4;
   addedBy: "user" | "autofill";
+  isElective: boolean;
 }
 
 export interface CourseNodeData extends Record<string, unknown> {

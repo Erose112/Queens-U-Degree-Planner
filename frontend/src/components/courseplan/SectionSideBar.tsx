@@ -482,7 +482,7 @@ function CourseRow({
   isLocked = false,
 }: {
   course: SideBarCourse;
-  onAdd: (code: string, id: number, isElective?: boolean) => void;
+  onAdd: (code: string, id: number, isElective: boolean) => void;
   onRemove: (id: number) => void;
   isLocked?: boolean;
 }) {
@@ -498,7 +498,7 @@ function CourseRow({
     <div
       draggable={!course.isSelected && !isLocked}
       onDragStart={!isLocked ? handleDragStart : undefined}
-      onClick={() => !course.isSelected && !isLocked && onAdd(course.courseCode, course.courseId)}
+      onClick={() => !course.isSelected && !isLocked && onAdd(course.courseCode, course.courseId, false)}
       className={`group flex items-center gap-2.5 px-4 py-1.5 transition-colors select-none
         ${course.isSelected
           ? 'bg-white cursor-default'

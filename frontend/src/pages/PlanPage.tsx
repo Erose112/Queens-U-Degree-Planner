@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, KeyboardEvent } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import NavBar from "../components/NavBar";
 import Footer from "../components/Footer";
@@ -478,6 +478,9 @@ export default function PlannerPage() {
   const [combinationId, setCombinationId] = useState<CombinationId>("specialization");
   const combination: CombinationConfig = COMBINATIONS.find((c) => c.id === combinationId)!;
 
+  // Debug logging flag — set to true to see detailed logs during development
+  const DEBUG_LOG = false;
+
   const [selections, setSelections]       = useState<SelectedPrograms>(emptySelections(combination));
   const [inputVals, setInputVals]         = useState<Record<string, string>>({});
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
@@ -572,10 +575,12 @@ export default function PlannerPage() {
 
   // Slot helpers 
   const setSlotSelection = (slotKey: string, program: Program) => {
-    console.group(`setSlotSelection: slot=${slotKey}`);
-    console.log("program:", program.program_name, `(id=${program.program_id})`);
-    console.log("has_subplans:", program.has_subplans);
-    console.groupEnd();
+    if (DEBUG_LOG) {
+      console.group(`setSlotSelection: slot=${slotKey}`);
+      console.log("program:", program.program_name, `(id=${program.program_id})`);
+      console.log("has_subplans:", program.has_subplans);
+      console.groupEnd();
+    }
 
     setSelections((prev) => ({ ...prev, [slotKey]: program }));
     setInputVals((prev) => ({ ...prev, [slotKey]: formatProgramName(program.program_name) }));
@@ -598,43 +603,50 @@ export default function PlannerPage() {
     combination.slots.map((s) => [s.key, selections[s.key] ?? null])
   );
 
-  const filteredStructureCache: StructureCache = Object.fromEntries(
-    Object.entries(structureCache).map(([key, structure]) => {
-      const programId = parseInt(key);
-      const slot = combination.slots.find(
-        (s) => safeSelections[s.key]?.program_id === programId
-      );
-      const chosenSubplanId = slot ? (selectedSubplans[slot.key] ?? null) : null;
+  const filteredStructureCache: StructureCache = useMemo(() => {
+    return Object.fromEntries(
+      Object.entries(structureCache).map(([key, structure]) => {
+        const programId = parseInt(key);
+        const slot = combination.slots.find(
+          (s) => safeSelections[s.key]?.program_id === programId
+        );
+        const chosenSubplanId = slot ? (selectedSubplans[slot.key] ?? null) : null;
 
-      // No subplan chosen (or program has none) — keep all top-level sections only
-      // Subplan chosen — keep top-level + that subplan's sections
-      const allSections   = structure.sections;
-      const filteredSections = allSections.filter(
-        (s) => s.subplan_id === null || s.subplan_id === chosenSubplanId
-      );
+        // No subplan chosen (or program has none) — keep all top-level sections only
+        // Subplan chosen — keep top-level + that subplan's sections
+        const allSections   = structure.sections;
+        const filteredSections = allSections.filter(
+          (s) => s.subplan_id === null || s.subplan_id === chosenSubplanId
+        );
 
-      console.group(`filteredStructureCache: program_id=${programId} (${structure.program_name})`);
-      console.log("chosenSubplanId:", chosenSubplanId ?? "none");
-      console.log("total sections in cache:", allSections.length);
-      console.table(allSections.map(s => ({
-        section_id:  s.section_id,
-        subplan_id:  s.subplan_id ?? "null",
-        logic_type:  s.logic_type,
-        credit_req:  s.credit_req,
-        kept:        filteredSections.includes(s),
-        courses:     s.section_courses.map(c => c.course_code).join(", "),
-      })));
-      console.log(
-        `kept ${filteredSections.length}/${allSections.length} sections,`,
-        `credit_req sum = ${filteredSections.reduce((s, sec) => s + (sec.credit_req ?? 0), 0)}`
-      );
-      console.groupEnd();
+        if (DEBUG_LOG) {
+          console.group(`filteredStructureCache: program_id=${programId} (${structure.program_name})`);
+          console.log("chosenSubplanId:", chosenSubplanId ?? "none");
+          console.log("total sections in cache:", allSections.length);
+          console.table(allSections.map(s => ({
+            section_id:  s.section_id,
+            subplan_id:  s.subplan_id ?? "null",
+            logic_type:  s.logic_type,
+            credit_req:  s.credit_req,
+            kept:        filteredSections.includes(s),
+            courses:     s.section_courses.map(c => c.course_code).join(", "),
+          })));
+          console.log(
+            `kept ${filteredSections.length}/${allSections.length} sections,`,
+            `credit_req sum = ${filteredSections.reduce((s, sec) => s + (sec.credit_req ?? 0), 0)}`
+          );
+          console.groupEnd();
+        }
 
-      return [key, { ...structure, sections: filteredSections }];
-    })
+        return [key, { ...structure, sections: filteredSections }];
+      })
+    );
+  }, [structureCache, safeSelections, selectedSubplans, DEBUG_LOG, combination.slots]);
+
+  const creditSummary   = useMemo(() => 
+    calculateCredits(safeSelections, filteredStructureCache, selectedSubplans, subplanCache),
+    [safeSelections, filteredStructureCache, selectedSubplans, subplanCache]
   );
-
-  const creditSummary   = calculateCredits(safeSelections, filteredStructureCache, selectedSubplans, subplanCache);
   const structuresReady = allStructuresLoaded(combination, safeSelections, filteredStructureCache);
   const anySelected     = Object.values(safeSelections).some((p) => p !== null);
 
