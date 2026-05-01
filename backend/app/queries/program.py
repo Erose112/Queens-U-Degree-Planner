@@ -9,8 +9,8 @@ from __future__ import annotations
 from collections import deque
 
 from sqlalchemy.orm import Session
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload, contains_eager
 
 from app.models.course import Course
 from app.models.program import Program, Program_Section, Section_Courses, Subplan
@@ -48,10 +48,17 @@ def get_program_structure(db: Session, program_id: int) -> Program | None:
     """
     return db.scalar(
         select(Program)
+        .outerjoin(
+            Program_Section,
+            and_(
+                Program_Section.program_id == Program.program_id,
+                Program_Section.subplan_id.is_(None)
+            )
+        )
         .where(Program.program_id == program_id)
         .options(
-            # Top-level sections
-            selectinload(Program.sections)
+            # Top-level sections only (subplan_id IS NULL)
+            contains_eager(Program.sections)
             .options(_program_section_options()),
  
             # Subplan sections
@@ -59,6 +66,7 @@ def get_program_structure(db: Session, program_id: int) -> Program | None:
             .selectinload(Subplan.sections)
             .options(_program_section_options()),
         )
+        .distinct()
     )
 
 
@@ -71,15 +79,23 @@ def get_program_for_prereq_graph(db: Session, program_id: int) -> Program | None
     """
     return db.scalar(
         select(Program)
+        .outerjoin(
+            Program_Section,
+            and_(
+                Program_Section.program_id == Program.program_id,
+                Program_Section.subplan_id.is_(None)
+            )
+        )
         .where(Program.program_id == program_id)
         .options(
-            selectinload(Program.sections)
+            contains_eager(Program.sections)
             .options(_program_section_options()),
  
             selectinload(Program.subplans)
             .selectinload(Subplan.sections)
             .options(_program_section_options()),
         )
+        .distinct()
     )
 
 

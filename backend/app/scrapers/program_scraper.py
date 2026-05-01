@@ -29,9 +29,10 @@ Output shape per program
     ],
     "subplans": [
         {
-            "subplan_name": str,
-            "subplan_code": str,   # e.g. "ECPP-O"  (empty string if undetectable)
-            "sections": [ ... ],   # same shape as top-level sections
+            "subplan_name":    str,
+            "subplan_code":    str,   # e.g. "ECPP-O"  (empty string if undetectable)
+            "subplan_credits": int,
+            "sections": [ ... ],      # same shape as top-level sections
         },
         ...
     ],
@@ -223,39 +224,71 @@ def _renumber_sections(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _deduplicate_sections(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
-    Remove sections whose course list is an exact duplicate of a previously
-    seen section.  Sections with no courses but a wildcard are kept as-is.
+    Remove exact-duplicate sections.
+
+    - Course sections:   keyed by frozenset of course codes.
+    - Wildcard sections: keyed by (wildcard_text, section_credits) so that
+                         the same list name at different credit levels is kept.
     """
-    seen: set[frozenset[str]] = set()
+    seen_course_keys:   set[frozenset[str]]    = set()
+    seen_wildcard_keys: set[tuple[str, float]] = set()
     unique: list[dict[str, Any]] = []
 
     for section in sections:
-        key = frozenset(section["courses"])
-        if key and key in seen:
-            continue
-        seen.add(key)
+        courses  = section["courses"]
+        wildcard = section["wildcard"]
+
+        if courses:
+            key = frozenset(courses)
+            if key in seen_course_keys:
+                continue
+            seen_course_keys.add(key)
+        elif wildcard:
+            key = (wildcard, section["section_credits"])  # type: ignore[assignment]
+            if key in seen_wildcard_keys:
+                continue
+            seen_wildcard_keys.add(key)  # type: ignore[arg-type]
+        else:
+            continue  # skip fully empty sections
+
         unique.append(section)
 
     return unique
 
 
-
 def _deduplicate_subplans(subplans: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Remove subplans with duplicate codes or names."""
-    seen_codes: set[str] = set()
-    seen_names: set[str] = set()
-    unique: list[dict[str, Any]] = []
+    """
+    Remove subplans with duplicate codes or names, preferring the one that
+    has sections (i.e. real scraped content) over an empty stub.
+    """
+    # Build a map: canonical-key → best subplan seen so far
+    best: dict[str, dict[str, Any]] = {}
 
     for sp in subplans:
         code = sp.get("subplan_code", "")
         name = sp.get("subplan_name", "")
-        # Use code as primary key, fall back to name if code is empty
-        key = code if code else name
-        if key and key in seen_codes:
+        key  = code if code else name
+        if not key:
             continue
-        seen_codes.add(key)
-        seen_names.add(name)
-        unique.append(sp)
+
+        existing = best.get(key)
+        if existing is None:
+            best[key] = sp
+        else:
+            # Prefer the entry that actually has sections
+            if sp["sections"] and not existing["sections"]:
+                best[key] = sp
+
+    # Preserve original order (first-seen key wins for ordering)
+    seen: set[str] = set()
+    unique: list[dict[str, Any]] = []
+    for sp in subplans:
+        code = sp.get("subplan_code", "")
+        name = sp.get("subplan_name", "")
+        key  = code if code else name
+        if key and key not in seen:
+            seen.add(key)
+            unique.append(best[key])
 
     return unique
 
@@ -270,6 +303,20 @@ def _flush_section(
         return
     if current_section["courses"] or current_section["wildcard"]:
         target_sections.append(current_section)
+
+
+def _find_existing_subplan(
+    subplans: list[dict[str, Any]],
+    code: str,
+    name: str,
+) -> dict[str, Any] | None:
+    """Return the first subplan dict whose code or name matches."""
+    for sp in subplans:
+        if code and sp.get("subplan_code") == code:
+            return sp
+        if name and sp.get("subplan_name") == name:
+            return sp
+    return None
 
 
 def extract_data(
@@ -330,15 +377,13 @@ def extract_data(
                 if m:
                     program_data["total_credits"] = int(float(m.group(1)))
                     break
-     
-    # Plan Code
+
+    # Plan Code 
     for strong in soup.find_all("strong"):
         if isinstance(strong, Tag) and "Plan Code" in strong.get_text():
-            # The plan code may be in the sibling text or in the next <td>/<p>
             sibling = strong.next_sibling
             raw = str(sibling).strip() if isinstance(sibling, NavigableString) else ""
             if not raw:
-                # Fallback: check the parent element's full text
                 parent = strong.parent
                 raw = parent.get_text(separator=" ", strip=True) if parent else ""
             m = _PLAN_CODE_RE.search(raw)
@@ -357,12 +402,11 @@ def extract_data(
         print("  Could not locate content root.")
         return {}
 
-    # Walk the DOM
-    current_subplan:  dict[str, Any] | None = None
-    current_section:  dict[str, Any] | None = None
-    section_counter = 0
-    expecting_subplan_list = False
-    section_counter = 0
+    # Walk the DOM 
+    current_subplan:       dict[str, Any] | None = None
+    current_section:       dict[str, Any] | None = None
+    section_counter:       int = 0
+    expecting_subplan_list: bool = False
 
     def active_sections() -> list[dict[str, Any]]:
         """Return the section list we are currently writing into."""
@@ -376,28 +420,47 @@ def extract_data(
 
         tag = element.name
 
-        # Subplan boundary: <h2> / <h3>
+        # Subplan boundary: <h2> / <h3> 
         if tag in ("h2", "h3"):
             heading_text = element.get_text(separator=" ", strip=True)
 
             if not _is_subplan_heading(heading_text, tag):
+                # A non-subplan heading after subplans (e.g. "4. Additional Requirements",
+                # course list headers like "LISC_List_C") means we've left the subplan
+                # section of the page.  Stop writing into any subplan.
+                if program_data["has_subplans"] and current_subplan is not None:
+                    _flush_section(current_section, active_sections())
+                    current_section = None
+                    current_subplan = None
+
                 continue
 
-            # Flush whatever section was open
+            # Flush whatever section was open before this heading
             _flush_section(current_section, active_sections())
             current_section = None
+            expecting_subplan_list = False  # always clear on subplan boundary
 
             program_data["has_subplans"] = True
-            current_subplan = {
-                "subplan_name": _parse_subplan_name(heading_text),
-                "subplan_code": _parse_subplan_code(heading_text),
-                "subplan_credits": _parse_subplan_credits(heading_text),
-                "sections":     [],
-            }
-            program_data["subplans"].append(current_subplan)
+
+            parsed_code = _parse_subplan_code(heading_text)
+            parsed_name = _parse_subplan_name(heading_text)
+            existing = _find_existing_subplan(
+                program_data["subplans"], parsed_code, parsed_name
+            )
+            if existing is not None:
+                current_subplan = existing
+            else:
+                current_subplan = {
+                    "subplan_name":    parsed_name,
+                    "subplan_code":    parsed_code,
+                    "subplan_credits": _parse_subplan_credits(heading_text),
+                    "sections":        [],
+                }
+                program_data["subplans"].append(current_subplan)
+
             continue
 
-        # Table rows
+        # Table rows only beyond this point 
         if tag != "tr":
             continue
 
@@ -407,22 +470,24 @@ def extract_data(
         if "areaheader" in row_classes and "lastrow" in row_classes:
             continue
 
-        # Section header row
+        #  Section header row 
         if "areaheader" in row_classes:
+            # Always flush the section that was open before this header
             _flush_section(current_section, active_sections())
             current_section = None
 
-            # Switch to next waiting subplan when current one already has sections
-            if program_data["has_subplans"]:
-                for sp in program_data["subplans"]:
-                    if not sp["sections"] and sp is not current_subplan:
-                        if current_subplan is None or current_subplan["sections"]:
-                            current_subplan = sp
-                            break
+            # When we've finished reading the sub-plan listing block,
+            # the next areaheader signals we are back at plan level.
+            # Reset current_subplan so that Supporting sections (and any
+            # other plan-level sections after the listing) land in
+            # program_data["sections"], not inside a subplan.
+            if expecting_subplan_list:
+                expecting_subplan_list = False
+                current_subplan = None
 
             section_counter += 1
-            raw_name = _parse_section_name(element)
-            s_credits   = _parse_section_credits(element)
+            raw_name  = _parse_section_name(element)
+            s_credits = _parse_section_credits(element)
 
             if "sub-plan" in raw_name.lower() or "sub plan" in raw_name.lower():
                 expecting_subplan_list = True
@@ -434,45 +499,37 @@ def extract_data(
             )
             continue
 
-        # Course / content row
+        # Course / content row 
         if "even" not in row_classes and "odd" not in row_classes:
             continue
 
-        if current_section is None and not expecting_subplan_list:
-            continue
-
+        # Sub-plan listing rows 
         if expecting_subplan_list:
             wildcard = _scrape_wildcard_from_row(element)
             if wildcard and _SUBPLAN_HEADING_RE.match(wildcard):
-                code_match = _SUBPLAN_CODE_RE.search(wildcard)
+                code_match   = _SUBPLAN_CODE_RE.search(wildcard)
                 subplan_code = code_match.group(1) if code_match else ""
                 subplan_name = _parse_subplan_name(wildcard)
-                subplan_credits = _parse_subplan_credits(wildcard)
 
-                # ── Check if already registered before appending ──
-                existing = next(
-                    (sp for sp in program_data["subplans"]
-                    if sp["subplan_code"] == subplan_code
-                    or sp["subplan_name"] == subplan_name),
-                    None
-                )
-                if existing:
-                    current_subplan = existing
-                else:
-                    new_subplan = {
-                        "subplan_name": subplan_name,
-                        "subplan_code": subplan_code,
-                        "subplan_credits": subplan_credits,
-                        "sections":     [],
-                    }
-                    program_data["subplans"].append(new_subplan)
+                # Register stub only if not already known
+                if not _find_existing_subplan(
+                    program_data["subplans"], subplan_code, subplan_name
+                ):
+                    program_data["subplans"].append({
+                        "subplan_name":    subplan_name,
+                        "subplan_code":    subplan_code,
+                        "subplan_credits": _parse_subplan_credits(wildcard),
+                        "sections":        [],
+                    })
                     program_data["has_subplans"] = True
-                    current_subplan = new_subplan
-                continue
 
+            continue  # always skip listing rows for course processing
+
+        # Nothing to write into if there is no open section 
         if current_section is None:
             continue
 
+        # Courses 
         courses = _scrape_courses_from_row(element)
         if courses:
             seen_in_section: set[str] = set(current_section["courses"])  # type: ignore
@@ -485,10 +542,11 @@ def extract_data(
             if wildcard and current_section["wildcard"] is None:
                 current_section["wildcard"] = wildcard
 
-            # Flush the final open section
-            _flush_section(current_section, active_sections())
 
-    # Post-process: deduplicate
+    # Final flush: close whatever section was still open after the last row 
+    _flush_section(current_section, active_sections())
+
+    # Post-process: deduplicate 
     program_data["subplans"] = _deduplicate_subplans(program_data["subplans"])
     program_data["sections"] = _renumber_sections(
         _deduplicate_sections(program_data["sections"])
@@ -498,10 +556,9 @@ def extract_data(
             _deduplicate_sections(subplan["sections"])
         )
 
-
     # Validate: must have something to return 
-    has_top_sections  = bool(program_data["sections"])
-    has_subplan_data  = any(
+    has_top_sections = bool(program_data["sections"])
+    has_subplan_data = any(
         bool(sp.get("sections")) for sp in program_data["subplans"]
     )
     if not has_top_sections and not has_subplan_data:
@@ -576,7 +633,7 @@ def scrape_program_courses() -> pd.DataFrame:
         else:
             all_program_data.append(data)
 
-    # Remove invalid entries from the JSON so they are not retried 
+    # Remove invalid entries from the JSON so they are not retried
     if invalid_by_faculty:
         for faculty, invalid in invalid_by_faculty.items():
             if faculty in url_program_links:
@@ -597,5 +654,4 @@ def scrape_program_courses() -> pd.DataFrame:
 
     pd.set_option("display.max_rows", None)
     df = pd.DataFrame(all_program_data)
-    df.to_csv("program_courses_test.csv", index=False)
     return df
