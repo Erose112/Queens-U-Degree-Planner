@@ -111,10 +111,10 @@ function DescriptionPopover({ description, borderColour, anchorRef, onClose }: D
 }
 
 export const CourseNode = memo(({ id, data }: NodeProps<Node<CourseNodeData, 'course'>>) => {
-  const { graphNode } = data;
+  const { course } = data;
 
-  const isRequired = graphNode.node_type === 'required';
-  const isChoice   = graphNode.node_type === 'choice';
+  const isRequired = course.node_type === 'required';
+  const isChoice   = course.node_type === 'choice';
   const borderColour = isRequired ? COLOURS.red : isChoice ? COLOURS.yellow : COLOURS.green;
 
   const incomingIds = [...new Set(data.incomingIds)];
@@ -152,12 +152,12 @@ export const CourseNode = memo(({ id, data }: NodeProps<Node<CourseNodeData, 'co
   const CLUSTER_WIDTH = NODE_WIDTH * 0.2;
   const clusterStart  = 50 - (CLUSTER_WIDTH / NODE_WIDTH) * 50;
 
-  const { ref: titleRef,    fontSize: titleSize    } = useFitText(graphNode.course_code, 18, 10);
-  const { ref: subtitleRef, fontSize: subtitleSize } = useFitText(graphNode.title ?? '', 16, 9);
+  const { ref: titleRef,    fontSize: titleSize    } = useFitText(course.course_code, 18, 10);
+  const { ref: subtitleRef, fontSize: subtitleSize } = useFitText(course.title ?? '', 16, 9);
 
   // The info button is visible when: the node is hovered OR the popover is
   // currently open (so the active button stays visible while reading the desc).
-  const showInfoButton = graphNode.description && (isHovered || showDescription);
+  const showInfoButton = course.description && (isHovered || showDescription);
 
   return (
     <div
@@ -198,7 +198,7 @@ export const CourseNode = memo(({ id, data }: NodeProps<Node<CourseNodeData, 'co
             always valid for popover positioning, but visually hidden via
             opacity + pointer-events when not hovered/active. This avoids a
             flash of the popover recalculating its anchor position on mount. */}
-        {graphNode.description && (
+        {course.description && (
           <button
             ref={infoButtonRef}
             onClick={handleInfoClick}
@@ -238,22 +238,22 @@ export const CourseNode = memo(({ id, data }: NodeProps<Node<CourseNodeData, 'co
         <div
           ref={titleRef}
           className="font-bold mb-0.5 overflow-hidden"
-          style={{ fontSize: titleSize, flexShrink: 0, paddingRight: graphNode.description ? 18 : 0 }}
+          style={{ fontSize: titleSize, flexShrink: 0, paddingRight: course.description ? 18 : 0 }}
         >
-          {formatCourseName(graphNode.course_code)}
+          {formatCourseName(course.course_code)}
         </div>
         <div
           ref={subtitleRef}
           className="leading-tight overflow-hidden flex-1"
           style={{ fontSize: subtitleSize }}
         >
-          {graphNode.title ?? ''}
+          {course.title ?? ''}
         </div>
       </div>
 
-      {showDescription && graphNode.description && (
+      {showDescription && course.description && (
         <DescriptionPopover
-          description={graphNode.description}
+          description={course.description}
           borderColour={borderColour}
           anchorRef={infoButtonRef}
           onClose={closePopover}

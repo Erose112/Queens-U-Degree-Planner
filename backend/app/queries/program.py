@@ -60,7 +60,7 @@ def get_program_structure(db: Session, program_id: int) -> Program | None:
             # Top-level sections only (subplan_id IS NULL)
             contains_eager(Program.sections)
             .options(_program_section_options()),
- 
+
             # Subplan sections
             selectinload(Program.subplans)
             .selectinload(Subplan.sections)

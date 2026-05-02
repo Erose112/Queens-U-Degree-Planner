@@ -1,4 +1,4 @@
-import { PrerequisiteGraph, GraphNode, GraphEdge, PrereqSet } from '../types/plan';
+import { PrerequisiteGraph, Course, GraphEdge, PrereqSet } from '../types/plan';
 
 /**
  * Merges two PrerequisiteGraphs into one.
@@ -16,7 +16,7 @@ export function mergeGraphs(
   if (!existing) return incoming;
 
   // --- Nodes ---
-  const nodeMap = new Map<number, GraphNode>();
+  const nodeMap = new Map<number, Course>();
   for (const node of existing.nodes) {
     nodeMap.set(node.course_id, node);
   }

@@ -4,6 +4,12 @@ export interface Course {
   title: string | null;
   credits: number | null;
   description: string | null;
+  prerequisite_str : string | null;
+  // How this course appears in a program:
+  //   "required" → red node   (all courses in section mandatory)
+  //   "choice"   → yellow node (choose courses to meet credit requirement)
+  //   "elective" → green node (optional courses)
+  node_type?: NodeType;
 }
 
 export interface Program {
@@ -57,15 +63,6 @@ export interface PrereqSet {
  */
 export type NodeType = "required" | "choice" | "elective";
 
-export interface GraphNode {
-  course_id: number;
-  course_code: string;
-  title: string | null;
-  credits: number | null;
-  node_type: NodeType;
-  description: string | null;
-}
-
 /**
  * Directed edge: from_course_id → to_course_id
  * `set_id` lets the frontend group edges that belong to the same AND-group.
@@ -78,7 +75,7 @@ export interface GraphEdge {
 }
 
 export interface PrerequisiteGraph {
-  nodes: GraphNode[];
+  nodes: Course[];
   edges: GraphEdge[];
   prerequisite_sets: PrereqSet[];
 }
@@ -90,7 +87,7 @@ export interface SelectedCourse {
 }
 
 export interface CourseNodeData extends Record<string, unknown> {
-  graphNode: GraphNode;
+  course: Course;
   year: number;
   incomingIds: number[];
   outgoingIds: number[];

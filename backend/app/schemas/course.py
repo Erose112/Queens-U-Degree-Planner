@@ -9,6 +9,12 @@ class Course(BaseModel):
     credits: Optional[int]
     description: Optional[str]
     prerequisite_str: Optional[str] = None
+    # How this course appears in a program:
+    #   "required" → red node   (all courses in section mandatory)
+    #   "choice"   → yellow node (choose courses to meet credit requirement)
+    #   "elective" → green node (optional courses)
+    #   None       → not in a program context
+    node_type: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -27,19 +33,6 @@ class PrereqSetOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class GraphNode(BaseModel):
-    course_id: int
-    course_code: str
-    title: Optional[str]
-    credits: Optional[int]
-    # How this course appears in the program:
-    #   "required" → red node   (is_required=True in section_courses)
-    #   "choice"   → yellow node (is_required=False)
-    #   "prereq"   → grey node  (only appears as a prerequisite, not in any section)
-    node_type: str
-    description: Optional[str]
-
-
 class GraphEdge(BaseModel):
     """
     Directed edge: prerequisite_course_id → course_id
@@ -52,7 +45,7 @@ class GraphEdge(BaseModel):
 
 
 class PrerequisiteGraphOut(BaseModel):
-    nodes: list[GraphNode]
+    nodes: list[Course]
     edges: list[GraphEdge]
     # Full set metadata so the frontend can render OR/AND labels on edge groups
     prerequisite_sets: list[PrereqSetOut]

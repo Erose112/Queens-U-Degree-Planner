@@ -38,7 +38,6 @@ export function reconcileNodes(
 
     // Position unchanged — return existing ref to avoid React re-render
     if (positionsEqual(existingNode.position, incomingNode.position, tolerance)) {
-      // Still update data in case graphNode/year changed
       return { ...existingNode, data: incomingNode.data };
     }
 

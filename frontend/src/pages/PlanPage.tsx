@@ -813,7 +813,7 @@ export default function PlannerPage() {
       </div>
 
       {/* ── Main form ── */}
-      <section className="px-6 pb-16 flex flex-col items-center">
+      <section className="px-6 pb-16 flex flex-col items-center flex-1">
         <div className="w-full max-w-[580px] flex flex-col gap-5">
 
           {/* Step 1 — Combination */}

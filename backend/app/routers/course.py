@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.queries.course import get_all_courses, get_prerequisite_graph_data
-from app.schemas.course import Course, GraphEdge, GraphNode, PrereqSetOut, PrerequisiteGraphOut
+from app.schemas.course import Course, GraphEdge, PrereqSetOut, PrerequisiteGraphOut
 
 logger = logging.getLogger(__name__)
 
@@ -21,15 +21,15 @@ def list_courses(db: Session = Depends(get_db)):
 def get_prerequisite_course_graph(course_id: int, db: Session = Depends(get_db)):
     all_courses, all_prereq_sets = get_prerequisite_graph_data(db, course_id)
 
-    nodes: list[GraphNode] = [
-        GraphNode(
+    nodes: list[Course] = [
+        Course(
             course_id=cid,
             course_code=course.course_code,
             title=course.title,
             credits=course.credits,
             node_type="prereq",
             description=course.description,
-            prerequiste_str=course.prerequisite_str,
+            prerequisite_str=course.prerequisite_str,
         )
         for cid, course in all_courses.items()
     ]

@@ -1,5 +1,5 @@
 import type { Node, Edge } from '@xyflow/react';
-import type { GraphNode, PrerequisiteGraph, ProgramStructure } from '../types/plan';
+import type { Course, PrerequisiteGraph, ProgramStructure } from '../types/plan';
 import type { SelectedCourse } from '../types/plan';
 import type { CourseEdgeData } from '../components/courseplan/CourseEdge';
 import type { CourseNodeData, YearSection } from '../types/plan';
@@ -30,7 +30,7 @@ export function coursePlanConverter(
   const edges: Edge<CourseEdgeData, 'courseEdge'>[] = [];
 
   // Lookup maps
-  const graphNodeMap = new Map<number, GraphNode>(
+  const graphNodeMap = new Map<number, Course>(
     graph.nodes.map((n) => [n.course_id, n]),
   );
 
@@ -127,15 +127,15 @@ export function coursePlanConverter(
       for (const column of rowCols) {
         let y = rowY;
         for (const courseId of column) {
-          const graphNode = graphNodeMap.get(courseId);
-          if (!graphNode) continue; // should never happen if graph is consistent
+          const course = graphNodeMap.get(courseId);
+          if (!course) continue; // should never happen if graph is consistent
 
           nodes.push({
             id: String(courseId),
             type: 'course',
             position: { x, y },
             data: {
-              graphNode,
+              course,
               year,
               incomingIds: incomingMap.get(courseId) ?? [],
               outgoingIds: outgoingMap.get(courseId) ?? [],

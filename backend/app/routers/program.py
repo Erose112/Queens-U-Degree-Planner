@@ -19,7 +19,6 @@ from app.schemas.program import (
 from app.schemas.course import (
     Course,
     PrerequisiteGraphOut,
-    GraphNode,
     GraphEdge,
     PrereqSetOut,
 )
@@ -106,8 +105,8 @@ def get_prerequisite_program_graph(program_id: int, db: Session = Depends(get_db
 
     section_course_type, all_courses, all_prereq_sets = bfs_prerequisite_graph(db, program)
 
-    nodes: list[GraphNode] = [
-        GraphNode(
+    nodes: list[Course] = [
+        Course(
             course_id=cid,
             course_code=course.course_code,
             title=course.title,
