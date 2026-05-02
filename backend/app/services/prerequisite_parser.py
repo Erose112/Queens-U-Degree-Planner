@@ -12,6 +12,7 @@ class TokenType(Enum):
     AND = auto()
     OR = auto()
     COURSE = auto()
+    OPTIONS = auto()
     LPAREN = auto()
     RPAREN = auto()
 
@@ -19,6 +20,7 @@ class TokenType(Enum):
 COURSE_PATTERN = re.compile(r"\[([A-Z]{2,4}\s?\d{3})\]", re.IGNORECASE)
 # Un-bracketed ANAT 100, CSC108, etc. (2–4 letters + optional space + 3 digits)
 COURSE_PATTERN_PLAIN = re.compile(r"([A-Z]{2,4})\s?(\d{3})\b", re.IGNORECASE)
+OPTIONS_PATTERN = re.compile(r"[A-Z]{3,4}_[A-Za-z_]+")
 
 
 
@@ -63,6 +65,12 @@ def tokenize(text: str):
             i = plain_match.end()
             continue
 
+        options_match = OPTIONS_PATTERN.match(text, i)
+        if options_match:
+            tokens.append((TokenType.OPTIONS, options_match.group()))
+            i = options_match.end()
+            continue
+
         # AND / OR (case-insensitive)
         if i + 3 <= len(text) and text[i:i+3].lower() == "and":
             tokens.append((TokenType.AND, "AND"))
@@ -98,6 +106,11 @@ class OrNode(Node):
     def __init__(self, children):
         self.children = children
 
+
+
+class OptionsNode(Node):
+    def __init__(self, label):
+        self.label = label
 
 
 class Parser:
@@ -158,6 +171,10 @@ class Parser:
         if token[0] == TokenType.COURSE:
             self.consume()
             return CourseNode(token[1])
+        
+        if token[0] == TokenType.OPTIONS:
+            self.consume()
+            return OptionsNode(token[1])
 
         if token[0] == TokenType.LPAREN:
             self.consume()
@@ -199,6 +216,8 @@ def _collect_course_codes(node) -> list[str]:
     """Recursively collect all course codes from a node (for OR flattening)."""
     if isinstance(node, CourseNode):
         return [node.code]
+    if isinstance(node, OptionsNode):
+        return []
     if isinstance(node, OrNode):
         codes = []
         for child in node.children:
@@ -237,6 +256,10 @@ def ast_to_prerequisite_sets(
         - AndNode([CSC148, CSC165]) → Two sets with min_required=0 (take both)
     """
     sets = []
+
+    # OptionsNode alone (e.g. AND branch) so no storable requirement
+    if isinstance(node, OptionsNode):
+        return []
 
     # CASE 1: Single Course Requirement
     # If this is just one course (e.g., "Must take CSC148")

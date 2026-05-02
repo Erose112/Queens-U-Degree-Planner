@@ -8,6 +8,7 @@ class Course(BaseModel):
     title: Optional[str]
     credits: Optional[int]
     description: Optional[str]
+    prerequisite_str: Optional[str]
 
     model_config = {"from_attributes": True}
 

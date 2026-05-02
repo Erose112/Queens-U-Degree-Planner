@@ -61,7 +61,8 @@ def write_all_courses_to_mysql(all_course_info):
                         title=row['title'],
                         credits=int(row['credits']),
                         description=row['course_desc'],
-                        clo=row['clo']
+                        clo=row['clo'],
+                        prerequisite_str=row['prerequisites'],
                     )
                     course_objects.append(course)
 

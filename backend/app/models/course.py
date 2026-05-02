@@ -14,6 +14,7 @@ class Course(Base):
     credits = Column(Integer)
     description = Column(Text, name='course_desc')
     clo = Column(Text)
+    prerequisite_str = Column(Text)
 
     # Relationships
     prerequisite_sets = relationship(

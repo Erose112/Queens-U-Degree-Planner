@@ -15,7 +15,11 @@ def safe_find(soup, tag, class_name):
 
 def extract_course_logic(text):
     course_pattern = r"[A-Z]{3,4}\s\d{3}"
-    tokens = re.split(f"({course_pattern}|\\(|\\))", text)
+    # Also match STAT_Options-style placeholder tokens (e.g. STAT_Options, MATH_Options)
+    option_pattern = r"[A-Z]{3,4}_[A-Za-z_]+"
+    token_pattern = f"({course_pattern}|{option_pattern}|\\(|\\))"
+
+    tokens = re.split(token_pattern, text)
 
     cleaned = []
 
@@ -23,18 +27,24 @@ def extract_course_logic(text):
         if not token:
             continue
         token = token.strip()
-        if re.fullmatch(course_pattern, token):
+
+        if re.fullmatch(course_pattern, token) or re.fullmatch(option_pattern, token):
+            # Both real course codes AND STAT_Options-style tokens treated the same
             if cleaned and cleaned[-1] not in {"and", "or", "("}:
                 cleaned.append("and")
             cleaned.append(token)
-        elif token in {"(", ")"}:
-            # Only add parens if they are next to a course code or operator
-            if token == "(" :
-                cleaned.append(token)
-            elif token == ")":
-                # Remove the paren and everything back to its matching open if empty
+        elif token == "(":
+            cleaned.append(token)
+        elif token == ")":
+            if cleaned and cleaned[-1] == "(":
+                cleaned.pop()  # remove empty parens
+            else:
+                # Strip any dangling operator immediately before the closing paren
+                while cleaned and cleaned[-1] in {"and", "or"}:
+                    cleaned.pop()
+                # If that empties back to just an open paren, remove it too
                 if cleaned and cleaned[-1] == "(":
-                    cleaned.pop()  # remove the dangling open paren
+                    cleaned.pop()
                 else:
                     cleaned.append(token)
         else:
@@ -224,9 +234,6 @@ def scrape_artsci_courses():
 
     degree_info = []
     art_sci_degrees = [
-        'MATH'
-    ]
-    test = [
         'ANAT', 'ANIM', 'ANSH', 'ARAB', 'ARTH', 'ARIN', 'ASCX', 'ASTR',
         'BISC', 'BCHM', 'BIOL', 'BLCK', 'CANC', 'CRSS', 'CHEM', 'CHIN',
         'CLST', 'COGS', 'CISC', 'COCA', 'COMP', 'CWRI', 'DISC',
