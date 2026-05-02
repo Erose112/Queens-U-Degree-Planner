@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Boolean, Column, Integer, Text, ForeignKey, String
+    Boolean, Column, Integer, PrimaryKeyConstraint, Text, ForeignKey, String
 )
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -80,8 +80,12 @@ class Program_Section(Base):
 class Section_Courses(Base):
     __tablename__ = "section_courses"
 
-    section_id  = Column(Integer, ForeignKey("program_section.section_id"), primary_key=True)
-    course_id   = Column(Integer, ForeignKey("courses.course_id"), primary_key=True)
+    section_id  = Column(Integer, ForeignKey("program_section.section_id"))
+    course_id   = Column(Integer, ForeignKey("courses.course_id"))
+
+    __table_args__ = (
+        PrimaryKeyConstraint("section_id", "course_id"),
+    )
 
     section = relationship("Program_Section", back_populates="section_courses")
     course  = relationship("Course")
