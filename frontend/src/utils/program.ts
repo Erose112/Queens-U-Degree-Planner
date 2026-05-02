@@ -1,4 +1,4 @@
-import { PrerequisiteGraph, ProgramStructure, SelectedCourse } from "../types/plan";
+import { PrerequisiteGraph, ProgramStructure, SelectedCourse, NodeType } from "../types/plan";
 import { getCourseCredits, getSectionCredits, getPlanCredits, getYearCredits } from "./credits";
 import { getSectionLabel } from "./formatNames";
 import { findSections, isCourseRequired, getPrereqChainDepthInYear, checkPrereqs, prereqsStillValid } from "./prerequisites";
@@ -34,13 +34,13 @@ export function findEarliestYear(
   selectedCourses: SelectedCourse[],
   graph: PrerequisiteGraph,
   programs: ProgramStructure[],
-  isElective: boolean
+  courseStatus: NodeType = "choice"
 ): 1 | 2 | 3 | 4 | null {
   const courseCode = graph.nodes.find(n => n.course_id === courseId)?.course_code ?? '';
   const startYear = inferYearFromCode(courseCode);
 
   for (let y = startYear; y <= 4; y++) {
-    if (canTakeCourse(courseId, y as 1|2|3|4, selectedCourses, graph, programs, isElective).valid) {
+    if (canTakeCourse(courseId, y as 1|2|3|4, selectedCourses, graph, programs, courseStatus).valid) {
       return y as 1|2|3|4;
     }
   }
@@ -67,12 +67,12 @@ export function canTakeCourse(
   plan: SelectedCourse[],
   graph: PrerequisiteGraph,
   programs: ProgramStructure[],
-  isElective = false
+  courseStatus: NodeType = "choice"
 ): CanTakeCourseResult {
   const credits = getCourseCredits(courseId, graph);
   const courseCode = graph.nodes.find(n => n.course_id === courseId)?.course_code ?? `Course ${courseId}`;
 
-  if (!isElective) {
+  if (courseStatus === "choice") {
     // 1. Section credit cap
     const sections = findSections(courseId, programs);
     for (const section of sections) {
@@ -84,12 +84,13 @@ export function canTakeCourse(
         }
       }
     }
-    // 2. Total program credit cap
-    const totalCap = programs.reduce((sum, p) => sum + p.total_credits, 0);
-    const totalUsed = getPlanCredits(plan, graph);
-    if (totalUsed + credits > programs.reduce((sum, p) => sum + p.total_credits, 0)) {
-      return { valid: false, reason: `Adding ${courseCode} would exceed the total program cap of ${totalCap} credits`, missing: [courseCode] };
-    }
+  }
+
+  // 2. Total program credit cap
+  const totalCap = programs.reduce((sum, p) => sum + p.total_credits, 0);
+  const totalUsed = getPlanCredits(plan, graph);
+  if (totalUsed + credits > programs.reduce((sum, p) => sum + p.total_credits, 0)) {
+    return { valid: false, reason: `Adding ${courseCode} would exceed the total program cap of ${totalCap} credits`, missing: [courseCode] };
   }
 
   // 3. Per-year credit cap (30 credits / year)
@@ -98,23 +99,24 @@ export function canTakeCourse(
     return { valid: false, reason: `Adding ${courseCode} would exceed the Year ${targetYear} cap of ${YEAR_CREDIT_CAP} credits`, missing: [courseCode] };
   }
 
-  // 4. Prerequisites
-  const { satisfied, missing } = checkPrereqs(courseId, targetYear, plan, graph);
-  if (!satisfied) {
-    const missingCodes = missing.map(id =>
-      graph.nodes.find(n => n.course_id === id)?.course_code ?? `Course ${id}`
-    );
-    return { valid: false, reason: `Missing prerequisites from: ${missingCodes.join(', ')}`, missing: missingCodes };
-  }
+  // 4 & 5. Prerequisites and chain depth - SKIP if "required", CHECK if "choice" or "prereq"
+  if (courseStatus !== "required") {
+    const { satisfied, missing } = checkPrereqs(courseId, targetYear, plan, graph);
+    if (!satisfied) {
+      const missingCodes = missing.map(id =>
+        graph.nodes.find(n => n.course_id === id)?.course_code ?? `Course ${id}`
+      );
+      return { valid: false, reason: `Missing prerequisites from: ${missingCodes.join(', ')}`, missing: missingCodes };
+    }
 
-  // 5. Prereq chain depth within year (max 1 level deep to simulate semesters)
-  const chainDepth = getPrereqChainDepthInYear(courseId, targetYear, plan, graph);
-  if (chainDepth >= 2) {
-    return {
-      valid: false,
-      reason: `${courseCode} has a prerequisite chain too deep for Year ${targetYear}. Move upstream prerequisites to an earlier year.`,
-      missing: [],
-    };
+    const chainDepth = getPrereqChainDepthInYear(courseId, targetYear, plan, graph);
+    if (chainDepth >= 2) {
+      return {
+        valid: false,
+        reason: `${courseCode} has a prerequisite chain too deep for Year ${targetYear}. Move upstream prerequisites to an earlier year.`,
+        missing: [],
+      };
+    }
   }
 
   return { valid: true };

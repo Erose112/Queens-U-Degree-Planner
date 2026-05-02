@@ -53,9 +53,9 @@ export interface PrereqSet {
 /**
  * "required" → red node   (section logic_type = 0, all courses mandatory)
  * "choice"   → yellow node (section logic_type = 1, choose up to credit_req)
- * "prereq"   → grey node  (only appears as a prerequisite, not in any section)
+ * "elective" → green node
  */
-export type NodeType = "required" | "choice" | "prereq";
+export type NodeType = "required" | "choice" | "elective";
 
 export interface GraphNode {
   course_id: number;
@@ -86,8 +86,7 @@ export interface PrerequisiteGraph {
 export interface SelectedCourse {
   courseId: number;
   year: 1 | 2 | 3 | 4;
-  addedBy: "user" | "autofill";
-  isElective: boolean;
+  nodeType: NodeType;
 }
 
 export interface CourseNodeData extends Record<string, unknown> {

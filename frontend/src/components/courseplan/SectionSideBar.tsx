@@ -1,7 +1,7 @@
 // components/courseplan/SectionSideBar.tsx
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import type { ProgramStructure, SelectedCourse } from '../../types/plan';
+import type { ProgramStructure, SelectedCourse, NodeType } from '../../types/plan';
 import { COLOURS } from '../../utils/colours';
 import { LOGIC_REQUIRED } from '../../utils/program';
 import { formatProgramName, formatCourseName, getSectionLabel } from '../../utils/formatNames';
@@ -11,7 +11,7 @@ interface Props {
   programs: ProgramStructure[];
   selectedCourses: SelectedCourse[];
   allCourses: { course_id: number; course_code: string; title: string | null; credits: number | null }[];
-  onAdd: (courseCode: string, courseId: number, isElective: boolean) => void;
+  onAdd: (courseCode: string, courseId: number, nodeType: NodeType) => void;
   onRemove: (courseId: number) => void;
   onRedoSection: (courseIds: number[]) => void;
   courseErrors: Map<number, string>;
@@ -209,7 +209,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
 
   const pendingClearId = useRef<number | null>(null);
   const handleSearchAdd = (code: string, id: number) => {
-    onAdd(code, id, true);
+    onAdd(code, id, 'elective');
     pendingClearId.current = id;
   };
 
@@ -381,7 +381,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                     <CourseRow
                       key={course.courseId}
                       course={course}
-                      onAdd={(code, id) => onAdd(code, id, false)}
+                      onAdd={(code, id) => onAdd(code, id, 'choice')}
                       onRemove={onRemove}
                       isLocked={isComplete}
                     />
@@ -462,7 +462,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
               <CourseRow
                 key={course.courseId}
                 course={course}
-                onAdd={(code, id) => onAdd(code, id, true)}
+                onAdd={(code, id) => onAdd(code, id, 'elective')}
                 onRemove={onRemove}
               />
             ))}
@@ -482,7 +482,7 @@ function CourseRow({
   isLocked = false,
 }: {
   course: SideBarCourse;
-  onAdd: (code: string, id: number, isElective: boolean) => void;
+  onAdd: (code: string, id: number, nodeType: NodeType) => void;
   onRemove: (id: number) => void;
   isLocked?: boolean;
 }) {
@@ -498,7 +498,7 @@ function CourseRow({
     <div
       draggable={!course.isSelected && !isLocked}
       onDragStart={!isLocked ? handleDragStart : undefined}
-      onClick={() => !course.isSelected && !isLocked && onAdd(course.courseCode, course.courseId, false)}
+      onClick={() => !course.isSelected && !isLocked && onAdd(course.courseCode, course.courseId, 'choice')}
       className={`group flex items-center gap-2.5 px-4 py-1.5 transition-colors select-none
         ${course.isSelected
           ? 'bg-white cursor-default'

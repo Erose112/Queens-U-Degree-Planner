@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { ProgramStructure, PrerequisiteGraph, SelectedCourse, ProgramSection } from '../types/plan';
+import { ProgramStructure, PrerequisiteGraph, SelectedCourse, ProgramSection, NodeType } from '../types/plan';
 import { LOGIC_REQUIRED, findEarliestYear, canTakeCourse, getCoursesToRemove } from '../utils/program';
-import { mergeGraphs, pruneGraph } from '../utils/graph';
+import { mergeGraphs } from '../utils/graph';
 import { isCourseRequired } from '../utils/prerequisites';
 import { getPrerequisiteCourseGraph, getPrerequisiteGraph, getProgramStructure } from '../services/api';
 
@@ -15,8 +15,7 @@ interface PlanStore {
   selectedSubplan: Record<number, number | null>; // program_id -> subplan_id
 
   loadProgram: (programId: number, subplanId?: number | null) => Promise<void>;
-  unloadProgram: (programId: number) => void;
-  addCourse: (courseCode: string, courseId: number, isElective: boolean) => void;
+  addCourse: (courseCode: string, courseId: number, nodeType: NodeType) => void;
   removeCourse: (courseId: number) => void;
   reevaluateAllCourses: () => void;
   autoFillRequired: () => void;
@@ -66,23 +65,8 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
     }
   },
 
-  unloadProgram: (programId) => {
-    const { programs, graph } = get();
-    const remaining = programs.filter(p => p.program_id !== programId);
-    const newSubplan = { ...get().selectedSubplan };
-    delete newSubplan[programId];
-    set({
-      programs: remaining,
-      graph: graph ? pruneGraph(graph, remaining) : null,
-      selectedCourses: get().selectedCourses.filter(c => c.addedBy === 'user'),
-      courseErrors: new Map(),
-      selectedSubplan: newSubplan,
-    });
-    get().autoFillRequired();
-  },
-
-  addCourse: async (courseCode, courseId, isElective) => {
-    console.log(`addCourse: ${courseCode} (ID: ${courseId}) elective=${isElective}`);
+  addCourse: async (courseCode, courseId, nodeType) => {
+    console.log(`addCourse: ${courseCode} (ID: ${courseId}) nodeType=${nodeType}`);
     const { graph, programs, selectedCourses, electiveGraphCache } = get();
     if (!graph || programs.length === 0) return;
     if (selectedCourses.some(c => c.courseId === courseId)) return;
@@ -115,11 +99,11 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       }
     }
 
-    const placedYear = findEarliestYear(courseId, selectedCourses, activeGraph, programs, isElective);
+    const placedYear = findEarliestYear(courseId, selectedCourses, activeGraph, programs, "choice");
 
     if (placedYear === null) {
       // Call canTakeCourse at year 4 to surface the most meaningful reason
-      const reason = canTakeCourse(courseId, 4, selectedCourses, activeGraph, programs, isElective).reason
+      const reason = canTakeCourse(courseId, 4, selectedCourses, activeGraph, programs, "choice").reason
         ?? 'Cannot be placed in any year';
       set(state => ({
         courseErrors: new Map(state.courseErrors).set(courseId, reason),
@@ -130,15 +114,14 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
     set(state => {
       const newSelectedCourses = [
         ...state.selectedCourses,
-        { courseId, year: placedYear, addedBy: 'user' as const, isElective },
+        { courseId, year: placedYear, nodeType },
       ];
 
       const errors = new Map(state.courseErrors);
       errors.delete(courseId);
 
       for (const [erroredId] of errors) {
-        const erroredCourse = state.selectedCourses.find(c => c.courseId === erroredId);
-        if (findEarliestYear(erroredId, newSelectedCourses, activeGraph, programs, erroredCourse?.isElective ?? false) !== null) {
+        if (findEarliestYear(erroredId, newSelectedCourses, activeGraph, programs, "choice") !== null) {
           errors.delete(erroredId);
         }
       }
@@ -217,7 +200,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
 
     for (const courseId of sorted) {
       const original = courseMap.get(courseId)!;
-      const bestYear = findEarliestYear(courseId, newPlacements, graph, programs, original.isElective);
+      const bestYear = findEarliestYear(courseId, newPlacements, graph, programs, "choice");
       newPlacements.push({ ...original, year: bestYear ?? original.year });
     }
 
@@ -256,11 +239,11 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
         const { selectedCourses } = get();
         if (selectedCourses.some(c => c.courseId === courseId)) continue;
 
-        const year = findEarliestYear(courseId, get().selectedCourses, graph, programs, false);
+        const year = findEarliestYear(courseId, get().selectedCourses, graph, programs, "required");
         if (year !== null) {
           console.log(`[autoFillRequired] Auto-adding ${courseCode} (ID: ${courseId}) in year ${year}`);
           set(state => ({
-            selectedCourses: [...state.selectedCourses, { courseId, year, addedBy: 'autofill' as const, isElective: false }],
+            selectedCourses: [...state.selectedCourses, { courseId, year, nodeType: 'required' as const }],
           }));
         }
       }

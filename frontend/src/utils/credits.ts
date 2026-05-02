@@ -39,6 +39,6 @@ export function getSectionCredits(
     section.section_courses.map((c) => [c.course_id, c.credits ?? 0])
   );
   return plan
-    .filter((p) => creditMap.has(p.courseId) && p.addedBy !== 'autofill')
+    .filter((p) => creditMap.has(p.courseId) && p.nodeType !== 'required')
     .reduce((sum, p) => sum + creditMap.get(p.courseId)!, 0);
 }
