@@ -3,8 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { ProgramStructure, SelectedCourse, NodeType } from '../../types/plan';
 import { COLOURS } from '../../utils/colours';
-import { LOGIC_REQUIRED } from '../../utils/program';
-import { formatProgramName, formatCourseName, getSectionLabel } from '../../utils/formatNames';
+import { LOGIC_REQUIRED, getSectionLabel, formatCourseName } from '../../utils/program';
 
 // Types 
 interface Props {
@@ -58,7 +57,7 @@ function buildSections(
       sections.push({
         key: `${program.program_id}-${section.section_id}`,
         sectionName: getSectionLabel(sections.length),
-        programName: formatProgramName(program.program_name),
+        programName: program.program_name,
         creditReq: section.credit_req ?? null,
         courses: section.section_courses.map(c => ({
           courseId: c.course_id,
@@ -292,8 +291,11 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
           )}
 
           <div className={isComplete ? 'opacity-75' : ''}>
-            <button
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => toggle(section.key)}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggle(section.key)}
               className="w-full text-left px-4 py-2.5 transition-colors hover:bg-gray-50/100 cursor-pointer"
             >
               <div className="flex items-start justify-between gap-2">
@@ -365,7 +367,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                   />
                 </div>
               )}
-            </button>
+            </div>
 
             {isOpen && (
               <div

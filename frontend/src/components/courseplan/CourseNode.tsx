@@ -3,12 +3,9 @@ import { createPortal } from 'react-dom';
 import type { Node, NodeProps } from '@xyflow/react';
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import type { CourseNodeData } from '../../types/plan';
-import { NODE_WIDTH, NODE_HEIGHT } from '../../utils/coursePlanLayout';
+import { NODE_WIDTH, NODE_HEIGHT, POPOVER_OFFSET, POPOVER_WIDTH } from '../../utils/coursePlanLayout';
 import { COLOURS } from '../../utils/colours';
-import { formatCourseName } from '../../utils/formatNames';
-
-const POPOVER_WIDTH = 220;
-const POPOVER_OFFSET = 10;
+import { formatCourseName } from '../../utils/program';
 
 function useFitText(text: string, maxSize: number, minSize: number) {
   const ref = useRef<HTMLDivElement>(null);

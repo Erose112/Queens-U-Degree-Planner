@@ -24,7 +24,6 @@ import { usePlanLayout } from '../hooks/planLayout';
 import { usePlanStore } from '../store/planStore';
 import { YEAR_BAR_WIDTH, YEAR_BAR_COURSE_OFFSET } from '../utils/coursePlanLayout';
 import { COLOURS } from '../utils/colours';
-import { formatProgramName } from '../utils/formatNames';
 import { getPlanCredits } from '../utils/credits';
 import type { Course, YearSection } from '../types/plan';
 
@@ -114,8 +113,7 @@ export default function CoursePlanPage() {
     }
   };
 
-  const programNames = programs.map(p => formatProgramName(p.program_name)).join(' + ');
-  const totalCredits = programs.reduce((sum, p) => sum + p.total_credits, 0);
+  const programNames = programs.map(p => p.program_name).join(' + ');
 
   if (programs.length === 0 || !graph) return null;
 
@@ -132,6 +130,9 @@ export default function CoursePlanPage() {
                 className="flex items-center gap-1.5 mb-1 text-[14px] font-medium tracking-wide cursor-pointer bg-transparent border-none p-0 transition-opacity opacity-50 hover:opacity-100"
                 style={{ color: COLOURS.blue }}
               >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M19 12H5" /><path d="m12 19-7-7 7-7" />
+              </svg>
                 Back to Planner
               </button>
               <div style={{ color: COLOURS.blue, fontFamily: "'Playfair Display', serif" }}>
@@ -141,18 +142,17 @@ export default function CoursePlanPage() {
             </div>
           </div>
 
-          <div className="flex-1 px-8">
-            <span className="text-2xl font-bold leading-tight" style={{ color: COLOURS.blue }}>
-              {programNames}
-            </span>
-            <div className="flex items-center gap-3 mt-1.5 text-s text-gray-500">
-              <span>
-                Plan Credits:{' '}
-                <span className="font-bold" style={{ color: COLOURS.blue }}>{getPlanCredits(selectedCourses, graph) + "/"}</span>
-                <span className="font-bold" style={{ color: COLOURS.blue }}>{totalCredits}</span>
-                
+          <div className="flex-1 px-8 min-w-0">
+            <div className="min-w-0">
+              <span 
+                className="sm:text-xl md:text-2xl text-lg font-bold leading-tight block truncate transition-all" 
+                style={{ color: COLOURS.blue }}
+                title={programNames}
+              >
+                {programNames}
               </span>
-              <span className="text-gray-500">|</span>
+            </div>
+            <div className="flex items-center gap-3 mt-1.5 text-s text-gray-500">
               <span>
                 Total Credits:{' '}
                 <span className="font-bold" style={{ color: COLOURS.blue }}>{getPlanCredits(selectedCourses, graph) + "/"}</span>
@@ -163,6 +163,26 @@ export default function CoursePlanPage() {
                 Courses selected:{' '}
                 <span className="text-gray-600 font-medium">{selectedCourses.length}</span>
               </span>
+            </div>
+            <div className='flex mt-1.5 text-s text-gray-500 gap-2 flex-wrap items-center'>
+              {programs.map((program, index) => (
+                <div key={program.program_id} className='flex items-center gap-2'>
+                  {index > 0 && <span className='text-gray-500'>|</span>}
+                  {program.program_link ? (
+                    <a
+                      href={program.program_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
+                      title={program.program_name}
+                    >
+                      View Program
+                    </a>
+                  ) : (
+                    <span className='text-gray-400 whitespace-nowrap'>(No link)</span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 

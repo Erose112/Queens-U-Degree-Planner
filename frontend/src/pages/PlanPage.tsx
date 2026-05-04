@@ -5,22 +5,24 @@ import Footer from "../components/Footer";
 import ScrollToTop from "../components/ScrollToTop";
 import NextPageButton from "../components/NextPageButton";
 import { COLOURS } from "../utils/colours";
-import { formatProgramName } from "../utils/formatNames";
 import { getPrograms, getProgramStructure, getSubplans } from "../services/api";
-import { Program, SelectedPrograms, StructureCache, Subplan } from "../types/plan";
+import { Program, ProgramStructure, SelectedPrograms, StructureCache, Subplan } from "../types/plan";
 import { usePlanStore } from "../store/planStore";
+import { CREDIT_LIMIT } from "../utils/program";
 import {
   COMBINATIONS,
-  CREDIT_LIMIT,
   type CombinationId,
   type CombinationConfig,
   type CombinationErrors,
   programsForSlot,
-  calculateCredits,
+  calculateCombinationCredits,
   validateCombination,
   emptySelections,
   allStructuresLoaded,
+  isFormComplete,
 } from "../utils/programCombination";
+import { useOutsideClick } from "../hooks/useOutsideClick";
+import { useCachedFetch } from "../hooks/useCachedFetch";
 
 
 /** One selected subplan ID per slot key */
@@ -46,7 +48,7 @@ const dropdownStyle = (accentColor: string): React.CSSProperties => ({
 
 interface ProgramDropdownProps {
   programs: Program[];
-  selected: Program | null;
+  selected: Program | ProgramStructure | null;
   inputVal: string;
   setInputVal: (v: string) => void;
   open: boolean;
@@ -78,9 +80,7 @@ function ProgramDropdown({
   const filtered = programs.filter(
     (p) =>
       !inputVal.trim() ||
-      formatProgramName(p.program_name)
-        .toLowerCase()
-        .includes(inputVal.toLowerCase())
+      p.program_name.toLowerCase().includes(inputVal.toLowerCase())
   );
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -163,7 +163,7 @@ function ProgramDropdown({
                 filtered.map((p) => (
                   <div
                     key={p.program_id}
-                    className="dd-item px-3 py-2.5 text-[14px] font-medium"
+                    className="px-3 py-2.5 text-[14px] font-medium transition-colors duration-100 cursor-pointer"
                     style={{
                       color: selected?.program_id === p.program_id ? COLOURS.white : COLOURS.blue,
                       background: selected?.program_id === p.program_id ? COLOURS.blue : "transparent",
@@ -178,7 +178,7 @@ function ProgramDropdown({
                     }}
                     onClick={() => onSelect(p)}
                   >
-                    {formatProgramName(p.program_name)}
+                    {p.program_name}
                     {p.program_type && (
                       <span className="ml-2 text-[14px] font-normal opacity-50">{p.program_type}</span>
                     )}
@@ -211,15 +211,7 @@ function SubplanPicker({ subplans, selectedId, onSelect, loading, error }: Subpl
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node))
-        setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  useOutsideClick(containerRef, () => setOpen(false));
 
   const selectedSubplan = subplans.find((s) => s.subplan_id === selectedId) ?? null;
 
@@ -284,7 +276,7 @@ function SubplanPicker({ subplans, selectedId, onSelect, loading, error }: Subpl
               {subplans.map((s) => (
                 <div
                   key={s.subplan_id}
-                  className="dd-item px-3 py-2.5 text-[14px] font-medium"
+                  className="px-3 py-2.5 text-[14px] font-medium transition-colors duration-100 cursor-pointer"
                   style={{
                     color: selectedId === s.subplan_id ? COLOURS.white : COLOURS.blue,
                     background: selectedId === s.subplan_id ? COLOURS.blue : "transparent",
@@ -324,7 +316,6 @@ function CreditBar({
   structuresLoaded,
 }: {
   effectiveTotal: number;
-  rawTotal: number;
   savings: number;
   doubleCountedCourseCodes: string[];
   exceedsLimit: boolean;
@@ -388,14 +379,7 @@ function CombinationPicker({
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node))
-        setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  useOutsideClick(containerRef, () => setOpen(false));
 
   return (
     <div className="flex flex-col gap-2">
@@ -428,7 +412,7 @@ function CombinationPicker({
               {COMBINATIONS.map((c) => (
                 <div
                   key={c.id}
-                  className="dd-item px-3 py-2.5 text-[14px] font-medium"
+                  className="px-3 py-2.5 text-[14px] font-medium transition-colors duration-100 cursor-pointer"
                   style={{
                     color: selected === c.id ? COLOURS.white : COLOURS.blue,
                     background: selected === c.id ? COLOURS.blue : "transparent",
@@ -473,13 +457,19 @@ export default function PlannerPage() {
 
   // Subplan cache: program_id → Subplan[]
   const [subplanCache, setSubplanCache] = useState<SubplanCache>({});
-  const fetchingSubplanIds = useRef<Set<number>>(new Set());
 
   const [combinationId, setCombinationId] = useState<CombinationId>("specialization");
   const combination: CombinationConfig = COMBINATIONS.find((c) => c.id === combinationId)!;
 
   // Debug logging flag — set to true to see detailed logs during development
   const DEBUG_LOG = false;
+
+  // Fetch subplans with caching and deduplication
+  const { fetch: fetchSubplansNow } = useCachedFetch(
+    (id: string | number, subplans: Subplan[]) => {
+      setSubplanCache((prev) => ({ ...prev, [id]: subplans }));
+    }
+  );
 
   const [selections, setSelections]       = useState<SelectedPrograms>(emptySelections(combination));
   const [inputVals, setInputVals]         = useState<Record<string, string>>({});
@@ -527,7 +517,7 @@ export default function PlannerPage() {
           setInputVals((prev) => ({
             ...prev,
             [slot.key]: selections[slot.key]
-              ? formatProgramName(selections[slot.key]!.program_name)
+              ? selections[slot.key]!.program_name
               : "",
           }));
         }
@@ -537,40 +527,15 @@ export default function PlannerPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, [combination.slots, selections]);
 
-  // ── Lazy subplan fetch ────────────────────────────────────────────────────
+  // Wrapper to fetch subplans for a program
   const fetchSubplans = useCallback(
-    async (program: Program) => {
+    (program: ProgramStructure) => {
       const id = program.program_id;
-      if (subplanCache[id] !== undefined || fetchingSubplanIds.current.has(id)) return;
+      if (subplanCache[id] !== undefined) return;
 
-      fetchingSubplanIds.current.add(id);
-      try {
-        const subplans: Subplan[] = await getSubplans(id);
-        setSubplanCache((prev) => ({ ...prev, [id]: subplans }));
-      } catch {
-        // Store empty array so we don't retry on every render
-        setSubplanCache((prev) => ({ ...prev, [id]: [] }));
-      } finally {
-        fetchingSubplanIds.current.delete(id);
-      }
+      fetchSubplansNow(id, () => getSubplans(id).catch(() => []));
     },
-    [subplanCache]
-  );  const fetchStructure = useCallback(
-    async (program: Program) => {
-      const id = program.program_id;
-      if (structureCache[id] !== undefined || fetchingIds.current.has(id)) return;
-
-      fetchingIds.current.add(id);
-      try {
-        const structure = await getProgramStructure(id);
-        setStructureCache((prev) => ({ ...prev, [id]: structure }));
-      } catch {
-        // Silently ignore
-      } finally {
-        fetchingIds.current.delete(id);
-      }
-    },
-    [structureCache]
+    [subplanCache, fetchSubplansNow]
   );
 
   // Slot helpers 
@@ -578,19 +543,42 @@ export default function PlannerPage() {
     if (DEBUG_LOG) {
       console.group(`setSlotSelection: slot=${slotKey}`);
       console.log("program:", program.program_name, `(id=${program.program_id})`);
-      console.log("has_subplans:", program.has_subplans);
       console.groupEnd();
     }
 
-    setSelections((prev) => ({ ...prev, [slotKey]: program }));
-    setInputVals((prev) => ({ ...prev, [slotKey]: formatProgramName(program.program_name) }));
+    // Create a minimal ProgramStructure for storage
+    const programStructure: ProgramStructure = {
+      ...program,
+      program_link: null,
+      total_credits: 0,
+      has_subplans: false,
+      sections: [],
+    };
+
+    setSelections((prev) => ({ ...prev, [slotKey]: programStructure }));
+    setInputVals((prev) => ({ ...prev, [slotKey]: program.program_name }));
     setOpenDropdowns((prev) => ({ ...prev, [slotKey]: false }));
     setErrors((prev) => { const e = { ...prev }; delete e[slotKey]; return e; });
     // Clear any previously selected subplan for this slot
     setSelectedSubplans((prev) => ({ ...prev, [slotKey]: null }));
-    fetchStructure(program);
-    // Kick off subplan fetch immediately if needed — ready before user reads the picker
-    if (program.has_subplans) fetchSubplans(program);
+    
+    // Fetch the full structure which will update structureCache
+    const id = program.program_id;
+    if (structureCache[id] !== undefined) {
+      // Already cached
+      const cached = structureCache[id];
+      if (cached?.has_subplans) fetchSubplans(cached);
+    } else if (!fetchingIds.current.has(id)) {
+      // Fetch structure
+      fetchingIds.current.add(id);
+      getProgramStructure(id)
+        .then((structure) => {
+          setStructureCache((prev) => ({ ...prev, [id]: structure }));
+          if (structure.has_subplans) fetchSubplans(structure);
+        })
+        .catch(() => {})
+        .finally(() => fetchingIds.current.delete(id));
+    }
   };
 
   const clearSlotSelection = (slotKey: string) => {
@@ -644,7 +632,7 @@ export default function PlannerPage() {
   }, [structureCache, safeSelections, selectedSubplans, DEBUG_LOG, combination.slots]);
 
   const creditSummary   = useMemo(() => 
-    calculateCredits(safeSelections, filteredStructureCache, selectedSubplans, subplanCache),
+    calculateCombinationCredits(safeSelections, filteredStructureCache, selectedSubplans, subplanCache),
     [safeSelections, filteredStructureCache, selectedSubplans, subplanCache]
   );
   const structuresReady = allStructuresLoaded(combination, safeSelections, filteredStructureCache);
@@ -666,30 +654,7 @@ export default function PlannerPage() {
     return subplanCache[prog.program_id] ?? [];
   };
 
-  /**
-   * Whether the form is complete enough to show the generate button.
-   * All slots must be filled, and any program with subplans must have one selected.
-   */
-  const isFormComplete = (): boolean => {
-    // All slots filled
-    const allFilled = combination.slots.every((s) => safeSelections[s.key] !== null);
-    if (!allFilled) return false;
 
-    // Every has_subplans program must have a subplan chosen
-    for (const slot of combination.slots) {
-      const prog = safeSelections[slot.key];
-      if (!prog?.has_subplans) continue;
-
-      // Still fetching subplans — not complete yet
-      const subplans = subplanCache[prog.program_id];
-      if (subplans === undefined) return false;
-
-      // Subplans exist but none chosen
-      if (subplans.length > 0 && !selectedSubplans[slot.key]) return false;
-    }
-
-    return true;
-  };
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleGenerate = async () => {
@@ -734,7 +699,7 @@ export default function PlannerPage() {
     }
   };
 
-  const formComplete = isFormComplete();
+  const formComplete = isFormComplete(combination, safeSelections, selectedSubplans, subplanCache);
 
   // Render 
   return (
@@ -760,7 +725,6 @@ export default function PlannerPage() {
           to   { opacity: 1; transform: translateY(0); }
         }
         .animate-cta { animation: fadeIn 0.3s ease both; }
-        .dd-item { transition: background 0.1s ease; cursor: pointer; }
         .dd-scroll {
           overflow-y: auto; flex: 1;
           scrollbar-width: thin;
@@ -907,7 +871,6 @@ export default function PlannerPage() {
                 </p>
                 <CreditBar
                   effectiveTotal={creditSummary.effectiveTotal}
-                  rawTotal={creditSummary.rawTotal}
                   savings={creditSummary.doubleCountSavings}
                   doubleCountedCourseCodes={creditSummary.doubleCountedCourseCodes}
                   exceedsLimit={creditSummary.exceedsLimit}

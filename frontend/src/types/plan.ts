@@ -16,8 +16,6 @@ export interface Program {
   program_id: number;
   program_name: string;
   program_type: string;
-  total_credits: number;
-  has_subplans: boolean;
 }
 
 export interface Subplan {
@@ -41,7 +39,9 @@ export interface ProgramStructure {
   program_id: number;
   program_name: string;
   program_type: string;
+  program_link: string | null;
   total_credits: number;
+  has_subplans: boolean;
   sections: ProgramSection[];
 }
 
@@ -101,7 +101,7 @@ export interface YearSection {
 }
 
 /** Slot key → selected Program (null = nothing chosen yet). */
-export type SelectedPrograms = Record<string, Program | null>;
+export type SelectedPrograms = Record<string, ProgramStructure | null>;
 
 /**
  * Lazily-populated cache of ProgramStructure objects keyed by program_id.
