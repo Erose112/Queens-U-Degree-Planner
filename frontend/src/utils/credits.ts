@@ -1,9 +1,9 @@
 import { PrerequisiteGraph, ProgramStructure, SelectedCourse } from "../types/plan";
 
 // Internal helpers
-/** Look up a course's credits from the graph; defaults to 0 if not found. */
+/** Look up a course's credits from the graph; defaults to 3 if not found. */
 export function getCourseCredits(courseId: number, graph: PrerequisiteGraph): number {
-  return graph.nodes.find((n) => n.course_id === courseId)?.credits ?? 0;
+  return graph.nodes.find((n) => n.course_id === courseId)?.credits ?? 3;
 }
 
 /** Total credits already in the plan. */
@@ -29,16 +29,18 @@ export function getYearCredits(
 export function getSectionCredits(
   sectionId: number,
   plan: SelectedCourse[],
-  programs: ProgramStructure[]
+  programs: ProgramStructure[],
+  graph: PrerequisiteGraph
 ): number {
   const section = programs.flatMap(p => p.sections).find(
     (s) => s.section_id === sectionId
   );
   if (!section) return 0;
-  const creditMap = new Map(
-    section.section_courses.map((c) => [c.course_id, c.credits ?? 0])
+
+  const sectionCourseIds = new Set(
+    section.section_courses.map(c => c.course_id)
   );
   return plan
-    .filter((p) => creditMap.has(p.courseId) && p.nodeType !== 'required')
-    .reduce((sum, p) => sum + creditMap.get(p.courseId)!, 0);
+    .filter((p) => sectionCourseIds.has(p.courseId) && p.nodeType !== 'required')
+    .reduce((sum, p) => sum + getCourseCredits(p.courseId, graph), 0);
 }

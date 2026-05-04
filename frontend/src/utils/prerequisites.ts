@@ -49,6 +49,7 @@ export function getPrereqChainDepthInYear(
 }
 
 
+
 /**
  * Evaluate whether all prerequisite sets for a course are satisfied.
  *
@@ -58,54 +59,42 @@ export function getPrereqChainDepthInYear(
  *    AND placed in a year strictly less than `targetYear`.
  *  - `min_required === 0` means every course in the set is required (ALL).
  *
- * Returns { satisfied, missing } where `missing` is a flat list of
- * course IDs that would need to be added/moved to satisfy unmet sets.
+ * Returns { satisfied } boolean
  */
 export function checkPrereqs(
   courseId: number,
   targetYear: 1 | 2 | 3 | 4,
   plan: SelectedCourse[],
   graph: PrerequisiteGraph
-): { satisfied: boolean; missing: number[] } {
+): { satisfied: boolean } {
   const edges = graph.edges.filter((e) => e.to_course_id === courseId);
-  if (edges.length === 0) return { satisfied: true, missing: [] };
+  if (edges.length === 0) return { satisfied: true };
 
-  // Group prerequisite edges by set_id
+  const validIds = new Set(
+    plan
+      .filter((p) =>
+        p.year < targetYear ||
+        (p.year === targetYear && getPrereqChainDepthInYear(p.courseId, targetYear, plan, graph) === 0)
+      )
+      .map((p) => p.courseId)
+  );
+
   const setMap = new Map<number, number[]>();
   for (const edge of edges) {
     if (!setMap.has(edge.set_id)) setMap.set(edge.set_id, []);
     setMap.get(edge.set_id)!.push(edge.from_course_id);
   }
 
-  const validIds = new Set(
-    plan.filter((p) => {
-      if (p.year < targetYear) return true;
-      if (p.year === targetYear) {
-        return getPrereqChainDepthInYear(p.courseId, targetYear, plan, graph) === 0;
-      }
-      return false;
-    }).map((p) => p.courseId)
-  );
+  const satisfied = [...setMap.entries()].every(([setId, courseIds]) => {
+    const isOr = graph.prerequisite_sets.find((s) => s.set_id === setId)?.min_required === 1;
+    return isOr
+      ? courseIds.some((id) => validIds.has(id))
+      : courseIds.every((id) => validIds.has(id));
+  });
 
-  const missing: number[] = [];
-
-  for (const [setId, courseIds] of setMap) {
-    const prereqSet = graph.prerequisite_sets.find((s) => s.set_id === setId);
-    const isOrLogic = prereqSet?.min_required === 1;
-
-    if (isOrLogic) {
-      // At least one must be satisfied
-      const satisfied = courseIds.some((id) => validIds.has(id));
-      if (!satisfied) missing.push(...courseIds);
-    } else {
-      // All must be satisfied (min_required === 0)
-      const unmet = courseIds.filter((id) => !validIds.has(id));
-      missing.push(...unmet);
-    }
-  }
-
-  return { satisfied: missing.length === 0, missing };
+  return { satisfied };
 }
+
 
 /**
  * After a cascade removal, check whether a course still has its prereqs

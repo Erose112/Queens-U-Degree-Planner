@@ -83,9 +83,15 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
         try {
           electiveGraph = await getPrerequisiteCourseGraph(courseId);
           console.log(`[addCourse] Fetched elective graph for course ${courseCode} (ID: ${courseId}):`, electiveGraph);
+          if (!electiveGraph) {
+            set(state => ({
+              courseErrors: new Map(state.courseErrors).set(courseId, 'Failed to load prerequisites for this course.'),
+            }));
+            return;
+          }
           set(state => ({
             electiveGraphCache: new Map(state.electiveGraphCache).set(courseId, electiveGraph!),
-            graph: mergeGraphs(state.graph, electiveGraph!),
+            graph: mergeGraphs(state.graph, electiveGraph),
           }));
         } catch {
           set(state => ({
@@ -99,11 +105,11 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       }
     }
 
-    const placedYear = findEarliestYear(courseId, selectedCourses, activeGraph, programs, "choice");
+    const placedYear = findEarliestYear(courseId, selectedCourses, activeGraph, programs, nodeType);
 
     if (placedYear === null) {
       // Call canTakeCourse at year 4 to surface the most meaningful reason
-      const reason = canTakeCourse(courseId, 4, selectedCourses, activeGraph, programs, "choice").reason
+      const reason = canTakeCourse(courseId, 4, selectedCourses, activeGraph, programs, nodeType).reason
         ?? 'Cannot be placed in any year';
       set(state => ({
         courseErrors: new Map(state.courseErrors).set(courseId, reason),
@@ -121,7 +127,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       errors.delete(courseId);
 
       for (const [erroredId] of errors) {
-        if (findEarliestYear(erroredId, newSelectedCourses, activeGraph, programs, "choice") !== null) {
+        if (findEarliestYear(erroredId, newSelectedCourses, activeGraph, programs, nodeType) !== null) {
           errors.delete(erroredId);
         }
       }
@@ -200,7 +206,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
 
     for (const courseId of sorted) {
       const original = courseMap.get(courseId)!;
-      const bestYear = findEarliestYear(courseId, newPlacements, graph, programs, "choice");
+      const bestYear = findEarliestYear(courseId, newPlacements, graph, programs, original.nodeType);
       newPlacements.push({ ...original, year: bestYear ?? original.year });
     }
 

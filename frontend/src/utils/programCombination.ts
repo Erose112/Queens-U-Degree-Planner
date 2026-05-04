@@ -14,12 +14,13 @@
  *   Each qualifying course is deducted once even if shared across 3+ plans.
  */
 
-import type { Program, ProgramStructure, Course } from "../types/plan";
+import type { ProgramStructure, Course, Program } from "../types/plan";
 import { SelectedPrograms, StructureCache } from "../types/plan"
-import { LOGIC_CHOOSE_CREDITS, LOGIC_REQUIRED } from "./program";
+import { LOGIC_CHOOSE_CREDITS, LOGIC_REQUIRED, CREDIT_LIMIT } from "./program";
 
 
 export type CombinationId =
+  | "major"
   | "specialization"
   | "specialization_minor"
   | "major_minor"
@@ -53,6 +54,14 @@ export interface CombinationConfig {
 
 //  Combination configs 
 export const COMBINATIONS: CombinationConfig[] = [
+  {
+    id: "major",
+    label: "Major",
+    description: "A single major program (when exceeding the minimum unit threshold).",
+    slots: [
+      { key: "primary", label: "Major", allowedTypes: ["major"] },
+    ],
+  },
   {
     id: "specialization",
     label: "Specialization",
@@ -116,7 +125,7 @@ export function programMatchesRole(
   return allowedRoles.some((role) => {
     switch (role) {
       case "specialization": return t.includes("specialization");
-      case "major":          return t === "major" || t === "honours major";
+      case "major":          return t.includes("major") && !t.includes("specialization");
       case "minor":          return t === "minor";
       default:               return false;
     }
@@ -167,7 +176,6 @@ function supportingCourses(structure: ProgramStructure): Course[] {
 }
 
 
-export const CREDIT_LIMIT = 120;
 
 export interface CreditSummary {
   /** Naïve sum of total_credits across all selected programs (no deductions). */
@@ -197,14 +205,14 @@ export interface CreditSummary {
  * @param selections  Slot key → Program | null
  * @param cache       Lazily-loaded ProgramStructure objects, keyed by program_id
  */
-export function calculateCredits(
+export function calculateCombinationCredits(
   selections: SelectedPrograms,
   cache: StructureCache,
   selectedSubplans: Record<string, number | null>,
   subplanCache: Record<number, { subplan_id: number; subplan_credits: number | null }[]>
 ): CreditSummary {
   const programs = Object.values(selections).filter(
-    (p): p is Program => p !== null
+    (p): p is ProgramStructure => p !== null
   );
   // Debug logging disabled
 
@@ -333,7 +341,7 @@ export function validateCombination(
   // Run credit check only when all slots are filled
   const allFilled = combination.slots.every((s) => selections[s.key] !== null);
   if (allFilled) {
-    const summary = calculateCredits(selections, cache, selectedSubplans, subplanCache);
+    const summary = calculateCombinationCredits(selections, cache, selectedSubplans, subplanCache);
     if (summary.exceedsLimit) {
       errors.credits =
         `This combination totals ${summary.effectiveTotal} units — ` +
@@ -362,4 +370,40 @@ export function allStructuresLoaded(
     const prog = selections[s.key];
     return prog !== null && cache[prog.program_id] !== undefined;
   });
+}
+
+/**
+ * Checks if the form is complete enough to display the generate button.
+ *
+ * Requirements:
+ * 1. All slots must be filled with a program selection
+ * 2. Any program with subplans must have one selected
+ * 3. Subplan data must be fully loaded for programs that have them
+ *
+ * Returns false while still loading subplans; returns true when ready to submit.
+ */
+export function isFormComplete(
+  combination: CombinationConfig,
+  selections: SelectedPrograms,
+  selectedSubplans: Record<string, number | null>,
+  subplanCache: Record<number, { subplan_id: number; subplan_credits: number | null }[]>
+): boolean {
+  // All slots must be filled
+  const allFilled = combination.slots.every((s) => selections[s.key] !== null);
+  if (!allFilled) return false;
+
+  // Every program with has_subplans must have a subplan chosen
+  for (const slot of combination.slots) {
+    const prog = selections[slot.key];
+    if (!prog?.has_subplans) continue;
+
+    // Still fetching subplans — not complete yet
+    const subplans = subplanCache[prog.program_id];
+    if (subplans === undefined) return false;
+
+    // Subplans exist but none chosen
+    if (subplans.length > 0 && !selectedSubplans[slot.key]) return false;
+  }
+
+  return true;
 }

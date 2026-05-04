@@ -1,52 +1,82 @@
 import { PrerequisiteGraph, Course, GraphEdge, PrereqSet } from '../types/plan';
 
+const EMPTY_GRAPH: PrerequisiteGraph = {
+  nodes: [],
+  edges: [],
+  prerequisite_sets: [],
+};
+
 /**
  * Merges two PrerequisiteGraphs into one.
- * - Nodes are deduped by course_id — if the same course appears in both graphs,
- *   the existing node is kept as-is (node_type from the first graph wins).
- * - Edges are deduped by (from_course_id, to_course_id, set_id).
- * - PrereqSets are deduped by set_id.
- *
- * Either argument may be null (e.g. first program load where state.graph is null).
  */
 export function mergeGraphs(
-  existing: PrerequisiteGraph | null,
-  incoming: PrerequisiteGraph
+  existing: PrerequisiteGraph | null | undefined,
+  incoming: PrerequisiteGraph | null | undefined,
 ): PrerequisiteGraph {
-  if (!existing) return incoming;
+  if (!existing && !incoming) return EMPTY_GRAPH;
+  if (!existing) return incoming!;
+  if (!incoming) return existing;
 
-  // --- Nodes ---
+  // Using max(existing set IDs) + 1 as the offset means incoming IDs are
+  // always placed above the entire existing range, regardless of how sparse
+  // or dense those IDs are.  This is safe even when called repeatedly
+  // (each merge raises the ceiling for the next one).
+  const maxExistingSetId = existing.prerequisite_sets.reduce(
+    (max, s) => Math.max(max, s.set_id),
+    0,
+  );
+  const offset = maxExistingSetId + 1;
+
+  const remappedSets: PrereqSet[] = incoming.prerequisite_sets.map(s => ({
+    ...s,
+    set_id: s.set_id + offset,
+  }));
+
+  const remappedEdges: GraphEdge[] = incoming.edges.map(e => ({
+    ...e,
+    set_id: e.set_id + offset,
+  }));
+
   const nodeMap = new Map<number, Course>();
+
   for (const node of existing.nodes) {
     nodeMap.set(node.course_id, node);
   }
+
   for (const node of incoming.nodes) {
-    // Don't overwrite — existing node_type takes precedence
-    if (!nodeMap.has(node.course_id)) {
+    const existingNode = nodeMap.get(node.course_id);
+    if (
+      !existingNode ||
+      (node.node_type === 'required' && existingNode.node_type !== 'required')
+    ) {
       nodeMap.set(node.course_id, node);
     }
   }
 
-  // --- Edges ---
-  // Key: "from:to:setId" — uniquely identifies a directed edge within a set
-  const edgeKey = (e: GraphEdge) => `${e.from_course_id}:${e.to_course_id}:${e.set_id}`;
+  // Edges (dedup by from:to:remapped_set_id) 
+  const edgeKey = (e: GraphEdge) =>
+    `${e.from_course_id}:${e.to_course_id}:${e.set_id}`;
+
   const edgeMap = new Map<string, GraphEdge>();
+
   for (const edge of existing.edges) {
     edgeMap.set(edgeKey(edge), edge);
   }
-  for (const edge of incoming.edges) {
+  for (const edge of remappedEdges) {
     const key = edgeKey(edge);
     if (!edgeMap.has(key)) {
       edgeMap.set(key, edge);
     }
   }
 
-  // --- PrereqSets ---
+  // PrereqSets (dedup by remapped set_id) 
   const setMap = new Map<number, PrereqSet>();
+
   for (const prereqSet of existing.prerequisite_sets) {
     setMap.set(prereqSet.set_id, prereqSet);
   }
-  for (const prereqSet of incoming.prerequisite_sets) {
+  for (const prereqSet of remappedSets) {
+    // Collisions are impossible here by construction, but guard anyway
     if (!setMap.has(prereqSet.set_id)) {
       setMap.set(prereqSet.set_id, prereqSet);
     }
