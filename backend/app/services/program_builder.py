@@ -232,6 +232,7 @@ def build_program(
     program_name = str(program_data.get("program_name") or "Unknown")
     program_code = str(program_data.get("program_code") or "").strip().upper()
     program_type = (str(program_data.get("program_type") or "")).title() or None
+    program_link = str(program_data.get("program_link") or "").strip() or None
     has_subplans = bool(program_data.get("has_subplans", False))
 
     if not program_code:
@@ -247,6 +248,7 @@ def build_program(
         program_code=program_code,
         program_name=program_name,
         program_type=str(program_type) if program_type else "Unknown",
+        program_link=program_link,
         total_credits=total_credits,
         has_subplans=has_subplans,
     )

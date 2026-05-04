@@ -3,15 +3,12 @@ from pydantic import BaseModel
 from app.schemas.course import Course
 from typing import Optional
 
-class ProgramOut(BaseModel):
+class Program(BaseModel):
     program_id: int
     program_name: str
     program_type: str
-    total_credits: int
-    has_subplans: bool
 
     model_config = {"from_attributes": True}
-
 
 class SubplanOut(BaseModel):
     subplan_id: int
@@ -38,7 +35,9 @@ class ProgramStructureOut(BaseModel):
     program_id: int
     program_name: str
     program_type: str
+    program_link: Optional[str]
     total_credits: int
+    has_subplans: bool
     sections: list[ProgramSectionOut]
 
     model_config = {"from_attributes": True}

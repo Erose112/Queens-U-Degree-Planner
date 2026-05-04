@@ -132,6 +132,7 @@ def write_all_programs_to_mysql(df: pd.DataFrame) -> None:
             print(f"[program_writer] Successfully wrote {len(programs)} program(s).")
 
         except RuntimeError:
+            print("[program_writer] RuntimeError:", flush=True)
             # RuntimeErrors are raised before any DB mutation — no rollback needed
             raise
 

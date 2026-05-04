@@ -99,6 +99,15 @@ _SESSION_HEADERS = {
     ),
 }
 
+_BASE_URL = (
+    "https://queensu-ca-public.courseleaf.com/"
+    "arts-science/schools-departments-programs"
+)
+
+# To be stored in db for user use
+_STORED_URL = (
+    "https://www.queensu.ca/academic-calendar/arts-science/schools-departments-programs"
+)
 
 
 def get_degree_type(slug: str) -> str:
@@ -108,9 +117,6 @@ def get_degree_type(slug: str) -> str:
             return kw
     return "unknown"
 
-
-def format_program_name(slug: str) -> str:
-    return slug.replace("-", " ").title()
 
 
 def _make_empty_section(section_id: int, s_credits: float) -> dict[str, Any]:
@@ -321,8 +327,8 @@ def _find_existing_subplan(
 
 def extract_data(
     url: str,
+    stored_url: str,
     session: requests.Session,
-    program: str,
     retries: int = 3,
     retry_delay: int = 15,
 ) -> dict[str, Any]:
@@ -330,7 +336,7 @@ def extract_data(
     Fetch one program page and return a fully structured program dict.
     Returns an empty dict on failure.
     """
-    # Fetch with retry 
+    # Fetch with retry
     response = None
     for attempt in range(1, retries + 1):
         try:
@@ -351,24 +357,32 @@ def extract_data(
     if response is None or response.status_code != 200:
         return {}
 
-    # Parse 
+    # Parse
     try:
         soup = BeautifulSoup(response.text, "lxml")
     except Exception as exc:
         print(f"  BeautifulSoup error: {exc}")
         return {}
 
+    program_name_tag = soup.find("h1", class_="page-title")
+    if program_name_tag is None:
+        print("Could not find program name header.")
+        return {}
+
+    program_name = program_name_tag.get_text(strip=True)
+
     program_data: dict[str, Any] = {
-        "program_name":  format_program_name(program),
-        "program_type":  get_degree_type(program),
+        "program_code":  "",
+        "program_name":  program_name,
+        "program_type":  get_degree_type(program_name),
+        "program_link":  stored_url,
         "total_credits": 0,
-        "program_code":   "",
         "has_subplans":  False,
         "sections":      [],
         "subplans":      [],
     }
 
-    # Total credits 
+    # Total credits
     for strong in soup.find_all("strong"):
         if isinstance(strong, Tag) and "Plan" in strong.get_text():
             sibling = strong.next_sibling
@@ -378,7 +392,7 @@ def extract_data(
                     program_data["total_credits"] = int(float(m.group(1)))
                     break
 
-    # Plan Code 
+    # Plan Code
     for strong in soup.find_all("strong"):
         if isinstance(strong, Tag) and "Plan Code" in strong.get_text():
             sibling = strong.next_sibling
@@ -391,7 +405,7 @@ def extract_data(
                 program_data["program_code"] = m.group(1)
             break
 
-    # Find content root 
+    # Find content root
     content_root: Tag | None = (
         soup.find("div", id="contentarea")          # type: ignore[assignment]
         or soup.find("div", id="content")           # type: ignore[assignment]
@@ -402,7 +416,7 @@ def extract_data(
         print("  Could not locate content root.")
         return {}
 
-    # Walk the DOM 
+    # Walk the DOM
     current_subplan:       dict[str, Any] | None = None
     current_section:       dict[str, Any] | None = None
     section_counter:       int = 0
@@ -420,7 +434,7 @@ def extract_data(
 
         tag = element.name
 
-        # Subplan boundary: <h2> / <h3> 
+        # Subplan boundary: <h2> / <h3>
         if tag in ("h2", "h3"):
             heading_text = element.get_text(separator=" ", strip=True)
 
@@ -460,7 +474,7 @@ def extract_data(
 
             continue
 
-        # Table rows only beyond this point 
+        # Table rows only beyond this point
         if tag != "tr":
             continue
 
@@ -470,7 +484,7 @@ def extract_data(
         if "areaheader" in row_classes and "lastrow" in row_classes:
             continue
 
-        #  Section header row 
+        #  Section header row
         if "areaheader" in row_classes:
             # Always flush the section that was open before this header
             _flush_section(current_section, active_sections())
@@ -499,11 +513,11 @@ def extract_data(
             )
             continue
 
-        # Course / content row 
+        # Course / content row
         if "even" not in row_classes and "odd" not in row_classes:
             continue
 
-        # Sub-plan listing rows 
+        # Sub-plan listing rows
         if expecting_subplan_list:
             wildcard = _scrape_wildcard_from_row(element)
             if wildcard and _SUBPLAN_HEADING_RE.match(wildcard):
@@ -525,7 +539,7 @@ def extract_data(
 
             continue  # always skip listing rows for course processing
 
-        # Nothing to write into if there is no open section 
+        # Nothing to write into if there is no open section
         if current_section is None:
             continue
 
@@ -543,10 +557,10 @@ def extract_data(
                 current_section["wildcard"] = wildcard
 
 
-    # Final flush: close whatever section was still open after the last row 
+    # Final flush: close whatever section was still open after the last row
     _flush_section(current_section, active_sections())
 
-    # Post-process: deduplicate 
+    # Post-process: deduplicate
     program_data["subplans"] = _deduplicate_subplans(program_data["subplans"])
     program_data["sections"] = _renumber_sections(
         _deduplicate_sections(program_data["sections"])
@@ -556,7 +570,7 @@ def extract_data(
             _deduplicate_sections(subplan["sections"])
         )
 
-    # Validate: must have something to return 
+    # Validate: must have something to return
     has_top_sections = bool(program_data["sections"])
     has_subplan_data = any(
         bool(sp.get("sections")) for sp in program_data["subplans"]
@@ -573,13 +587,9 @@ def _build_session() -> requests.Session:
     session = requests.Session()
     session.headers.update(_SESSION_HEADERS)
 
-    warmup_url = (
-        "https://queensu-ca-public.courseleaf.com/"
-        "arts-science/schools-departments-programs/"
-    )
     print("Warming up session…")
     try:
-        session.get(warmup_url, timeout=10)
+        session.get(_BASE_URL, timeout=10)
         time.sleep(2)
     except RequestException as exc:
         print(f"  Warm-up failed (non-fatal): {exc}")
@@ -614,19 +624,15 @@ def scrape_program_courses() -> pd.DataFrame:
     all_program_data: list[dict[str, Any]] = []
     invalid_by_faculty: dict[str, list[str]] = {}
 
-    base_url = (
-        "https://queensu-ca-public.courseleaf.com/"
-        "arts-science/schools-departments-programs"
-    )
-
     for i, (faculty, program) in enumerate(program_pairs):
         if i > 0:
             time.sleep(10.2)
 
-        url = f"{base_url}/{faculty}/{program}/"
+        url = f"{_BASE_URL}/{faculty}/{program}/"
+        stored_url = f"{_STORED_URL}/{faculty}/{program}/"
         print(f"\nScraping [{i + 1}/{len(program_pairs)}]: {url}")
 
-        data = extract_data(url, session, program)
+        data = extract_data(url, stored_url, session)
 
         if not data:
             invalid_by_faculty.setdefault(faculty, []).append(program)

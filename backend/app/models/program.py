@@ -12,6 +12,7 @@ class Program(Base):
     program_code  = Column(String(4), unique=True, nullable=False)  # e.g. "COMA"
     program_name  = Column(Text, nullable=False)
     program_type  = Column(Text, nullable=False)
+    program_link  = Column(Text, nullable=True)
     total_credits = Column(Integer, nullable=False)
     has_subplans  = Column(Boolean, default=False, nullable=False)
 

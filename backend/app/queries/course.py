@@ -3,8 +3,6 @@ Query helpers for course data from the database.
 """
 from __future__ import annotations
 
-import re
-
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.course import Course

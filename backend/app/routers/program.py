@@ -11,10 +11,10 @@ from app.queries.program import (
     bfs_prerequisite_graph,
 )
 from app.schemas.program import (
-    ProgramOut,
+    Program,
+    SubplanOut,
     ProgramStructureOut,
     ProgramSectionOut,
-    SubplanOut,
 )
 from app.schemas.course import (
     Course,
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/programs", tags=["programs"])
 
 
-@router.get("/", response_model=list[ProgramOut])
+@router.get("/", response_model=list[Program])
 def list_programs(db: Session = Depends(get_db)):
     return get_all_programs(db)
 
@@ -72,6 +72,7 @@ def get_program_structure_route(program_id: int, db: Session = Depends(get_db)):
                 title=sc.course.title,
                 credits=sc.course.credits,
                 description=sc.course.description,
+                prerequisite_str=sc.course.prerequisite_str,
             )
             for sc in section.section_courses
         ]
@@ -92,7 +93,9 @@ def get_program_structure_route(program_id: int, db: Session = Depends(get_db)):
         program_id=program.program_id,
         program_name=program.program_name,
         program_type=program.program_type,
+        program_link=program.program_link,
         total_credits=program.total_credits,
+        has_subplans=program.has_subplans,
         sections=sections_out,
     )
 
@@ -113,6 +116,7 @@ def get_prerequisite_program_graph(program_id: int, db: Session = Depends(get_db
             credits=course.credits,
             node_type=section_course_type[cid],
             description=course.description,
+            prerequisite_str=course.prerequisite_str,
         )
         for cid, course in all_courses.items()
     ]

@@ -159,21 +159,21 @@ def bfs_prerequisite_graph(
             if section_course_type.get(cid) != "required":
                 section_course_type[cid] = node_type
             all_courses[cid] = sc.course
- 
+
     all_prereq_sets: dict[int, list[PrerequisiteSet]] = {}
- 
+
     queue: deque[int] = deque(section_course_type.keys())
     visited: set[int] = set(section_course_type.keys())
- 
+
     while queue:
         cid = queue.popleft()
         prereq_sets = get_prereq_sets_for_course(db, cid)
- 
+
         if not prereq_sets:
             continue
- 
+
         all_prereq_sets[cid] = list(prereq_sets)
- 
+
         for ps in prereq_sets:
             for psc in ps.required_courses:
                 req_cid = psc.required_course_id
@@ -183,5 +183,5 @@ def bfs_prerequisite_graph(
                     all_courses[req_cid] = psc.required_course
                     if req_cid not in section_course_type:
                         section_course_type[req_cid] = "prereq"
- 
+
     return section_course_type, all_courses, all_prereq_sets
