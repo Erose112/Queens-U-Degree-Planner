@@ -97,20 +97,13 @@ export function canTakeCourse(
     }
   }
 
-  // 2. Total program credit cap
-  const totalCap = programs.reduce((sum, p) => sum + p.total_credits, 0);
-  const totalUsed = getPlanCredits(plan, graph);
-  if (totalUsed + credits > totalCap) {
-    return { valid: false, reason: `Adding ${courseCode} would exceed the total program cap of ${totalCap} credits`, missing: [courseCode] };
-  }
-
-  // 3. Per-year credit cap (30 credits / year)
+  // 2. Per-year credit cap (30 credits / year)
   const yearUsed = getYearCredits(targetYear, plan, graph);
   if (yearUsed + credits > YEAR_CREDIT_CAP) {
     return { valid: false, reason: `Adding ${courseCode} would exceed the Year ${targetYear} cap of ${YEAR_CREDIT_CAP} credits`, missing: [courseCode] };
   }
 
-  // 4 & 5. Prerequisites and chain depth - SKIP if "required", CHECK if "choice" or "prereq"
+  // 3 & 4. Prerequisites and chain depth - SKIP if "required", CHECK if "choice" or "prereq"
   if (courseStatus !== "required") {
     const { satisfied } = checkPrereqs(courseId, targetYear, plan, graph);
     if (!satisfied) {

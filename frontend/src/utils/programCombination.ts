@@ -110,6 +110,22 @@ export const COMBINATIONS: CombinationConfig[] = [
 ];
 
 
+
+/**
+ * Returns the minimum unit threshold for a program based on its degree type.
+ *
+ * - Bachelor of Arts: 48 units
+ * - Bachelor of Science: 60 units
+ * - Other programs: null (no minimum)
+ */
+export function getMinimumUnitsForProgram(programName: string): number | null {
+  const name = programName.toLowerCase();
+  if (name.includes("bachelor of arts")) return 48;
+  if (name.includes("bachelor of science")) return 60;
+  return null;
+}
+
+
 /**
  * Returns true when a program_type string satisfies one of the allowed roles.
  *
@@ -342,7 +358,23 @@ export function validateCombination(
   const allFilled = combination.slots.every((s) => selections[s.key] !== null);
   if (allFilled) {
     const summary = calculateCombinationCredits(selections, cache, selectedSubplans, subplanCache);
-    if (summary.exceedsLimit) {
+
+    // Check minimum units for single major combinations
+    if (combination.id === "major") {
+      const program = selections.primary!;
+      const minimumUnits = getMinimumUnitsForProgram(program.program_name);
+
+      if (minimumUnits !== null && summary.effectiveTotal < minimumUnits) {
+        errors.credits =
+          `${program.program_name} requires a minimum of ${minimumUnits} units. ` +
+          `Your current selection totals ${summary.effectiveTotal} units.`;
+      } else if (summary.exceedsLimit) {
+        errors.credits =
+          `This combination totals ${summary.effectiveTotal} units — ` +
+          `${summary.delta} over the 120-unit degree limit.`;
+      }
+    } else if (summary.exceedsLimit) {
+      // For other combinations, just check the 120-unit cap
       errors.credits =
         `This combination totals ${summary.effectiveTotal} units — ` +
         `${summary.delta} over the 120-unit degree limit.`;

@@ -89,6 +89,7 @@ export interface SelectedCourse {
 export interface CourseNodeData extends Record<string, unknown> {
   course: Course;
   year: number;
+  nodeType: NodeType;
   incomingIds: number[];
   outgoingIds: number[];
   manuallyPlaced: boolean;

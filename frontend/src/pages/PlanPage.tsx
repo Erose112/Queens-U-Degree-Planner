@@ -126,10 +126,11 @@ function ProgramDropdown({
         />
 
         {/* Clear / chevron */}
-        <button
+        <div
+          role="button"
           tabIndex={-1}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2"
-          style={{ background: "transparent", border: "none", cursor: "pointer", color: COLOURS.darkGrey }}
+          className="absolute right-2.5 top-1/2 flex items-center justify-center"
+          style={{ background: "transparent", border: "none", cursor: "pointer", color: COLOURS.darkGrey, transform: "translateY(-50%)", width: "20px", height: "20px", zIndex: 10, pointerEvents: "auto" }}
           onClick={() => {
             if (selected || inputVal) { onClear(); setInputVal(""); setOpen(true); }
             else setOpen(!open);
@@ -144,7 +145,7 @@ function ProgramDropdown({
               <polyline points={open ? "18 15 12 9 6 15" : "6 9 12 15 18 9"} />
             </svg>
           )}
-        </button>
+        </div>
 
         {open && !loading && (
           <div style={dropdownStyle(COLOURS.blue)}>
@@ -253,10 +254,13 @@ function SubplanPicker({ subplans, selectedId, onSelect, loading, error }: Subpl
 
         {/* Chevron */}
         <div
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 transition-transform duration-200"
+          className="pointer-events-none absolute right-3 top-1/2 flex items-center justify-center transition-transform duration-200"
           style={{
             color: COLOURS.blue,
             transform: open ? "translateY(-50%) rotate(180deg)" : "translateY(-50%)",
+            width: "20px",
+            height: "20px",
+            zIndex: 10,
           }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -392,8 +396,14 @@ function CombinationPicker({
           {selectedConfig.label}
         </button>
         <div
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 transition-transform duration-200"
-          style={{ color: COLOURS.blue, transform: open ? "translateY(-50%) rotate(180deg)" : "translateY(-50%)" }}
+          className="pointer-events-none absolute right-3 top-1/2 flex items-center justify-center transition-transform duration-200"
+          style={{
+            color: COLOURS.blue,
+            transform: open ? "translateY(-50%) rotate(180deg)" : "translateY(-50%)",
+            width: "20px",
+            height: "20px",
+            zIndex: 10,
+          }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <polyline points="6 9 12 15 18 9" />
@@ -458,7 +468,7 @@ export default function PlannerPage() {
   // Subplan cache: program_id → Subplan[]
   const [subplanCache, setSubplanCache] = useState<SubplanCache>({});
 
-  const [combinationId, setCombinationId] = useState<CombinationId>("specialization");
+  const [combinationId, setCombinationId] = useState<CombinationId>("major");
   const combination: CombinationConfig = COMBINATIONS.find((c) => c.id === combinationId)!;
 
   // Debug logging flag — set to true to see detailed logs during development
@@ -575,9 +585,26 @@ export default function PlannerPage() {
         .then((structure) => {
           setStructureCache((prev) => ({ ...prev, [id]: structure }));
           if (structure.has_subplans) fetchSubplans(structure);
+
+          // Patch the stub stored in `selections` with real values from the API
+          setSelections((prev) => {
+            const cur = prev[slotKey];
+            if (cur?.program_id === id) {
+              return {
+                ...prev,
+                [slotKey]: {
+                  ...cur,
+                  has_subplans: structure.has_subplans,
+                  total_credits: structure.total_credits,
+                },
+              };
+            }
+            return prev;
+          });
         })
         .catch(() => {})
         .finally(() => fetchingIds.current.delete(id));
+
     }
   };
 

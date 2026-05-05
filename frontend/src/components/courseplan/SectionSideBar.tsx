@@ -31,6 +31,7 @@ interface SideBarSection {
   programName: string;
   creditReq: number | null;
   courses: SideBarCourse[];
+  wildcard: string | null;
 }
 
 // Helpers 
@@ -59,6 +60,7 @@ function buildSections(
         sectionName: getSectionLabel(sections.length),
         programName: program.program_name,
         creditReq: section.credit_req ?? null,
+        wildcard: section.wildcard ?? null,
         courses: section.section_courses.map(c => ({
           courseId: c.course_id,
           courseCode: formatCourseName(c.course_code),
@@ -74,11 +76,11 @@ function buildSections(
   return sections;
 }
 
-function requirementLabel(creditReq: number | null, totalCourses: number): string {
-  if (creditReq !== null && creditReq > 0) {
-    return `Choose ${creditReq} unit${creditReq !== 1 ? 's' : ''} from ${totalCourses} course${totalCourses !== 1 ? 's' : ''}`;
+function requirementLabel(creditReq: number | null, totalCourses: number, wildcard: string | null = null): string {
+  if (wildcard) {
+    return `Manually add ${creditReq} unit${creditReq !== 1 ? 's' : ''} from`;
   }
-  return `Choose from ${totalCourses} course${totalCourses !== 1 ? 's' : ''}`;
+  return `Choose ${creditReq} unit${creditReq !== 1 ? 's' : ''} from ${totalCourses} course${totalCourses !== 1 ? 's' : ''}`;
 }
 
 function selectedCredits(courses: SideBarCourse[]): number {
@@ -314,7 +316,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                     {section.sectionName}
                   </p>
                   <p className="text-[14px] text-gray-500 mt-0.5">
-                    {requirementLabel(section.creditReq, section.courses.length)}
+                    {requirementLabel(section.creditReq, section.courses.length, section.wildcard)}
                   </p>
                 </div>
 
@@ -327,6 +329,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                           const courseIds = section.courses.map(c => c.courseId);
                           prevCompleteRef.current.delete(section.key);
                           onRedoSection(courseIds);
+                          setOpenKeys((prev) => { const next = new Set(prev); next.delete(section.key); return next; });
                         }}
                         className="text-[16px] font-medium px-2 py-0.5 rounded transition-colors hover:text-red-400"
                         style={{ color: COLOURS.red }}
@@ -375,8 +378,8 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                 style={{ maxHeight: section.courses.length >= 6 ? '265px' : undefined }}
               >
                 {section.courses.length === 0 ? (
-                  <p className="px-4 py-2 text-[16px] text-gray-300 italic">
-                    No courses listed
+                  <p className="px-4 py-2 text-[16px] text-gray-500 italic">
+                    {section.wildcard ? section.wildcard : 'No courses listed'}
                   </p>
                 ) : (
                   section.courses.map(course => (
