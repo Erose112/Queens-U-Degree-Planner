@@ -13,5 +13,3 @@ export const COLOURS = {
 } as const;
   
 export type ColourKey = keyof typeof COLOURS;
-
-{/*"#F5F0E8" "#F2EFE9" "#EDE8DF"*/}

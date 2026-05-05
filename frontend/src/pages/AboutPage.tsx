@@ -121,8 +121,7 @@ export default function AboutPage() {
                 I built this project out of my own frustration with the degree planning process at Queen's. 
                 I wanted a simple way to visualise my degree progress, experiment with different course combinations, 
                 and plan out my semesters without having to click through multiple pages on the university website. 
-                This tool is also designed to help introduce you to courses you might not have heard of, but match
-                with your interests. Have fun planning!
+                Have fun planning!
             </p>
           </div>
         </div>

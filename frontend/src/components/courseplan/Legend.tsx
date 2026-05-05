@@ -30,16 +30,9 @@ function LegendItem({
 }) {
   return (
     <div className="flex items-center gap-2.5 group">
-      {/* Colour swatch: left accent bar + filled chip */}
-      <div className="relative flex items-center justify-center w-7 h-6 rounded-md flex-shrink-0"
-        style={{ backgroundColor: `${colour}18` }}
-      >
-        {/* Left accent bar */}
-        <div
-          className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-md"
-          style={{ backgroundColor: colour }}
-        />
-      </div>
+      <span className="rounded-full w-4 h-4 flex-shrink-0" style={{ backgroundColor: colour }}>
+
+      </span>
 
       {/* Text */}
       <div className="flex items-baseline gap-1.5 min-w-0">
@@ -52,7 +45,7 @@ function LegendItem({
         {description && (
           <span
             className="text-[15px] font-semibold leading-none truncate"
-            style={{ color: COLOURS.darkGrey }}
+            style={{ color: COLOURS.black }}
           >
             {" - " + description}
           </span>

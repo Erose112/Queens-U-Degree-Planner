@@ -9,7 +9,7 @@ export interface CourseEdgeData extends Record<string, unknown> {
   totalEdges?: number;
 }
 
-// ── Tunable knobs ─────────────────────────────────────────────────────────────
+// Tunable knobs 
 const CONFIG = {
   EXIT_SPACE: 20,
   ROW_GAP_THRESHOLD: 16,
@@ -20,11 +20,13 @@ const CONFIG = {
 };
 
 interface Box      { id: string; x: number; y: number; w: number; h: number; }
-interface Corridor { x: number; left: number; right: number; }
+// isFlanking = true for the outer left/right corridors added beyond all obstacles.
+// We prefer non-flanking (internal) corridors to keep paths compact and on-screen.
+interface Corridor { x: number; left: number; right: number; isFlanking: boolean; }
 interface Point    { x: number; y: number; }
+interface ChartBounds { minX: number; maxX: number; }
 
-// ── Row gap detection ─────────────────────────────────────────────────────────
-
+// Row gap detection
 function findRowGapYs(boxes: Box[], minY: number, maxY: number): number[] {
   if (boxes.length === 0) return [];
 
@@ -49,9 +51,13 @@ function findRowGapYs(boxes: Box[], minY: number, maxY: number): number[] {
   return gaps;
 }
 
-// ── Corridor detection ────────────────────────────────────────────────────────
-
-function findCorridorsInYRange(boxes: Box[], minY: number, maxY: number): Corridor[] {
+// Corridor detection 
+function findCorridorsInYRange(
+  boxes: Box[],
+  minY: number,
+  maxY: number,
+  chartBounds?: ChartBounds,
+): Corridor[] {
   const relevant = boxes.filter(
     b => b.y < maxY + CONFIG.NODE_CLEARANCE && b.y + b.h > minY - CONFIG.NODE_CLEARANCE
   );
@@ -73,31 +79,47 @@ function findCorridorsInYRange(boxes: Box[], minY: number, maxY: number): Corrid
   }
 
   const corridors: Corridor[] = [];
-
-  // Always include flanking corridors on the left and right of all
-  // obstacles. 
   const FLANK_DIST = CONFIG.NODE_CLEARANCE * 3;
-  corridors.push({
-    x:    merged[0].left - FLANK_DIST,
-    left: merged[0].left - FLANK_DIST * 2,
-    right: merged[0].left,
-  });
 
+  // Left flanking corridor — suppress if it would place the path outside the chart.
+  const leftFlankX = merged[0].left - FLANK_DIST;
+  if (!chartBounds || leftFlankX >= chartBounds.minX) {
+    corridors.push({
+      x:    leftFlankX,
+      left: leftFlankX - FLANK_DIST * 2,
+      right: merged[0].left,
+      isFlanking: true,
+    });
+  }
+
+  // Internal corridors between obstacle groups — these are always preferred.
   for (let i = 0; i < merged.length - 1; i++) {
     const left  = merged[i].right;
     const right = merged[i + 1].left;
     if (right - left >= CONFIG.MIN_CORRIDOR_WIDTH) {
-      corridors.push({ x: (left + right) / 2, left, right });
+      corridors.push({ x: (left + right) / 2, left, right, isFlanking: false });
     }
   }
 
-  corridors.push({
-    x:    merged[merged.length - 1].right + FLANK_DIST,
-    left: merged[merged.length - 1].right,
-    right: merged[merged.length - 1].right + FLANK_DIST * 2,
-  });
+  // Right flanking corridor — suppress if it would place the path outside the chart.
+  const rightFlankX = merged[merged.length - 1].right + FLANK_DIST;
+  if (!chartBounds || rightFlankX <= chartBounds.maxX) {
+    corridors.push({
+      x:    rightFlankX,
+      left: merged[merged.length - 1].right,
+      right: rightFlankX + FLANK_DIST * 2,
+      isFlanking: true,
+    });
+  }
 
   return corridors;
+}
+
+// Given a set of candidate corridors, return only the non-flanking (internal)
+// ones if any exist — otherwise fall back to all candidates.
+function preferInternal(corridors: Corridor[]): Corridor[] {
+  const internal = corridors.filter(c => !c.isFlanking);
+  return internal.length > 0 ? internal : corridors;
 }
 
 function pickCorridorX(
@@ -111,13 +133,20 @@ function pickCorridorX(
 
   corridors.sort((a, b) => Math.abs(a.x - preferredX) - Math.abs(b.x - preferredX));
   const best    = corridors[0];
-  const usable  = (best.right - best.left) * 0.8;
+
+  // Only spread siblings within the same corridor when there are multiple edges.
+  // Keep the spread small so paths visually overlap rather than fan out.
+  const usable  = (best.right - best.left) * 0.5; // reduced from 0.8 to keep paths tighter
   const step    = siblingCount <= 1 ? 0 : Math.min(CONFIG.SIBLING_SPREAD_PX, usable / siblingCount);
   const offset  = siblingCount <= 1 ? 0 : (siblingIndex - (siblingCount - 1) / 2) * step;
+
+  // Snap to corridor centre plus tiny offset — this is the key change.
+  // All edges that pick the same corridor will cluster around its centre
+  // rather than each computing an independent preferred X.
   return best.x + offset;
 }
 
-// ── Check if a vertical line at x is obstacle-free in [minY, maxY] ───────────
+// Check if a vertical line at x is obstacle-free in [minY, maxY] 
 function isXClearInYRange(x: number, boxes: Box[], minY: number, maxY: number): boolean {
   return !boxes.some(
     b =>
@@ -128,22 +157,30 @@ function isXClearInYRange(x: number, boxes: Box[], minY: number, maxY: number): 
   );
 }
 
-// ── Waypoint assembler ────────────────────────────────────────────────────────
+//  Waypoint assembler 
 
 function buildWaypoints(
   sourceX:      number,
   sourceY:      number,
   targetX:      number,
   targetY:      number,
+  // boxes now excludes source but INCLUDES target for intermediate
+  // obstacle detection. The target is excluded only for the final entry segment.
   boxes:        Box[],
+  targetBox:    Box | null,
   siblingIndex: number,
   siblingCount: number,
   fallbackGapY: number,
+  chartBounds:  ChartBounds,
 ): Point[] {
   const exitY  = sourceY + CONFIG.EXIT_SPACE;
   const entryY = targetY - CONFIG.EXIT_SPACE;
 
-  let gapYs = findRowGapYs(boxes, exitY, entryY);
+  // Use boxes that include the target for row-gap detection so that
+  // the path never tries to route a horizontal segment through the target node.
+  const boxesWithTarget = targetBox ? [...boxes, targetBox] : boxes;
+
+  let gapYs = findRowGapYs(boxesWithTarget, exitY, entryY);
   if (gapYs.length === 0) gapYs = [fallbackGapY];
 
   const xLo = Math.min(sourceX, targetX);
@@ -159,20 +196,26 @@ function buildWaypoints(
     const gapY    = gapYs[i];
     const segTopY = i === 0 ? exitY : gapYs[i - 1];
 
-    if (isXClearInYRange(currentX, boxes, segTopY, gapY)) {
+    // Use boxesWithTarget for obstacle clearance checks in intermediate segments.
+    if (isXClearInYRange(currentX, boxesWithTarget, segTopY, gapY)) {
       pts.push({ x: currentX, y: gapY });
       continue;
     }
 
-    const corridors = findCorridorsInYRange(boxes, segTopY, gapY);
+    const corridors = findCorridorsInYRange(boxesWithTarget, segTopY, gapY, chartBounds);
 
     const progress   = (i + 1) / (gapYs.length + 1);
     const preferredX = currentX + (targetX - currentX) * progress;
 
-    const inRange = corridors.filter(
+    const globallyPreferred = preferInternal(corridors);
+
+    // Among the globally preferred set, bias toward corridors in the source–target
+    // x-band. If none are in range, fall back to all preferred (pickCorridorX will
+    // choose the nearest one anyway).
+    const inRange = globallyPreferred.filter(
       c => c.x >= xLo - CONFIG.NODE_CLEARANCE && c.x <= xHi + CONFIG.NODE_CLEARANCE,
     );
-    const candidates = inRange.length > 0 ? inRange : corridors;
+    const candidates = inRange.length > 0 ? inRange : globallyPreferred;
 
     const corrX = pickCorridorX(candidates, preferredX, siblingIndex, siblingCount, currentX);
 
@@ -183,17 +226,17 @@ function buildWaypoints(
     currentX = corrX;
   }
 
-  // ── Final segment: step sideways to targetX and approach the node ─────────
   const lastGapY = gapYs[gapYs.length - 1];
 
   let finalCorrX = targetX;
 
   if (!isXClearInYRange(targetX, boxes, lastGapY, entryY)) {
-    const finalCorridors = findCorridorsInYRange(boxes, lastGapY, entryY);
-    const inRangeFinal = finalCorridors.filter(
+    const finalCorridors = findCorridorsInYRange(boxes, lastGapY, entryY, chartBounds);
+    const finalGloballyPreferred = preferInternal(finalCorridors);
+    const inRangeFinal = finalGloballyPreferred.filter(
       c => c.x >= xLo - CONFIG.NODE_CLEARANCE && c.x <= xHi + CONFIG.NODE_CLEARANCE,
     );
-    const candidatesFinal = inRangeFinal.length > 0 ? inRangeFinal : finalCorridors;
+    const candidatesFinal = inRangeFinal.length > 0 ? inRangeFinal : finalGloballyPreferred;
     finalCorrX = pickCorridorX(candidatesFinal, targetX, siblingIndex, siblingCount, targetX);
   }
 
@@ -217,7 +260,7 @@ function buildWaypoints(
   );
 }
 
-// ── SVG path builder ──────────────────────────────────────────────────────────
+// SVG path builder 
 
 function buildSVGPath(pts: Point[]): string {
   if (pts.length < 2) return '';
@@ -258,7 +301,7 @@ function buildSVGPath(pts: Point[]): string {
   return d;
 }
 
-// ── Edge component ────────────────────────────────────────────────────────────
+// Edge component 
 
 export function CourseEdge({
   id,
@@ -274,7 +317,32 @@ export function CourseEdge({
   const markerId = `arrow-${id}`;
   const allNodes = useNodes();
 
+  // Compute the bounding box of all nodes in the flow so corridor detection
+  // can suppress flanking routes that would go off-screen.
+  const chartBounds = useMemo<ChartBounds>(() => {
+    if (allNodes.length === 0) return { minX: 0, maxX: 1000 };
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (const n of allNodes) {
+      const w = (n.measured?.width ?? n.width ?? 150) as number;
+      minX = Math.min(minX, n.position.x);
+      maxX = Math.max(maxX, n.position.x + w);
+    }
+    return { minX, maxX };
+  }, [allNodes]);
+
   const path = useMemo(() => {
+    const targetNode = allNodes.find(n => n.id === target);
+    const targetBox: Box | null = targetNode
+      ? {
+          id: targetNode.id,
+          x:  targetNode.position.x,
+          y:  targetNode.position.y,
+          w:  (targetNode.measured?.width  ?? targetNode.width  ?? 150) as number,
+          h:  (targetNode.measured?.height ?? targetNode.height ?? 60)  as number,
+        }
+      : null;
+
     const boxes: Box[] = allNodes
       .filter(n => n.id !== source && n.id !== target)
       .map(n => ({
@@ -293,13 +361,15 @@ export function CourseEdge({
       sourceX, sourceY,
       targetX, targetY,
       boxes,
+      targetBox,
       edgeIndex,
       totalEdges,
       fallbackGap,
+      chartBounds,
     );
 
     return buildSVGPath(waypoints);
-  }, [source, target, sourceX, sourceY, targetX, targetY, data, allNodes]);
+  }, [source, target, sourceX, sourceY, targetX, targetY, data, allNodes, chartBounds]);
 
   return (
     <>

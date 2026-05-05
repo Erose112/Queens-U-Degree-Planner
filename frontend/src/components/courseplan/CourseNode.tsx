@@ -108,10 +108,10 @@ function DescriptionPopover({ description, borderColour, anchorRef, onClose }: D
 }
 
 export const CourseNode = memo(({ id, data }: NodeProps<Node<CourseNodeData, 'course'>>) => {
-  const { course } = data;
+  const { course, nodeType } = data;
 
-  const isRequired = course.node_type === 'required';
-  const isChoice   = course.node_type === 'choice';
+  const isRequired = nodeType === 'required';
+  const isChoice   = nodeType === 'choice';
   const borderColour = isRequired ? COLOURS.red : isChoice ? COLOURS.yellow : COLOURS.green;
 
   const incomingIds = [...new Set(data.incomingIds)];
@@ -149,8 +149,8 @@ export const CourseNode = memo(({ id, data }: NodeProps<Node<CourseNodeData, 'co
   const CLUSTER_WIDTH = NODE_WIDTH * 0.2;
   const clusterStart  = 50 - (CLUSTER_WIDTH / NODE_WIDTH) * 50;
 
-  const { ref: titleRef,    fontSize: titleSize    } = useFitText(course.course_code, 18, 10);
-  const { ref: subtitleRef, fontSize: subtitleSize } = useFitText(course.title ?? '', 16, 9);
+  const { ref: titleRef,    fontSize: titleSize    } = useFitText(course.course_code, 17, 10);
+  const { ref: subtitleRef, fontSize: subtitleSize } = useFitText(course.title ?? '', 17, 9);
 
   // The info button is visible when: the node is hovered OR the popover is
   // currently open (so the active button stays visible while reading the desc).
@@ -237,7 +237,7 @@ export const CourseNode = memo(({ id, data }: NodeProps<Node<CourseNodeData, 'co
           className="font-bold mb-0.5 overflow-hidden"
           style={{ fontSize: titleSize, flexShrink: 0, paddingRight: course.description ? 18 : 0 }}
         >
-          {formatCourseName(course.course_code)}
+          {formatCourseName(course.course_code)} {course.credits ? `| ${course.credits}u` : ''}
         </div>
         <div
           ref={subtitleRef}
