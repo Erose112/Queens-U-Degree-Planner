@@ -428,6 +428,8 @@ def extract_data(
             return current_subplan["sections"]  # type: ignore[return-value]
         return program_data["sections"]         # type: ignore[return-value]
 
+    past_subplans = False  # once we've seen a non-subplan section after subplans, we are past the subplan area and should ignore any more subplan listings
+
     for element in content_root.descendants:
         if not isinstance(element, Tag):
             continue
@@ -446,7 +448,7 @@ def extract_data(
                     _flush_section(current_section, active_sections())
                     current_section = None
                     current_subplan = None
-
+                    past_subplans = True
                 continue
 
             # Flush whatever section was open before this heading
@@ -486,6 +488,8 @@ def extract_data(
 
         #  Section header row
         if "areaheader" in row_classes:
+            if past_subplans:
+                continue
             # Always flush the section that was open before this header
             _flush_section(current_section, active_sections())
             current_section = None
@@ -515,6 +519,8 @@ def extract_data(
 
         # Course / content row
         if "even" not in row_classes and "odd" not in row_classes:
+            continue
+        if past_subplans:
             continue
 
         # Sub-plan listing rows
@@ -660,4 +666,7 @@ def scrape_program_courses() -> pd.DataFrame:
 
     pd.set_option("display.max_rows", None)
     df = pd.DataFrame(all_program_data)
+    df.to_csv("program_courses.csv", index=False)
     return df
+
+scrape_program_courses()
