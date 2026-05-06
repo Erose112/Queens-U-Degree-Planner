@@ -666,7 +666,4 @@ def scrape_program_courses() -> pd.DataFrame:
 
     pd.set_option("display.max_rows", None)
     df = pd.DataFrame(all_program_data)
-    df.to_csv("program_courses.csv", index=False)
     return df
-
-scrape_program_courses()

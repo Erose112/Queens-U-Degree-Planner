@@ -1,15 +1,95 @@
-import re
 import time
 import requests
-from requests.exceptions import RequestException
+import re
 from bs4 import BeautifulSoup
 import pandas as pd
+from requests.exceptions import RequestException
+
+BASE_XML = "https://queensu-ca-public.courseleaf.com/arts-science/course-descriptions"
+
+DEPARTMENTS = [
+    "anat",'anim','ansh','arab','arth','arin','ascx','astr',
+    'bisc','bchm','biol','blck','canc','crss','chem','chin',
+    'clst','cogs','cisc','coca','comp','cwri','disc',
+    'dram','ddht','econ','empr','engl','enin','ensc','film',
+    'artf','fren','frst','gnds','gphy','geol','grmn','devs',
+    'grek','hlth','hebr','hist','indg','idis','ints','inuk',
+    'itln','japn','jwst','knpe','lang','llcu','latn','libs',
+    'lisc','ling','math','mapp','micr','mohk','musc','muth',
+    'nsci','path','phar','phil','phys','phgy','pols','ppec',
+    'port','intn','psyc','qgsp','rels','repd','socy','span',
+    'stat','stam','artv','well','writ'
+]
+
+_SESSION_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Referer": (
+        "https://queensu-ca-public.courseleaf.com/"
+        "arts-science/schools-departments-programs/"
+    ),
+}
 
 
 
-def safe_find(soup, tag, class_name):
-    element = soup.find(tag, class_=class_name)
-    return element.text.strip() if element else None
+def fetch_xml(dept: str, session: requests.Session) -> str:
+    url = f"{BASE_XML}/{dept}/index.xml"
+
+    try:
+        res = session.get(url, timeout=10)
+        res.raise_for_status()
+        res.encoding = "utf-8"
+        return res.text
+    except RequestException as e:
+        print(f"[ERROR] Failed {dept}: {e}")
+        return None
+
+
+def extract_html(xml_text: str) -> BeautifulSoup:
+    soup = BeautifulSoup(xml_text, "xml")
+    cdata = soup.find("text")
+
+    if not cdata or not cdata.string:
+        return None
+
+    return BeautifulSoup(cdata.string, "lxml")
+
+
+
+def clean_text(el):
+    return el.text.strip() if el else None
+
+
+def parse_course_block(block):
+    try:
+        code = clean_text(block.select_one(".detail-code"))
+        title = clean_text(block.select_one(".detail-title"))
+
+        credits_raw = clean_text(block.select_one(".detail-hours_html"))
+        credits = float(credits_raw.split(":")[1]) if credits_raw else None
+
+        desc = clean_text(block.select_one(".courseblockextra"))
+        clo = clean_text(block.select_one(".detail-cim_los"))
+
+        return {
+            "course_code": code,
+            "title": title,
+            "credits": int(credits),
+            "course_desc": desc,
+            "clo": clo,
+        }
+
+    except Exception as e:
+        print(f"[WARN] Failed parsing block: {e}")
+        return None
 
 
 
@@ -101,9 +181,6 @@ def parse_requirements(requirement_line):
         return result
 
     headers.sort(key=lambda x: x['start'])
-    print(f"headers found: {headers}")
-    print(f"raw text: '{text}'")
-
 
     for i, h in enumerate(headers):
         if h['key'] is None:
@@ -113,147 +190,80 @@ def parse_requirements(requirement_line):
         content_end = headers[i + 1]['start'] if i + 1 < len(headers) else len(text)
         raw_content = text[content_start:content_end].strip()
 
-        print(raw_content)
         result[h['key']] = extract_course_logic(raw_content)
 
-    return result
+    return result['prerequisites']
 
 
-
-def extract_data(url, session, retries=3, retry_delay=15):
-    """
-    Data is stored:
-
-    course_code: "AAAA 000"
-    title: TEXT
-    credits: int
-    course_desc TEXT
-    clo: TEXT
-    prerequisites: String of course codes
-    exclusions: String of course codes
-    one_way_exclusions: String of course codes
-    """
-    # Retry loop to handle non-200 responses (e.g. 202 Accepted)
-    response = None
-    for attempt in range(1, retries + 1):
-        try:
-            response = session.get(url, timeout=10)
-            print(f"[{url}] Status: {response.status_code} (attempt {attempt})")
-
-            if response.status_code == 200:
-                break
-
-            print(f"  Non-200 response. Retrying in {retry_delay}s...")
-            time.sleep(retry_delay)
-
-        except RequestException as e:
-            print(f"  Request error on attempt {attempt}: {e}")
-            if attempt < retries:
-                time.sleep(retry_delay)
-    else:
-        print(f"  Failed after {retries} attempts: {url}")
+def scrape_department(dept: str, session):
+    xml = fetch_xml(dept, session)
+    if not xml:
         return []
 
-    try:
-        soup = BeautifulSoup(response.text, 'lxml')
-
-        courses = []
-        course_blocks = soup.find_all("div", class_="courseblock")
-
-        for block in course_blocks:
-            course_info = safe_find(block, "div", "cols noindent").split("\xa0\xa0")
-            requirment_info = parse_requirements(safe_find(block, "span", "text detail-requirements margin--default") or "")
-
-            data = {
-                "course_code": course_info[0],
-                "title": course_info[1],
-                "credits": int(float(course_info[2].split(" ")[1])),
-                "course_desc": safe_find(block, "div", "courseblockextra noindent"),
-                "clo": safe_find(block, "span", "text detail-cim_los margin--default"),
-            }
-
-            data.update(requirment_info)
-            courses.append(data)
-
-    except Exception as e:
-        print(f"Error parsing data from {url}: {e}")
+    soup = extract_html(xml)
+    if not soup:
         return []
 
+    courses = []
+    blocks = soup.select(".courseblock")
+
+    for block in blocks:
+        data = parse_course_block(block)
+        if not data:
+            continue
+
+        req = block.select_one(".detail-requirements")
+        if not req:
+            data.update({
+                "prerequisite_str": "",
+            })
+        else:
+            prereq_text = req.get_text(" ", strip=True)
+            prerequisite_str = parse_requirements(prereq_text) if prereq_text else ""
+
+            data.update({
+                "prerequisite_str": prerequisite_str,
+            })
+
+        courses.append(data)
     return courses
 
 
 
-def clean_data(all_courses):
-    df = pd.DataFrame(all_courses)
-
+def clean_dataframe(df: pd.DataFrame):
     if df.empty:
-        print("No course data found; skipping DataFrame cleaning.")
         return df
 
-    for col in df.select_dtypes(include=['object']).columns:
-        df[col] = (df[col].str.strip()
-                        .str.replace("\xa0", " ")
-                        .str.replace(r"[\n\r]+", " ", regex=True)
-                        .str.replace(r"\s+", " ", regex=True)
-                        .str.strip())
+    for col in df.columns:
+        if pd.api.types.is_string_dtype(df[col]) or df[col].dtype == "object":
 
-    print(df.iloc[0, :])
+            # safely convert EVERYTHING to string first
+            df[col] = df[col].astype("string")
+
+            df[col] = (
+                df[col]
+                .str.replace("\xa0", " ", regex=False)
+                .str.replace(r"\s+", " ", regex=True)
+                .str.strip()
+            )
+
     return df
 
 
 
 def scrape_artsci_courses():
-    """
-    Returns a list of DataFrames, each representing data for one department's courses.
-    """
     session = requests.Session()
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Cache-Control': 'max-age=0',
-        'Referer': 'https://www.queensu.ca/academic-calendar/arts-science/course-descriptions/',
-    })
+    session.headers.update(_SESSION_HEADERS)
 
-    # Warm-up request to establish cookies before scraping begins
-    print("Warming up session...")
-    try:
-        session.get(
-            "https://www.queensu.ca/academic-calendar/arts-science/course-descriptions/",
-            timeout=10
-        )
-        time.sleep(2)
-    except RequestException as e:
-        print(f"Warm-up request failed: {e}")
+    all_courses = []
 
-    degree_info = []
-    art_sci_degrees = [
-        'ANAT', 'ANIM', 'ANSH', 'ARAB', 'ARTH', 'ARIN', 'ASCX', 'ASTR',
-        'BISC', 'BCHM', 'BIOL', 'BLCK', 'CANC', 'CRSS', 'CHEM', 'CHIN',
-        'CLST', 'COGS', 'CISC', 'COCA', 'COMP', 'CWRI', 'DISC',
-        'DRAM', 'DDHT', 'ECON', 'EMPR', 'ENGL', 'ENIN', 'ENSC', 'FILM',
-        'ARTF', 'FREN', 'FRST', 'GNDS', 'GPHY', 'GEOL', 'GRMN', 'DEVS',
-        'GREK', 'HLTH', 'HEBR', 'HIST', 'INDG', 'IDIS', 'INTS', 'INUK',
-        'ITLN', 'JAPN', 'JWST', 'KNPE', 'LANG', 'LLCU', 'LATN', 'LIBS',
-        'LISC', 'LING', 'MATH', 'MAPP', 'MICR', 'MOHK', 'MUSC', 'MUTH',
-        'NSCI', 'PATH', 'PHAR', 'PHIL', 'PHYS', 'PHGY', 'POLS', 'PPEC',
-        'PORT', 'INTN', 'PSYC', 'QGSP', 'RELS', 'REPD', 'SOCY', 'SPAN',
-        'STAT', 'STAM', 'ARTV', 'WELL', 'WRIT'
-    ]
-
-    for i, degree in enumerate(art_sci_degrees):
-        # Sleep between requests (skip only before the first one)
+    for i, dept in enumerate(DEPARTMENTS):
         if i > 0:
             time.sleep(10.2)
+        courses = scrape_department(dept, session)
+        all_courses.extend(courses)
 
-        url = "https://www.queensu.ca/academic-calendar/arts-science/course-descriptions/" + degree.lower() + "/"
-        df = clean_data(extract_data(url, session))
-        degree_info.append(df)
+    df = pd.DataFrame(all_courses)
+    df = clean_dataframe(df)
 
-    return degree_info
+    return df
