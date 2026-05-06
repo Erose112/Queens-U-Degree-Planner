@@ -18,6 +18,7 @@ import { CourseEdge } from '../components/courseplan/CourseEdge';
 import { Legend } from '../components/courseplan/Legend';
 import { YearSideBar } from '../components/courseplan/YearSideBar';
 import { SectionSideBar } from '../components/courseplan/SectionSideBar';
+import CreditBar from '../components/CreditBar';
 import Footer from '../components/Footer';
 import ScrollToTop from '../components/ScrollToTop';
 import { usePlanLayout } from '../hooks/planLayout';
@@ -25,7 +26,9 @@ import { usePlanStore } from '../store/planStore';
 import { YEAR_BAR_WIDTH, YEAR_BAR_COURSE_OFFSET } from '../utils/coursePlanLayout';
 import { COLOURS } from '../utils/colours';
 import { getPlanCredits } from '../utils/credits';
+import { CREDIT_LIMIT } from '../utils/program';
 import type { Course, YearSection } from '../types/plan';
+import NavBar from '../components/NavBar';
 
 const nodeTypes: NodeTypes = { course: CourseNode };
 const edgeTypes: EdgeTypes = { courseEdge: CourseEdge };
@@ -118,28 +121,20 @@ export default function CoursePlanPage() {
   if (programs.length === 0 || !graph) return null;
 
   return (
-    <div className="min-h-screen flex flex-col gap-6" style={{ background: COLOURS.warmWhite }}>
+    <div className="min-h-screen flex flex-col" style={{ background: COLOURS.warmWhite }}>
       <ScrollToTop />
-      <div className="px-8 flex-1">
-        <div className="py-6 flex items-center gap-0">
-          <div className="flex items-stretch gap-4 pr-10 border-r border-gray-300">
-            <div className="w-1 rounded-full" style={{ background: COLOURS.blue }} />
-            <div>
-              <button
-                onClick={() => navigate('/planner')}
-                className="flex items-center gap-1.5 mb-1 text-[14px] font-medium tracking-wide cursor-pointer bg-transparent border-none p-0 transition-opacity opacity-50 hover:opacity-100"
-                style={{ color: COLOURS.blue }}
-              >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M19 12H5" /><path d="m12 19-7-7 7-7" />
-              </svg>
-                Back to Planner
-              </button>
-              <div style={{ color: COLOURS.blue, fontFamily: "'Playfair Display', serif" }}>
-                <div className="text-5xl font-black leading-none">Queen's</div>
-                <div className="text-5xl font-semibold leading-tight">Degree Planner</div>
-              </div>
-            </div>
+
+      <NavBar
+        onHome={() => navigate("/")}
+        onPlan={() => navigate("/planner")}
+        onAbout={() => navigate("/about")}
+        activePage="None"
+      />
+      <div className="px-8 pb-6 flex-1">
+        <div className="py-6 flex items-center">
+
+          <div className="pl-6 border-r border-gray-300 my-2">
+            <Legend />
           </div>
 
           <div className="flex-1 px-8 min-w-0">
@@ -152,19 +147,19 @@ export default function CoursePlanPage() {
                 {programNames}
               </span>
             </div>
-            <div className="flex items-center gap-3 mt-1.5 text-s text-gray-500">
-              <span>
-                Total Credits:{' '}
-                <span className="font-bold" style={{ color: COLOURS.blue }}>{getPlanCredits(selectedCourses, graph) + "/"}</span>
-                <span className="font-bold" style={{ color: COLOURS.blue }}>{"120"}</span>
-              </span>
-              <span className="text-gray-500">|</span>
-              <span>
-                Courses selected:{' '}
-                <span className="text-gray-600 font-medium">{selectedCourses.length}</span>
-              </span>
+            <div className="mt-3">
+              <CreditBar
+                effectiveTotal={getPlanCredits(selectedCourses, graph)}
+                savings={0}
+                doubleCountedCourseCodes={[]}
+                exceedsLimit={getPlanCredits(selectedCourses, graph) > CREDIT_LIMIT}
+                structuresLoaded={true}
+              />
             </div>
-            <div className='flex mt-1.5 text-s text-gray-500 gap-2 flex-wrap items-center'>
+          </div>
+
+          <div className='pl-6 border-l border-gray-300 my-2 self-stretch flex items-center'>
+            <div className='flex text-s text-gray-500 gap-2 flex-wrap'>
               {programs.map((program, index) => (
                 <div key={program.program_id} className='flex items-center gap-2'>
                   {index > 0 && <span className='text-gray-500'>|</span>}
@@ -173,10 +168,11 @@ export default function CoursePlanPage() {
                       href={program.program_link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline cursor-pointer whitespace-nowrap"
+                      className="hover:underline cursor-pointer whitespace-nowrap"
+                      style={{ color: COLOURS.blue}}
                       title={program.program_name}
                     >
-                      View Program
+                      View Program Link
                     </a>
                   ) : (
                     <span className='text-gray-400 whitespace-nowrap'>(No link)</span>
@@ -184,10 +180,6 @@ export default function CoursePlanPage() {
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="pl-6 border-l border-gray-300">
-            <Legend />
           </div>
         </div>
 

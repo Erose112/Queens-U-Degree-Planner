@@ -5,7 +5,7 @@ export const Legend = () => {
   return (
     <div className="px-4 py-3">
       <h3
-        className="text-[18px] font-bold leading-tight mb-3"
+        className="text-[18px] font-semibold tracking-wider uppercase leading-tight mb-3"
         style={{ color: COLOURS.blue }}
       >
         Legend
@@ -30,9 +30,16 @@ function LegendItem({
 }) {
   return (
     <div className="flex items-center gap-2.5 group">
-      <span className="rounded-full w-4 h-4 flex-shrink-0" style={{ backgroundColor: colour }}>
-
-      </span>
+      {/* Colour swatch: left accent bar + filled chip */}
+      <div className="relative flex items-center justify-center w-7 h-6 rounded-md flex-shrink-0"
+        style={{ backgroundColor: `${colour}30` }}
+      >
+        {/* Left accent bar */}
+        <div
+          className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-md"
+          style={{ backgroundColor: colour }}
+        />
+      </div>
 
       {/* Text */}
       <div className="flex items-baseline gap-1.5 min-w-0">
@@ -44,10 +51,9 @@ function LegendItem({
         </span>
         {description && (
           <span
-            className="text-[15px] font-semibold leading-none truncate"
-            style={{ color: COLOURS.black }}
+            className="text-[15px] text-gray-800 leading-none truncate"
           >
-            {" - " + description}
+            {" — " + description}
           </span>
         )}
       </div>

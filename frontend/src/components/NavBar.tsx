@@ -4,7 +4,7 @@ type NavbarProps = {
     onAbout?: () => void;
     onHome?: () => void;
     onPlan?: () => void;
-    activePage?: "Home" | "Plan" | "About";
+    activePage?: "Home" | "Plan" | "About" | "None";
   };
   
   export default function Navbar({ onAbout, onHome, onPlan, activePage }: NavbarProps) {

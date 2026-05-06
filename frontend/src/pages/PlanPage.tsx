@@ -4,6 +4,8 @@ import NavBar from "../components/NavBar";
 import Footer from "../components/Footer";
 import ScrollToTop from "../components/ScrollToTop";
 import NextPageButton from "../components/NextPageButton";
+import ChevronIcon from "../components/ChevronIcon";
+import CreditBar from "../components/CreditBar";
 import { COLOURS } from "../utils/colours";
 import { getPrograms, getProgramStructure, getSubplans } from "../services/api";
 import { Program, ProgramStructure, SelectedPrograms, StructureCache, Subplan } from "../types/plan";
@@ -44,7 +46,6 @@ const dropdownStyle = (accentColor: string): React.CSSProperties => ({
   flexDirection: "column",
   marginTop: "4px",
 });
-
 
 interface ProgramDropdownProps {
   programs: Program[];
@@ -129,8 +130,8 @@ function ProgramDropdown({
         <div
           role="button"
           tabIndex={-1}
-          className="absolute right-2.5 top-1/2 flex items-center justify-center"
-          style={{ background: "transparent", border: "none", cursor: "pointer", color: COLOURS.darkGrey, transform: "translateY(-50%)", width: "20px", height: "20px", zIndex: 10, pointerEvents: "auto" }}
+          className="absolute right-2.5 flex items-center justify-center"
+          style={{ background: "transparent", border: "none", cursor: "pointer", color: COLOURS.darkGrey, top: "11px", width: "20px", height: "20px", zIndex: 10, pointerEvents: "auto" }}
           onClick={() => {
             if (selected || inputVal) { onClear(); setInputVal(""); setOpen(true); }
             else setOpen(!open);
@@ -164,7 +165,7 @@ function ProgramDropdown({
                 filtered.map((p) => (
                   <div
                     key={p.program_id}
-                    className="px-3 py-2.5 text-[14px] font-medium transition-colors duration-100 cursor-pointer"
+                    className="px-3 py-2.5 text-[14px] font-medium transition-colors duration-100 cursor-pointer flex justify-between items-center"
                     style={{
                       color: selected?.program_id === p.program_id ? COLOURS.white : COLOURS.blue,
                       background: selected?.program_id === p.program_id ? COLOURS.blue : "transparent",
@@ -181,7 +182,7 @@ function ProgramDropdown({
                   >
                     {p.program_name}
                     {p.program_type && (
-                      <span className="ml-2 text-[14px] font-normal opacity-50">{p.program_type}</span>
+                      <span className="text-[14px] font-normal opacity-50">{p.program_type}</span>
                     )}
                   </div>
                 ))
@@ -253,20 +254,7 @@ function SubplanPicker({ subplans, selectedId, onSelect, loading, error }: Subpl
         </button>
 
         {/* Chevron */}
-        <div
-          className="pointer-events-none absolute right-3 top-1/2 flex items-center justify-center transition-transform duration-200"
-          style={{
-            color: COLOURS.blue,
-            transform: open ? "translateY(-50%) rotate(180deg)" : "translateY(-50%)",
-            width: "20px",
-            height: "20px",
-            zIndex: 10,
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </div>
+        <ChevronIcon open={open} />
 
         {open && !loading && (
           <div style={dropdownStyle(COLOURS.blue)}>
@@ -310,67 +298,6 @@ function SubplanPicker({ subplans, selectedId, onSelect, loading, error }: Subpl
   );
 }
 
-// ── CreditBar ─────────────────────────────────────────────────────────────────
-
-function CreditBar({
-  effectiveTotal,
-  savings,
-  doubleCountedCourseCodes,
-  exceedsLimit,
-  structuresLoaded,
-}: {
-  effectiveTotal: number;
-  savings: number;
-  doubleCountedCourseCodes: string[];
-  exceedsLimit: boolean;
-  structuresLoaded: boolean;
-}) {
-  const pct = Math.min((effectiveTotal / CREDIT_LIMIT) * 100, 100);
-  const barColor = exceedsLimit
-    ? COLOURS.red
-    : effectiveTotal >= 100
-    ? COLOURS.yellow
-    : COLOURS.blue;
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="relative h-2 rounded-full overflow-hidden" style={{ background: COLOURS.grey }}>
-        <div
-          className="absolute left-0 top-0 h-full rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, background: barColor }}
-        />
-      </div>
-
-      <div className="flex items-center justify-between text-[14px] flex-wrap gap-1">
-        <span style={{ color: COLOURS.darkGrey }}>
-          <span className="font-semibold" style={{ color: barColor }}>{effectiveTotal}</span>
-          <span className="opacity-60"> / {CREDIT_LIMIT} units</span>
-          {savings > 0 && structuresLoaded && (
-            <span
-              className="ml-2 px-1.5 py-0.5 rounded-md text-[14px] font-semibold"
-              style={{ background: `${COLOURS.blue}15`, color: COLOURS.blue }}
-            >
-              −{savings} double-counted
-            </span>
-          )}
-        </span>
-        {exceedsLimit ? (
-          <span className="font-semibold text-[14px]" style={{ color: COLOURS.red }}>Exceeds limit</span>
-        ) : (
-          <span className="opacity-50">{CREDIT_LIMIT - effectiveTotal} remaining</span>
-        )}
-      </div>
-
-      {doubleCountedCourseCodes.length > 0 && structuresLoaded && (
-        <p className="text-[14px]" style={{ color: COLOURS.darkGrey }}>
-          <span className="font-semibold">Double-counted: </span>
-          {doubleCountedCourseCodes.join(", ")}
-        </p>
-      )}
-    </div>
-  );
-}
-
 // Combination Picker 
 function CombinationPicker({
   selected,
@@ -395,20 +322,7 @@ function CombinationPicker({
         >
           {selectedConfig.label}
         </button>
-        <div
-          className="pointer-events-none absolute right-3 top-1/2 flex items-center justify-center transition-transform duration-200"
-          style={{
-            color: COLOURS.blue,
-            transform: open ? "translateY(-50%) rotate(180deg)" : "translateY(-50%)",
-            width: "20px",
-            height: "20px",
-            zIndex: 10,
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </div>
+        <ChevronIcon open={open} />
 
         {open && (
           <div style={dropdownStyle(COLOURS.blue)}>
@@ -471,8 +385,8 @@ export default function PlannerPage() {
   const [combinationId, setCombinationId] = useState<CombinationId>("major");
   const combination: CombinationConfig = COMBINATIONS.find((c) => c.id === combinationId)!;
 
-  // Debug logging flag — set to true to see detailed logs during development
-  const DEBUG_LOG = false;
+  // Debug logging flag — set to true to see detailed logs
+  const DEBUG_LOG = true;
 
   // Fetch subplans with caching and deduplication
   const { fetch: fetchSubplansNow } = useCachedFetch(
@@ -775,7 +689,7 @@ export default function PlannerPage() {
       />
 
       {/* ── Page header ── */}
-      <div className="px-10 py-[30px] text-center" style={{ background: COLOURS.warmWhite }}>
+      <div className="px-10 py-[35px] text-center" style={{ background: COLOURS.warmWhite }}>
         <div className="animate-fade-in max-w-[680px] mx-auto">
           <button
             onClick={() => navigate("/")}
@@ -797,14 +711,14 @@ export default function PlannerPage() {
             Build Your Academic Plan
           </h1>
           <p className="text-[16px] font-light" style={{ color: COLOURS.black }}>
-            Choose your degree combination and programs to generate your
+            Choose your degree type and programs to generate your
             personalised year-by-year course roadmap.
           </p>
         </div>
       </div>
 
       {/* ── Main form ── */}
-      <section className="px-6 pb-16 flex flex-col items-center flex-1">
+      <section className="px-6 pb-8 flex flex-col items-center flex-1">
         <div className="w-full max-w-[580px] flex flex-col gap-5">
 
           {/* Step 1 — Combination */}
@@ -816,7 +730,7 @@ export default function PlannerPage() {
               <p className="text-[14px] font-semibold uppercase tracking-wider mb-1" style={{ color: COLOURS.darkGrey }}>
                 Step 1
               </p>
-              <h2 className="text-[18px] font-bold" style={{ color: COLOURS.blue }}>Degree Combination</h2>
+              <h2 className="text-[18px] font-bold" style={{ color: COLOURS.blue }}>Degree Type</h2>
             </div>
             <CombinationPicker selected={combinationId} onSelect={setCombinationId} />
           </div>
