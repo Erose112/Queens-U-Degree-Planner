@@ -1,8 +1,8 @@
 export interface Course {
   course_id: number;
   course_code: string;
-  title: string | null;
-  credits: number | null;
+  title: string;
+  credits: number;
   description: string | null;
   prerequisite_str : string | null;
   // How this course appears in a program:
@@ -29,7 +29,7 @@ export interface ProgramSection {
   section_id: number;
   program_id: number;
   subplan_id: number | null;
-  credit_req: number | null;
+  credit_req: number;
   logic_type: number;   // 0 = all required, 1 = choose credits
   section_courses: Course[];
   wildcard: string | null;
@@ -41,7 +41,7 @@ export interface ProgramStructure {
   program_type: string;
   program_link: string | null;
   total_credits: number;
-  has_subplans: boolean;
+  num_subplans_required?: number;
   sections: ProgramSection[];
 }
 
@@ -60,8 +60,9 @@ export interface PrereqSet {
  * "required" → red node   (section logic_type = 0, all courses mandatory)
  * "choice"   → yellow node (section logic_type = 1, choose up to credit_req)
  * "elective" → green node
+ * "user-placed" → green node (if failed prerequisite is manually added in by user)
  */
-export type NodeType = "required" | "choice" | "elective";
+export type NodeType = "required" | "choice" | "elective" | "user-placed";
 
 /**
  * Directed edge: from_course_id → to_course_id

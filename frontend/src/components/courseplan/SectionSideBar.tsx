@@ -77,7 +77,7 @@ function buildSections(
 }
 
 function requirementLabel(creditReq: number | null, totalCourses: number, wildcard: string | null = null): string {
-  if (wildcard) {
+  if (wildcard && totalCourses === 0) {
     return `Manually add ${creditReq} unit${creditReq !== 1 ? 's' : ''} from`;
   }
   return `Choose ${creditReq} unit${creditReq !== 1 ? 's' : ''} from ${totalCourses} course${totalCourses !== 1 ? 's' : ''}`;
@@ -209,8 +209,8 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
 
 
   const pendingClearId = useRef<number | null>(null);
-  const handleSearchAdd = (code: string, id: number) => {
-    onAdd(code, id, 'elective');
+  const handleSearchAdd = (code: string, id: number, nodeType: NodeType = 'elective') => {
+    onAdd(code, id, nodeType);
     pendingClearId.current = id;
   };
 
@@ -382,15 +382,23 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                     {section.wildcard ? section.wildcard : 'No courses listed'}
                   </p>
                 ) : (
-                  section.courses.map(course => (
-                    <CourseRow
-                      key={course.courseId}
-                      course={course}
-                      onAdd={(code, id) => onAdd(code, id, 'choice')}
-                      onRemove={onRemove}
-                      isLocked={isComplete}
-                    />
-                  ))
+                  <>
+                    {section.courses.map(course => (
+                      <CourseRow
+                        key={course.courseId}
+                        course={course}
+                        onAdd={onAdd}
+                        onRemove={onRemove}
+                        isLocked={isComplete}
+                        defaultNodeType="choice"
+                      />
+                    ))}
+                    {section.wildcard && (
+                      <p className="pr-4 pl-7 py-2 text-[16px] text-gray-500 italic border-t border-gray-200">
+                        {"or from " +section.wildcard}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -451,6 +459,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                   }}
                   onAdd={handleSearchAdd}
                   onRemove={onRemove}
+                  defaultNodeType="elective"
                 />
               );
             })}
@@ -467,8 +476,9 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
               <CourseRow
                 key={course.courseId}
                 course={course}
-                onAdd={(code, id) => onAdd(code, id, 'elective')}
+                onAdd={onAdd}
                 onRemove={onRemove}
+                defaultNodeType="elective"
               />
             ))}
           </div>
@@ -485,11 +495,13 @@ function CourseRow({
   onAdd,
   onRemove,
   isLocked = false,
+  defaultNodeType = 'choice',
 }: {
   course: SideBarCourse;
   onAdd: (code: string, id: number, nodeType: NodeType) => void;
   onRemove: (id: number) => void;
   isLocked?: boolean;
+  defaultNodeType?: NodeType;
 }) {
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData(
@@ -503,7 +515,7 @@ function CourseRow({
     <div
       draggable={!course.isSelected && !isLocked}
       onDragStart={!isLocked ? handleDragStart : undefined}
-      onClick={() => !course.isSelected && !isLocked && onAdd(course.courseCode, course.courseId, 'choice')}
+      onClick={() => !course.isSelected && !isLocked && onAdd(course.courseCode, course.courseId, defaultNodeType)}
       className={`group flex items-center gap-2.5 px-4 py-1.5 transition-colors select-none
         ${course.isSelected
           ? 'bg-white cursor-default'
@@ -558,6 +570,17 @@ function CourseRow({
           title="Remove course"
         >
           ✕
+        </button>
+      )}
+
+      {/* Error override button */}
+      {course.error && !course.isSelected && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onAdd(course.courseCode, course.courseId, 'user-placed'); }}
+          className="flex-none w-6 h-6 flex items-center justify-center rounded bg-yellow-100 hover:bg-yellow-200 transition-colors text-yellow-700 font-semibold text-sm"
+          title="Force add course (override error)"
+        >
+          +
         </button>
       )}
 
