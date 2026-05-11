@@ -18,7 +18,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.database import engine
-from app.models.course import Course
 from app.models.program import (
     Program,
     Program_Section,
@@ -26,19 +25,8 @@ from app.models.program import (
     Subplan,
 )
 from app.services.program_builder import build_all_programs
+from app.queries.course import load_course_lookup, load_course_credits_lookup
 
-
-def _load_course_lookup(session: Session) -> dict[str, int]:
-    """
-    Return a dict mapping normalized course_code → course_id for every row
-    currently in the `courses` table.
-    e.g. {"CISC121": 42, "MATH110": 17, ...}
-    """
-    rows = session.query(Course.course_code, Course.course_id).all()
-    return {
-        code.replace(" ", "").replace("\xa0", "").upper(): cid
-        for code, cid in rows
-    }
 
 
 def _clear_program_tables(session: Session) -> None:
@@ -74,6 +62,7 @@ def _clear_program_tables(session: Session) -> None:
         raise  # Propagate so the caller does not proceed to write
 
 
+
 def write_all_programs_to_mysql(df: pd.DataFrame) -> None:
     """
     Convert *df* (the DataFrame returned by ``scrape_program_courses()``) into
@@ -83,7 +72,7 @@ def write_all_programs_to_mysql(df: pd.DataFrame) -> None:
     ----------
     df : pd.DataFrame
         Must contain the columns: program_name, program_code, program_type,
-        total_credits, has_subplans, sections, subplans.
+        total_credits, num_subplans_required, sections, subplans.
 
     Raises
     ------
@@ -101,7 +90,7 @@ def write_all_programs_to_mysql(df: pd.DataFrame) -> None:
     with Session(engine) as session:
         try:
             # Load course lookup — fail fast if courses table is empty
-            course_lookup = _load_course_lookup(session)
+            course_lookup = load_course_lookup(session)
 
             if not course_lookup:
                 raise RuntimeError(
@@ -109,8 +98,11 @@ def write_all_programs_to_mysql(df: pd.DataFrame) -> None:
                     "run course_writer.py first before writing programs."
                 )
 
+            # Load course credits lookup for calculating program totals
+            course_credits_lookup = load_course_credits_lookup(session)
+
             # Build ORM objects from the DataFrame
-            programs: list[Program] = build_all_programs(df, course_lookup)
+            programs: list[Program] = build_all_programs(df, course_lookup, course_credits_lookup)
 
             # Fail before touching the DB if nothing was built
             if not programs:

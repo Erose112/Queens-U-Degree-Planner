@@ -39,6 +39,28 @@ def get_course_with_prerequisites(db: Session, course_id: int) -> Course | None:
     )
 
 
+def load_course_lookup(session: Session) -> dict[str, int]:
+    """
+    Return a dict mapping normalized course_code → course_id for every row
+    currently in the `courses` table.
+    e.g. {"CISC121": 42, "MATH110": 17, ...}
+    """
+    rows = session.query(Course.course_code, Course.course_id).all()
+    return {
+        code.replace(" ", "").replace("\xa0", "").upper(): cid
+        for code, cid in rows
+    }
+
+
+def load_course_credits_lookup(session: Session) -> dict[int, int]:
+    """
+    Return a dict mapping course_id → credits for every row in the courses table.
+    e.g. {42: 3, 17: 4, ...}
+    """
+    rows = session.query(Course.course_id, Course.credits).all()
+    return {cid: credits for cid, credits in rows if credits is not None}
+
+
 
 def get_prerequisite_graph_data(
     db: Session,

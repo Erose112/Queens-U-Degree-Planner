@@ -86,7 +86,7 @@ def write_all_courses_to_mysql(all_course_info):
                     if course_id is None:
                         continue  # Skip if course not in lookup (e.g. duplicate code)
 
-                    prereq_text = row.get('prerequisites', "")
+                    prereq_text = row.get('prerequisite_str', "")
                     if prereq_text:
                         prereq_sets = parse_prerequisites(
                             prereq_text, course_lookup, course_id
@@ -94,7 +94,6 @@ def write_all_courses_to_mysql(all_course_info):
                         if prereq_sets:
                             session.add_all(prereq_sets)
 
-            
             session.commit()
 
         except SQLAlchemyError as e:

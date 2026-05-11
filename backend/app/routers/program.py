@@ -95,7 +95,7 @@ def get_program_structure_route(program_id: int, db: Session = Depends(get_db)):
         program_type=program.program_type,
         program_link=program.program_link,
         total_credits=program.total_credits,
-        has_subplans=program.has_subplans,
+        num_subplans_required=program.num_subplans_required,
         sections=sections_out,
     )
 

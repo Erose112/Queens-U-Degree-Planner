@@ -16,7 +16,7 @@ from app.models.program import (
     Section_Courses,
     Subplan,
 )
-from app.services.section_parser import parse_section_logic
+from app.services.section_parser import parse_section_logic, LOGIC_REQUIRED
 
 def normalize_code(raw: str) -> str:
     """
@@ -42,6 +42,33 @@ def _parse_list_field(value) -> list:
         except Exception:
             return []
     return []
+
+
+def calculate_program_credits(sections: list[Program_Section], course_credits_lookup: dict[int, int]) -> int:
+    """
+    Calculate credits by summing credits from top-level sections only.
+    """
+    total = 0
+
+    for section in sections:
+        if section.logic_type == LOGIC_REQUIRED:
+            # Sum all course credits in this section
+            course_sum = sum(
+                course_credits_lookup.get(section_course.course_id, 0)
+                for section_course in section.section_courses
+            )
+            if course_sum == 0:
+                # Wildcard-only section
+                total += section.credit_req or 0
+            elif section.credit_req and section.credit_req < course_sum:
+                total += section.credit_req
+            else:
+                total += course_sum
+        else:
+            if section.credit_req:
+                total += section.credit_req
+
+    return total
 
 
 
@@ -134,6 +161,7 @@ def build_section(
 def build_subplan(
     raw_subplan: dict,
     course_lookup: dict[str, int],
+    course_credits_lookup: dict[int, int],
 ) -> Subplan | None:
     """
     Build a single Subplan ORM object with its child Program_Sections.
@@ -168,34 +196,37 @@ def build_subplan(
     subplan_code = str(raw_subplan.get("subplan_code") or "").strip().upper()
 
     if not subplan_code:
-        print(f"[program_builder]   Skipped subplan '{subplan_name}' — missing code.")
-        return None
-
-    # Parse optional credit count out of the name, e.g. "(36.00 units)"
-    subplan_credits = str(raw_subplan.get("subplan_credits") or "").strip()
-    raw_sections = _parse_list_field(raw_subplan.get("sections"))
+        # Generate a code from the name for option-list style subplans
+        subplan_code = subplan_name.upper().replace(" ", "_")[:4]
 
     subplan = Subplan(
         subplan_code=subplan_code,
         subplan_name=subplan_name,
-        subplan_credits=subplan_credits,
-        # program_id set via relationship in build_program
+        subplan_credits=0,
     )
 
+    # Convert to int or None (NULL in database)
+    raw_credits = raw_subplan.get("subplan_credits")
+    subplan_credits = int(raw_credits) if raw_credits else None
+
+    raw_sections = _parse_list_field(raw_subplan.get("sections"))
     built_sections: list[Program_Section] = []
     for idx, raw_section in enumerate(raw_sections, start=1):
         section = build_section(raw_section, idx, course_lookup)
         if section is not None:
             built_sections.append(section)
 
-    # Assigning via the relationship populates subplan_id on flush.
-    # program_id is populated separately in build_program (see below).
+    calculate_credits = calculate_program_credits(built_sections, course_credits_lookup)
+
+    if subplan_credits is not None and calculate_credits != subplan_credits:
+        print(
+            f"[program_builder]   Warning: calculated subplan credits ({calculate_credits}) "
+            f"does not match scraper subplan_credits ({subplan_credits}) for '{subplan_code}'"
+        )
+
+    subplan.subplan_credits = calculate_credits
     subplan.sections = built_sections
 
-    print(
-        f"[program_builder]   Subplan '{subplan_code}' — "
-        f"{len(built_sections)} section(s) built."
-    )
     return subplan
 
 
@@ -203,6 +234,7 @@ def build_subplan(
 def build_program(
     program_data: dict,
     course_lookup: dict[str, int],
+    course_credits_lookup: dict[int, int],
 ) -> Program | None:
     """
     Build a single Program ORM object (with all children) from one scraper
@@ -218,7 +250,7 @@ def build_program(
     program_data : dict
         One row from the scraper DataFrame converted to a dict.  Expected keys:
             program_name, program_code, program_type, total_credits,
-            has_subplans, sections, subplans
+            num_subplans_required, sections, subplans
     course_lookup : dict[str, int]
         Normalised course_code → course_id mapping from the database.
 
@@ -233,24 +265,19 @@ def build_program(
     program_code = str(program_data.get("program_code") or "").strip().upper()
     program_type = (str(program_data.get("program_type") or "")).title() or None
     program_link = str(program_data.get("program_link") or "").strip() or None
-    has_subplans = bool(program_data.get("has_subplans", False))
+    num_subplans_required = int(program_data.get("num_subplans_required", 0))
 
     if not program_code:
         print(f"[program_builder] Skipped '{program_name}' — missing program_code.")
         return None
-
-    try:
-        total_credits = int(float(program_data.get("total_credits") or 0))
-    except (TypeError, ValueError):
-        total_credits = 0
 
     program = Program(
         program_code=program_code,
         program_name=program_name,
         program_type=str(program_type) if program_type else "Unknown",
         program_link=program_link,
-        total_credits=total_credits,
-        has_subplans=has_subplans,
+        total_credits=0,
+        num_subplans_required=num_subplans_required,
     )
 
     # ── Top-level sections (belong directly to the program) ─────────────────
@@ -265,14 +292,14 @@ def build_program(
     # Setting via relationship populates program_id on flush
     program.sections = built_sections
 
-    # ── Subplans (and their own sections) 
+    # Subplans (and their own sections)
     built_subplans: list[Subplan] = []
 
-    if has_subplans:
+    if num_subplans_required > 0:
         raw_subplans = _parse_list_field(program_data.get("subplans"))
 
         for raw_subplan in raw_subplans:
-            subplan = build_subplan(raw_subplan, course_lookup)
+            subplan = build_subplan(raw_subplan, course_lookup, course_credits_lookup)
             if subplan is not None:
                 built_subplans.append(subplan)
 
@@ -291,11 +318,17 @@ def build_program(
         )
         return None
 
-    print(
-        f"[program_builder] Built '{program_code}' — "
-        f"{len(built_sections)} top-level section(s), "
-        f"{len(built_subplans)} subplan(s)."
-    )
+    print(f"[program_builder] Built program '{program_code}' with "
+          f"{len(built_sections)} top-level section(s) and "
+          f"{len(built_subplans)} subplan(s).")
+
+    calculated_credits = calculate_program_credits(built_sections, course_credits_lookup)
+    if calculated_credits != program_data.get("total_credits", 0):
+        print(
+            f"[program_builder]   Warning: calculated credits ({calculated_credits}) "
+            f"does not match scraper total_credits ({program_data.get('total_credits')})"
+        )
+    program.total_credits = calculated_credits
     return program
 
 
@@ -303,19 +336,22 @@ def build_program(
 def build_all_programs(
     df: pd.DataFrame,
     course_lookup: dict[str, int],
+    course_credits_lookup: dict[int, int],
 ) -> list[Program]:
     """
     Convert the full scraper DataFrame into a list of Program ORM objects.
 
     Expected DataFrame columns (at minimum):
         program_name, program_code, program_type, total_credits,
-        has_subplans, sections, subplans
+        num_subplans_required, sections, subplans
 
     Parameters
     ----------
     df : pd.DataFrame
     course_lookup : dict[str, int]
         Normalised course_code → course_id already persisted in the DB.
+    course_credits_lookup : dict[int, int]
+        Maps course_id -> credits for calculating program totals.
 
     Returns
     -------
@@ -324,7 +360,7 @@ def build_all_programs(
     if df is None or df.empty:
         return []
 
-    missing_cols = {"program_name", "program_code", "sections"} - set(df.columns)
+    missing_cols = {"program_name", "program_code", "sections", "num_subplans_required"} - set(df.columns)
     if missing_cols:
         print(f"[program_builder] Missing required columns: {missing_cols}")
         return []
@@ -337,7 +373,7 @@ def build_all_programs(
         try:
             row_dict = row.to_dict()
             program_name = row_dict.get("program_name", "unknown")
-            program = build_program(row_dict, course_lookup)
+            program = build_program(row_dict, course_lookup, course_credits_lookup)
             if program is not None:
                 programs.append(program)
             else:

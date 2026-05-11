@@ -86,4 +86,5 @@ def scrape_program_links():
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(programs, f, indent=4)
 
-scrape_program_links()
+if __name__ == "__main__":
+    scrape_program_links()

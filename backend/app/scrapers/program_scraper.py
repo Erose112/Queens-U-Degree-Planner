@@ -17,8 +17,8 @@ Output shape per program
     "program_type":  str,          # major | minor | specialization | general
     "total_credits": int,
     "program_code":  str,          # e.g. "ECON" (empty string if undetectable)
-    "has_subplans":  bool,
-    "sections": [                  # top-level sections (empty when has_subplans=True)
+    "num_subplans_required": int,
+    "sections": [                  # top-level sections (empty when num_subplans_required = 0)
         {
             "section_id":      int,
             "section_credits": float,  # 0.0 → all required; >0 → choose up to
@@ -55,12 +55,17 @@ from requests.exceptions import RequestException
 
 
 _SUBPLAN_HEADING_RE = re.compile(
-    r"^(?:[A-Z]|[ivxIVX]+)\.\s+(.+?)\s+\([A-Z0-9]+-[A-Z0-9]+\)\s+\(\d+(?:\.\d+)?\s+[Uu]nits?\)$",
+    r"^(?:[A-Z]|[ivxIVX]+)\.\s+(.+?)\s+\([A-Z0-9]+-[A-Z0-9]+\)\s+\(\d+(?:\.\d+)?(?:\s+[Uu]nits?)?\)$",
     re.IGNORECASE
 )
 
 _SUBPLAN_HEADING_NAMED_RE = re.compile(
     r"(?:concentration|stream|focus|pathway|option|sub-?plan|track)",
+    re.IGNORECASE
+)
+
+_OPTION_LIST_HEADING_RE = re.compile(
+    r"^(?:[ivxlcdmIVXLCDM]+|[A-Z])\.\s+\S+",
     re.IGNORECASE
 )
 
@@ -128,6 +133,19 @@ def _make_empty_section(section_id: int, s_credits: float) -> dict[str, Any]:
     }
 
 
+def _is_simple_option_item(text: str) -> bool:
+    """Check if text matches simple option list format like 'i. Linguistics' or 'A. Computing and Art'."""
+    # Match: letter/roman numeral + period + name (no parentheses)
+    match = re.match(r"^(?:[A-Z]|[ivxIVX]+)\.\s+(.+)$", text.strip())
+    return bool(match)
+
+
+def _parse_simple_option_name(text: str) -> str:
+    """Extract name from simple format like 'i. Linguistics' → 'Linguistics'."""
+    match = re.match(r"^(?:[A-Z]|[ivxIVX]+)\.\s+(.+)$", text.strip())
+    return match.group(1) if match else text.strip()
+
+
 def _is_subplan_heading(text: str, tag_level: str) -> bool:
     t = text.strip()
     if _SUBPLAN_HEADING_RE.match(t):
@@ -135,12 +153,18 @@ def _is_subplan_heading(text: str, tag_level: str) -> bool:
     if tag_level == "h3" and _SUBPLAN_HEADING_NAMED_RE.search(t):
         if re.search(r'\d+(?:\.\d+)?\s+[Uu]nits?', t):
             return True
+    if _OPTION_LIST_HEADING_RE.match(t):
+        return True
     return False
 
 def _parse_subplan_name(text: str) -> str:
-    """Extract 'Economics' from 'A. Economics (ECPP-O) (84.00 Units)'."""
     match = _SUBPLAN_HEADING_RE.match(text.strip())
-    return match.group(1) if match else text.strip()
+    if match:
+        return match.group(1)
+    simple = re.match(r"^(?:[ivxlcdmIVXLCDM]+|[A-Z])\.\s+(.+)$", text.strip(), re.IGNORECASE)
+    if simple:
+        return simple.group(1).strip()
+    return text.strip()
 
 def _parse_subplan_code(text: str) -> str:
     """Extract 'ECPP-O' from 'A. Economics (ECPP-O) (84.00 Units)'."""
@@ -153,6 +177,17 @@ def _parse_subplan_credits(text: str) -> int:
     matches = _SUBPLAN_CREDITS_RE.findall(text)
     # Take the LAST match — the credits count is always the final parenthetical
     return int(float(matches[-1])) if matches else 0
+
+
+def _extract_num_subplans_from_span(text: str) -> int | None:
+    """Extract number from span text like 'Complete one of the following Sub-Plans'."""
+    nums = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+    text_lower = text.lower()
+    for word in nums:
+        if word in text_lower:
+            return nums.index(word) + 1
+
+    return 1
 
 
 def _parse_section_credits(row: Tag) -> float:
@@ -377,7 +412,7 @@ def extract_data(
         "program_type":  get_degree_type(program_name),
         "program_link":  stored_url,
         "total_credits": 0,
-        "has_subplans":  False,
+        "num_subplans_required": 0,
         "sections":      [],
         "subplans":      [],
     }
@@ -405,6 +440,16 @@ def extract_data(
                 program_data["program_code"] = m.group(1)
             break
 
+    # Extract num_subplans_required from span header
+    for span in soup.find_all("span", class_="courselistcomment areaheader"):
+        span_text = span.get_text(separator=" ", strip=True)
+        keywords = ("sub-plan", "sub plan", "option list", "option lists")
+        if any(kw in span_text.lower() for kw in keywords):
+            num = _extract_num_subplans_from_span(span_text)
+            if num is not None:
+                program_data["num_subplans_required"] = num
+                break
+
     # Find content root
     content_root: Tag | None = (
         soup.find("div", id="contentarea")          # type: ignore[assignment]
@@ -428,8 +473,6 @@ def extract_data(
             return current_subplan["sections"]  # type: ignore[return-value]
         return program_data["sections"]         # type: ignore[return-value]
 
-    past_subplans = False  # once we've seen a non-subplan section after subplans, we are past the subplan area and should ignore any more subplan listings
-
     for element in content_root.descendants:
         if not isinstance(element, Tag):
             continue
@@ -444,19 +487,15 @@ def extract_data(
                 # A non-subplan heading after subplans (e.g. "4. Additional Requirements",
                 # course list headers like "LISC_List_C") means we've left the subplan
                 # section of the page.  Stop writing into any subplan.
-                if program_data["has_subplans"] and current_subplan is not None:
+                if program_data["num_subplans_required"] > 0 and current_subplan is not None:
                     _flush_section(current_section, active_sections())
-                    current_section = None
-                    current_subplan = None
-                    past_subplans = True
+                    break
                 continue
 
             # Flush whatever section was open before this heading
             _flush_section(current_section, active_sections())
             current_section = None
             expecting_subplan_list = False  # always clear on subplan boundary
-
-            program_data["has_subplans"] = True
 
             parsed_code = _parse_subplan_code(heading_text)
             parsed_name = _parse_subplan_name(heading_text)
@@ -488,8 +527,6 @@ def extract_data(
 
         #  Section header row
         if "areaheader" in row_classes:
-            if past_subplans:
-                continue
             # Always flush the section that was open before this header
             _flush_section(current_section, active_sections())
             current_section = None
@@ -507,7 +544,7 @@ def extract_data(
             raw_name  = _parse_section_name(element)
             s_credits = _parse_section_credits(element)
 
-            if "sub-plan" in raw_name.lower() or "sub plan" in raw_name.lower():
+            if "sub-plan" in raw_name.lower() or "sub plan" in raw_name.lower() or "option lists" in raw_name.lower() or "option list" in raw_name.lower():
                 expecting_subplan_list = True
                 continue
 
@@ -519,8 +556,6 @@ def extract_data(
 
         # Course / content row
         if "even" not in row_classes and "odd" not in row_classes:
-            continue
-        if past_subplans:
             continue
 
         # Sub-plan listing rows
@@ -541,7 +576,20 @@ def extract_data(
                         "subplan_credits": _parse_subplan_credits(wildcard),
                         "sections":        [],
                     })
-                    program_data["has_subplans"] = True
+            # Check for simple option list format: "i. Linguistics" (no code or credits)
+            elif wildcard and _is_simple_option_item(wildcard):
+                subplan_name = _parse_simple_option_name(wildcard)
+
+                # Register stub only if not already known
+                if not _find_existing_subplan(
+                    program_data["subplans"], "", subplan_name
+                ):
+                    program_data["subplans"].append({
+                        "subplan_name":    subplan_name,
+                        "subplan_code":    "",
+                        "subplan_credits": 0,
+                        "sections":        [],
+                    })
 
             continue  # always skip listing rows for course processing
 
@@ -549,7 +597,7 @@ def extract_data(
         if current_section is None:
             continue
 
-        # Courses 
+        # Courses
         courses = _scrape_courses_from_row(element)
         if courses:
             seen_in_section: set[str] = set(current_section["courses"])  # type: ignore
@@ -559,8 +607,12 @@ def extract_data(
                     seen_in_section.add(code)
         else:
             wildcard = _scrape_wildcard_from_row(element)
-            if wildcard and current_section["wildcard"] is None:
-                current_section["wildcard"] = wildcard
+            if wildcard:
+                if current_section["wildcard"] is None:
+                    current_section["wildcard"] = wildcard
+                else:
+                    # Append additional wildcard rows to existing
+                    current_section["wildcard"] += f" | {wildcard}"
 
 
     # Final flush: close whatever section was still open after the last row
@@ -575,6 +627,10 @@ def extract_data(
         subplan["sections"] = _renumber_sections(
             _deduplicate_sections(subplan["sections"])
         )
+
+    # Fallback: if subplans exist but num_subplans_required was not set from span, default to 1
+    if program_data["num_subplans_required"] == 0 and program_data["subplans"]:
+        program_data["num_subplans_required"] = 1
 
     # Validate: must have something to return
     has_top_sections = bool(program_data["sections"])
@@ -667,3 +723,7 @@ def scrape_program_courses() -> pd.DataFrame:
     pd.set_option("display.max_rows", None)
     df = pd.DataFrame(all_program_data)
     return df
+
+if __name__ == "__main__":
+    df = scrape_program_courses()
+    df.to_csv("program_courses.csv", index=False)

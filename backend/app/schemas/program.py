@@ -37,7 +37,7 @@ class ProgramStructureOut(BaseModel):
     program_type: str
     program_link: Optional[str]
     total_credits: int
-    has_subplans: bool
+    num_subplans_required: int
     sections: list[ProgramSectionOut]
 
     model_config = {"from_attributes": True}

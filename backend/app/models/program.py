@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Boolean, Column, Integer, PrimaryKeyConstraint, Text, ForeignKey, String
+    Column, Integer, PrimaryKeyConstraint, Text, ForeignKey, String, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -9,12 +9,12 @@ class Program(Base):
     __tablename__ = "programs"
 
     program_id    = Column(Integer, primary_key=True, autoincrement=True)
-    program_code  = Column(String(4), unique=True, nullable=False)  # e.g. "COMA"
+    program_code  = Column(String(15), unique=True, nullable=False)
     program_name  = Column(Text, nullable=False)
     program_type  = Column(Text, nullable=False)
     program_link  = Column(Text, nullable=True)
     total_credits = Column(Integer, nullable=False)
-    has_subplans  = Column(Boolean, default=False, nullable=False)
+    num_subplans_required  = Column(Integer, default=0, nullable=False)
 
     sections = relationship(
         "Program_Section",
@@ -36,10 +36,14 @@ class Subplan(Base):
     __tablename__ = "subplans"
 
     subplan_id      = Column(Integer, primary_key=True, autoincrement=True)
-    subplan_code    = Column(String(4), unique=True, nullable=False)  # e.g. "BMDS"
+    program_id      = Column(Integer, ForeignKey("programs.program_id"), nullable=False)
+    subplan_code    = Column(String(15), nullable=False)
     subplan_name    = Column(String(100), nullable=False)
     subplan_credits = Column(Integer)
-    program_id      = Column(Integer, ForeignKey("programs.program_id"), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("program_id", "subplan_code", name="uq_subplan_program_code"),
+    )
 
     program  = relationship("Program", back_populates="subplans")
     sections = relationship(
@@ -59,7 +63,7 @@ class Program_Section(Base):
     subplan_id   = Column(Integer, ForeignKey("subplans.subplan_id"), nullable=True)
     credit_req   = Column(Integer)       # 0 when logic_type=0, otherwise the credit target
     logic_type   = Column(Integer, nullable=False)  # 0=required, 1=choose credits
-    wildcard     = Column(String(100), nullable=True)  # e.g. "ECON at the 300-level or above"
+    wildcard     = Column(String(200), nullable=True)  # e.g. "ECON at the 300-level or above"
 
     program = relationship(
         "Program",
