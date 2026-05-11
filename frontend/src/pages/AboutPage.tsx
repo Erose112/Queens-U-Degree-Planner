@@ -86,11 +86,11 @@ export default function AboutPage() {
 
         {/* About Me */}
         <div className="flex flex-col gap-4">
-          <h2 className="font-playfair text-[24px] font-bold" style={{ color: COLOURS.blue }}>
+          <h2 className="font-playfair text-[30px] font-bold" style={{ color: COLOURS.blue }}>
             About Me
           </h2>
           <p className="text-[16px] leading-[1.75]" style={{ color: COLOURS.darkGrey }}>
-            I'm a second-year Computer Science and Mathematics student passionate about building tools that make
+            I'm a Computer Science and Mathematics student passionate about building tools that make
             student life easier. I enjoy full-stack development, data-driven design, and turning
             frustrating problems into real life solutions.
           </p>
@@ -105,16 +105,8 @@ export default function AboutPage() {
             boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
           }}
         >
-          <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 mt-1"
-            style={{ background: `${COLOURS.black}25`, color: COLOURS.black }}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
-            </svg>
-          </div>
           <div className="flex flex-col gap-2">
-            <h2 className="font-playfair text-[22px] font-bold" style={{ color: COLOURS.blue }}>
+            <h2 className="font-playfair text-[25px] font-bold" style={{ color: COLOURS.blue }}>
               Why I Built This
             </h2>
             <p className="text-[16px] leading-[1.75]" style={{ color: COLOURS.darkGrey }}>

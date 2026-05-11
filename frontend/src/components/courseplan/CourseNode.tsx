@@ -149,7 +149,7 @@ export const CourseNode = memo(({ id, data }: NodeProps<Node<CourseNodeData, 'co
   const CLUSTER_WIDTH = NODE_WIDTH * 0.2;
   const clusterStart  = 50 - (CLUSTER_WIDTH / NODE_WIDTH) * 50;
 
-  const { ref: titleRef,    fontSize: titleSize    } = useFitText(course.course_code, 17, 10);
+  const { ref: titleRef,    fontSize: titleSize    } = useFitText(course.course_code, 17, 9);
   const { ref: subtitleRef, fontSize: subtitleSize } = useFitText(course.title ?? '', 17, 9);
 
   // The info button is visible when: the node is hovered OR the popover is
@@ -235,7 +235,7 @@ export const CourseNode = memo(({ id, data }: NodeProps<Node<CourseNodeData, 'co
         <div
           ref={titleRef}
           className="font-bold mb-0.5 overflow-hidden"
-          style={{ fontSize: titleSize, flexShrink: 0, paddingRight: course.description ? 18 : 0 }}
+          style={{ fontSize: titleSize, flexShrink: 0, paddingRight: course.description ? 18 : 0, whiteSpace: 'nowrap' }}
         >
           {formatCourseName(course.course_code)} {course.credits ? `| ${course.credits}u` : ''}
         </div>

@@ -10,7 +10,6 @@ import { COLOURS } from "../utils/colours";
 import { getPrograms, getProgramStructure, getSubplans } from "../services/api";
 import { Program, ProgramStructure, SelectedPrograms, StructureCache, Subplan } from "../types/plan";
 import { usePlanStore } from "../store/planStore";
-import { CREDIT_LIMIT } from "../utils/program";
 import {
   COMBINATIONS,
   type CombinationId,
@@ -330,7 +329,7 @@ function CombinationPicker({
               className="px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider flex-shrink-0"
               style={{ color: COLOURS.darkGrey, borderBottom: `1px solid ${COLOURS.grey}` }}
             >
-              {COMBINATIONS.length} combinations
+              {COMBINATIONS.length} types
             </div>
             <div className="dd-scroll">
               {COMBINATIONS.map((c) => (
@@ -475,7 +474,7 @@ export default function PlannerPage() {
       ...program,
       program_link: null,
       total_credits: 0,
-      has_subplans: false,
+      num_subplans_required: 0,
       sections: [],
     };
 
@@ -491,14 +490,14 @@ export default function PlannerPage() {
     if (structureCache[id] !== undefined) {
       // Already cached
       const cached = structureCache[id];
-      if (cached?.has_subplans) fetchSubplans(cached);
+      if ((cached?.num_subplans_required ?? 0) > 0) fetchSubplans(cached);
     } else if (!fetchingIds.current.has(id)) {
       // Fetch structure
       fetchingIds.current.add(id);
       getProgramStructure(id)
         .then((structure) => {
           setStructureCache((prev) => ({ ...prev, [id]: structure }));
-          if (structure.has_subplans) fetchSubplans(structure);
+          if ((structure.num_subplans_required ?? 0) > 0) fetchSubplans(structure);
 
           // Patch the stub stored in `selections` with real values from the API
           setSelections((prev) => {
@@ -508,7 +507,7 @@ export default function PlannerPage() {
                 ...prev,
                 [slotKey]: {
                   ...cur,
-                  has_subplans: structure.has_subplans,
+                  num_subplans_required: structure.num_subplans_required,
                   total_credits: structure.total_credits,
                 },
               };
@@ -621,7 +620,7 @@ export default function PlannerPage() {
         .map((slot) => {
           const prog = safeSelections[slot.key];
           if (!prog) return null;
-          const subplanId = prog.has_subplans
+          const subplanId = (prog.num_subplans_required ?? 0) > 0
             ? (selectedSubplans[slot.key] ?? null)
             : null;
           return { programId: prog.program_id, subplanId };
@@ -644,12 +643,10 @@ export default function PlannerPage() {
 
   // Render 
   return (
-    <div className="font-sans flex flex-col min-h-screen" style={{ background: COLOURS.warmWhite }}>
+    <div className="flex flex-col min-h-screen" style={{ background: COLOURS.warmWhite }}>
       <ScrollToTop />
 
       <style>{`
-        body { font-family: 'DM Sans', sans-serif; }
-        .font-playfair { font-family: 'Playfair Display', serif; }
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(14px); }
           to   { opacity: 1; transform: translateY(0); }
@@ -718,7 +715,7 @@ export default function PlannerPage() {
       </div>
 
       {/* ── Main form ── */}
-      <section className="px-6 pb-8 flex flex-col items-center flex-1">
+      <section className="px-6 pb-[35px] flex flex-col items-center flex-1">
         <div className="w-full max-w-[580px] flex flex-col gap-5">
 
           {/* Step 1 — Combination */}
@@ -761,7 +758,7 @@ export default function PlannerPage() {
                 {combination.slots.map((slot) => {
                   const prog = safeSelections[slot.key];
                   const subplans = sublansForSlot(slot.key);
-                  const subplansLoading = prog?.has_subplans === true && subplanCache[prog.program_id] === undefined;
+                  const subplansLoading = !!prog && (prog.num_subplans_required ?? 0) > 0 && subplanCache[prog.program_id] === undefined;
 
                   return (
                     <div key={slot.key} className="flex flex-col gap-3">
@@ -781,8 +778,8 @@ export default function PlannerPage() {
                         fetchingStructure={slotFetching(slot.key)}
                       />
 
-                      {/* Subplan picker — shown when program has_subplans is true */}
-                      {prog?.has_subplans && (
+                      {/* Subplan picker — shown when program requires subplans */}
+                      {(prog?.num_subplans_required ?? 0) > 0 && (
                         <div className="pl-4 border-l-2" style={{ borderColor: COLOURS.grey }}>
                           <SubplanPicker
                             subplans={subplans}
@@ -816,6 +813,7 @@ export default function PlannerPage() {
                   doubleCountedCourseCodes={creditSummary.doubleCountedCourseCodes}
                   exceedsLimit={creditSummary.exceedsLimit}
                   structuresLoaded={structuresReady}
+                  programs={Object.values(safeSelections).filter((p): p is ProgramStructure => p !== null)}
                 />
                 {errors.credits && (
                   <p className="text-[14px] font-semibold mt-1" style={{ color: COLOURS.red }}>

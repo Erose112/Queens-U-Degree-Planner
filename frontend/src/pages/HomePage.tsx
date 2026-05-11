@@ -11,12 +11,9 @@ export default function HomePage() {
   const handleStartPlanning = () => navigate("/planner");
 
   return (
-    <div className="font-sans min-h-screen flex flex-col" style={{ background: COLOURS.warmWhite }}>
+    <div className="min-h-screen flex flex-col" style={{ background: COLOURS.warmWhite }}>
       <ScrollToTop />
       <style>{`
-        body { font-family: 'DM Sans', sans-serif; }
-        .font-playfair { font-family: 'Playfair Display', serif; }
-
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(24px); }
           to   { opacity: 1; transform: translateY(0); }
@@ -63,7 +60,7 @@ export default function HomePage() {
           style={{ fontSize: "clamp(38px, 6vw, 76px)", color: COLOURS.blue }}
         >
           Plan Your Degree.<br />
-          <span style={{ color: COLOURS.yellow }} className="italic">Your Way.</span>
+          <span style={{ color: COLOURS.yellow }}>Your Way.</span>
         </h1>
 
         <p
@@ -78,11 +75,11 @@ export default function HomePage() {
         {/* ── How it works steps ── */}
         <div className="animate-fade-up-4 flex justify-center gap-0 flex-wrap mb-14 relative">
           {[
-            { n: "1", label: "Choose Your Program" },
-            { n: "2", label: "Add Completed Courses" },
-            { n: "3", label: "Generate Your Plan" },
+            { n: "1", label: "Choose Your Program/s" },
+            { n: "2", label: "Fill Out Your Plan Requirements" },
+            { n: "3", label: "Save as a PDF!" },
           ].map((step, i) => (
-            <div key={i} className="flex items-center">
+            <div key={i} className="flex items-start">
               <div className="text-center px-5">
                 <div
                   className="w-[42px] h-[42px] rounded-full flex items-center justify-center font-bold text-base mx-auto mb-2"
@@ -95,7 +92,7 @@ export default function HomePage() {
                   {step.n}
                 </div>
                 <span
-                  className="text-[15px] font-medium block max-w-[100px]"
+                  className="text-[17px] font-medium block max-w-[100px]"
                   style={{ color: `${COLOURS.black}90` }}
                 >
                   {step.label}
@@ -103,7 +100,7 @@ export default function HomePage() {
               </div>
               {i < 2 && (
                 <div
-                  className="w-16 h-[2px] flex-shrink-0"
+                  className="w-16 h-[2px] flex-shrink-0 mt-[21px]"
                   style={{ background: `${COLOURS.darkGrey}55` }}
                 />
               )}
@@ -125,7 +122,7 @@ export default function HomePage() {
       {/* ── Feature highlights ── */}
       <section className="py-24 px-10 max-w-[900px] mx-auto w-full gap-6">
         <h2
-          className="font-playfair text-[32px] font-bold text-center mb-12"
+          className="font-playfair text-[40px] font-bold text-center mb-12"
           style={{ color: COLOURS.blue }}
         >
           How it Works
@@ -137,23 +134,13 @@ export default function HomePage() {
         >
           {[
             {
-              icon: (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-                </svg>
-              ),
               title: "Select your Plan",
-              desc: "Choose the academic program you're pursuing. The planner will use this to determine your degree requirements and course options.",
+              desc: "Choose the degree type from the available degree combo options. Then select the specific program you're enrolled in. The planner will use this to determine your degree requirements and course options.",
               color: COLOURS.blue,
             },
             {
-              icon: (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                </svg>
-              ),
-              title: "Fill out your Plan",
-              desc: "Select courses from the available options and customize your academic path.",
+              title: "Fill out your Plan Requirements",
+              desc: "Select courses from the choice sections in your plan. Add any course outside of your plan using the \"Add Any Course\" feature. The planner will verify program/degree requirements and track credits and degree progress.",
               color: COLOURS.yellow,
             },
           ].map((card, i) => (
@@ -166,12 +153,6 @@ export default function HomePage() {
                 border: `1px solid ${COLOURS.grey}`,
               }}
             >
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
-                style={{ background: `${card.color}18`, color: card.color }}
-              >
-                {card.icon}
-              </div>
               <h3 className="font-semibold text-[18px] mb-2" style={{ color: COLOURS.blue }}>
                 {card.title}
               </h3>
@@ -196,21 +177,6 @@ export default function HomePage() {
               width: "100%",
             }}
           >
-
-            {/* Icon */}
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: `${COLOURS.red}18`, color: COLOURS.red }}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L21 6V12C21 17 17 20.5 12 22C7 20.5 3 17 3 12V6L12 2Z"
-                  fill="currentColor" fill-opacity="0.1"
-                  stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-                <circle cx="12" cy="16" r="1.1" fill="currentColor"/>
-                <rect x="11.1" y="9" width="1.8" height="5" rx="0.9" fill="currentColor"/>
-              </svg>
-            </div>
-
             {/* Text */}
             <div className="flex flex-col gap-3"
               style={{
@@ -228,9 +194,9 @@ export default function HomePage() {
                   "This tools is only for students in the Arts & Science faculty at Queen's, and will not work for other faculties or universities.",
                   "This tools is in active development and may contain bugs or incomplete features. If you encounter any issues, please report them to the developer.",
                 ].map((step, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[16px] leading-[1.65]">
+                  <li key={i} className="flex items-start gap-3 text-[16px] leading-[1.65]">
                     <span
-                      className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold mt-[2px]"
+                      className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold mt-[5px]"
                       style={{ background: COLOURS.red, color: COLOURS.white }}
                     >
                       {i + 1}

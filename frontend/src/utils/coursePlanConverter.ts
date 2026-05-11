@@ -3,6 +3,7 @@ import type { Course, PrerequisiteGraph, ProgramStructure, NodeType } from '../t
 import type { SelectedCourse } from '../types/plan';
 import type { CourseEdgeData } from '../components/courseplan/CourseEdge';
 import type { CourseNodeData, YearSection } from '../types/plan';
+import { getMaxYearForProgram } from './program';
 import {
   MAX_COLS,
   YEAR_BAR_WIDTH,
@@ -58,13 +59,13 @@ export function coursePlanConverter(
     incomingMap.get(edge.to_course_id)!.push(edge.from_course_id);
   }
 
-  // Year sections
-  const sortedYears = Array.from(new Set(selectedCourses.map((c) => c.year))).sort(
-    (a, b) => a - b,
-  );
+  // Year sections - always display all years (1-3 for general, 1-4 for others)
+  const maxYear = getMaxYearForProgram(_programs);
+  const sortedYears = Array.from({ length: maxYear }, (_, i) => i + 1);
 
   const yearSections: YearSection[] = [];
   let currentY = 0;
+  const minContentHeight = 2 * NODE_HEIGHT + COLUMN_GAP;
 
   for (const year of sortedYears) {
     // Preserve insertion order within each year as the sort key
@@ -165,7 +166,9 @@ export function coursePlanConverter(
       );
     }, 0);
 
-    const sectionHeight = contentHeight + YEAR_SECTION_PADDING * 2;
+    // Ensure minimum height of 2 nodes tall, but allow growth as nodes are added
+    const minimalContentHeight = Math.max(minContentHeight, contentHeight);
+    const sectionHeight = minimalContentHeight + YEAR_SECTION_PADDING * 2;
     yearSections.push({ year, y: currentY, height: sectionHeight });
 
     // Node placement — y is derived from topo level, not column position index.

@@ -25,8 +25,7 @@ import { usePlanLayout } from '../hooks/planLayout';
 import { usePlanStore } from '../store/planStore';
 import { YEAR_BAR_WIDTH, YEAR_BAR_COURSE_OFFSET } from '../utils/coursePlanLayout';
 import { COLOURS } from '../utils/colours';
-import { getPlanCredits } from '../utils/credits';
-import { CREDIT_LIMIT } from '../utils/program';
+import { getPlanCredits, getCreditLimitForPrograms } from '../utils/credits';
 import type { Course, YearSection } from '../types/plan';
 import NavBar from '../components/NavBar';
 
@@ -152,13 +151,14 @@ export default function CoursePlanPage() {
                 effectiveTotal={getPlanCredits(selectedCourses, graph)}
                 savings={0}
                 doubleCountedCourseCodes={[]}
-                exceedsLimit={getPlanCredits(selectedCourses, graph) > CREDIT_LIMIT}
+                exceedsLimit={getPlanCredits(selectedCourses, graph) > getCreditLimitForPrograms(programs)}
                 structuresLoaded={true}
+                programs={programs}
               />
             </div>
           </div>
 
-          <div className='pl-6 border-l border-gray-300 my-2 self-stretch flex items-center'>
+          <div className='px-6 border-l border-gray-300 my-2 self-stretch flex items-center'>
             <div className='flex text-s text-gray-500 gap-2 flex-wrap'>
               {programs.map((program, index) => (
                 <div key={program.program_id} className='flex items-center gap-2'>
