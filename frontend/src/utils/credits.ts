@@ -1,4 +1,7 @@
-import { PrerequisiteGraph, ProgramStructure, SelectedCourse } from "../types/plan";
+import type { ProgramStructure, SelectedCourse } from "../types/plan";
+import { PrerequisiteGraph } from "../types/plan";
+import type { CombinationId } from "./programCombination";
+import { CREDIT_LIMIT, GENERAL_CREDIT_LIMIT } from "./program";
 
 // Internal helpers
 /** Look up a course's credits from the graph; defaults to 3 if not found. */
@@ -43,4 +46,24 @@ export function getSectionCredits(
   return plan
     .filter((p) => sectionCourseIds.has(p.courseId) && p.nodeType !== 'required')
     .reduce((sum, p) => sum + getCourseCredits(p.courseId, graph), 0);
+}
+
+/**
+ * getCreditLimitForPrograms
+ * Returns the appropriate credit limit based on program types.
+ * General programs are limited to 90 units.
+ * All other (honours) programs allow 120 units.
+ */
+export function getCreditLimitForPrograms(programs: ProgramStructure[]): number {
+  const hasGeneralProgram = programs.some((p) => p.program_type?.toLowerCase() === "general");
+  return getCreditLimitForCombination(hasGeneralProgram ? "general" : "major");
+}
+
+/**
+ * getCreditLimitForCombination
+ * Returns the effective credit limit for a combination.
+ * General degrees total 90.0 units; all honours degrees total 120.0 units.
+ */
+export function getCreditLimitForCombination(combinationId: CombinationId): number {
+  return combinationId === "general" ? GENERAL_CREDIT_LIMIT : CREDIT_LIMIT;
 }

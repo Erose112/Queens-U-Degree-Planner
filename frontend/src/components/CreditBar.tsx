@@ -1,5 +1,6 @@
 import { COLOURS } from "../utils/colours";
-import { CREDIT_LIMIT } from "../utils/program";
+import { getCreditLimitForPrograms } from "../utils/credits";
+import type { ProgramStructure } from "../types/plan";
 
 interface CreditBarProps {
   effectiveTotal: number;
@@ -7,6 +8,7 @@ interface CreditBarProps {
   doubleCountedCourseCodes: string[];
   exceedsLimit: boolean;
   structuresLoaded: boolean;
+  programs: ProgramStructure[];
 }
 
 export default function CreditBar({
@@ -15,8 +17,10 @@ export default function CreditBar({
   doubleCountedCourseCodes,
   exceedsLimit,
   structuresLoaded,
+  programs,
 }: CreditBarProps) {
-  const pct = Math.min((effectiveTotal / CREDIT_LIMIT) * 100, 100);
+  const creditLimit = getCreditLimitForPrograms(programs);
+  const pct = Math.min((effectiveTotal / creditLimit) * 100, 100);
   const barColor = exceedsLimit
     ? COLOURS.red
     : effectiveTotal >= 100
@@ -35,7 +39,7 @@ export default function CreditBar({
       <div className="flex items-center justify-between text-[14px] flex-wrap gap-1">
         <span style={{ color: COLOURS.darkGrey }}>
           <span className="font-semibold" style={{ color: barColor }}>{effectiveTotal}</span>
-          <span className="opacity-60"> / {CREDIT_LIMIT} units</span>
+          <span className="opacity-60"> / {creditLimit} units</span>
           {savings > 0 && structuresLoaded && (
             <span
               className="ml-2 px-1.5 py-0.5 rounded-md text-[14px] font-semibold"
@@ -48,7 +52,7 @@ export default function CreditBar({
         {exceedsLimit ? (
           <span className="font-semibold text-[14px]" style={{ color: COLOURS.red }}>Exceeds limit</span>
         ) : (
-          <span className="opacity-50">{CREDIT_LIMIT - effectiveTotal} remaining</span>
+          <span className="opacity-50">{creditLimit - effectiveTotal} remaining</span>
         )}
       </div>
 
