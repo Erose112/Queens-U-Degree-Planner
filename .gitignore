@@ -53,3 +53,7 @@ coverage/
 .cache/
 temp/
 tmp/
+
+# Generated scraper data
+queens_programs.json
+backend/app/scrapers/queens_programs_test.json
