@@ -6,7 +6,7 @@ class Course(BaseModel):
     course_id: int
     course_code: str
     title: Optional[str]
-    credits: Optional[int]
+    credits: Optional[float]
     description: Optional[str]
     prerequisite_str: Optional[str] = None
     # How this course appears in a program:

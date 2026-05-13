@@ -15,6 +15,7 @@ from app.schemas.program import (
     SubplanOut,
     ProgramStructureOut,
     ProgramSectionOut,
+    ProgramCourseListOut,
 )
 from app.schemas.course import (
     Course,
@@ -89,14 +90,33 @@ def get_program_structure_route(program_id: int, db: Session = Depends(get_db)):
             )
         )
 
+    # Transform course_lists: group by list_id and list_name, collect Course objects
+    course_lists_dict = {}
+    for course_list in program.course_lists:
+        key = (course_list.list_id, course_list.list_name)
+        if key not in course_lists_dict:
+            course_lists_dict[key] = []
+        course_lists_dict[key].append(course_list.courses)
+
+    course_lists_out: list[ProgramCourseListOut] = [
+        ProgramCourseListOut(
+            list_id=list_id,
+            program_id=program.program_id,
+            list_name=list_name,
+            courses=courses,
+        )
+        for (list_id, list_name), courses in course_lists_dict.items()
+    ]
+
     return ProgramStructureOut(
         program_id=program.program_id,
         program_name=program.program_name,
         program_type=program.program_type,
         program_link=program.program_link,
-        total_credits=program.total_credits,
+        program_credits=program.program_credits,
         num_subplans_required=program.num_subplans_required,
         sections=sections_out,
+        course_lists=course_lists_out,
     )
 
 

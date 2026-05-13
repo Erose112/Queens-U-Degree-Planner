@@ -14,6 +14,7 @@ from app.models.program import (
     Program,
     Program_Section,
     Section_Courses,
+    Subplan,
 )
 
 
@@ -26,6 +27,7 @@ def write_all_courses_to_mysql(all_course_info):
             try:
                 session.query(Section_Courses).delete()
                 session.query(Program_Section).delete()
+                session.query(Subplan).delete()
                 session.query(Program).delete()
                 session.query(PrerequisiteSetCourse).delete()
                 session.query(PrerequisiteSet).delete()
@@ -35,6 +37,7 @@ def write_all_courses_to_mysql(all_course_info):
                 for table in (
                     "section_courses",
                     "program_section",
+                    "subplans",
                     "programs",
                     "prerequisite_set_courses",
                     "prerequisite_sets",
@@ -59,7 +62,7 @@ def write_all_courses_to_mysql(all_course_info):
                     course = Course(
                         course_code=course_code,
                         title=row['title'],
-                        credits=int(row['credits']),
+                        credits=row['credits'],
                         description=row['course_desc'],
                         clo=row['clo'],
                         prerequisite_str=row['prerequisite_str'],

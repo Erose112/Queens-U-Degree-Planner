@@ -15,6 +15,7 @@ from app.models.program import (
     Program_Section,
     Section_Courses,
     Subplan,
+    ProgramCourseLists,
 )
 from app.services.section_parser import parse_section_logic, LOGIC_REQUIRED
 
@@ -69,6 +70,79 @@ def calculate_program_credits(sections: list[Program_Section], course_credits_lo
                 total += section.credit_req
 
     return total
+
+
+
+def build_list(
+    raw_list: list[dict],
+    course_lookup: dict[str, int],
+) -> list[ProgramCourseLists]:
+    """
+    Build a list of ProgramCourseLists objects from scraped course_lists.
+    
+    Converts flat list structure from scraper into ORM objects.
+    Each scraped list like {"list_name": "GPHY_Physical", "courses": ["GPHY102", ...]}
+    becomes multiple ProgramCourseLists rows (one per course), where all courses
+    in the same list_name share the same list_id.
+    
+    Parameters
+    ----------
+    raw_list : list[dict]
+        Raw course_lists from scraper, each with 'list_name' and 'courses' keys.
+    course_lookup : dict[str, int]
+        Normalised course_code → course_id mapping.
+    
+    Returns
+    -------
+    list[ProgramCourseLists]
+        ORM objects ready to be assigned to program.course_lists.
+    """
+    course_list_objects: list[ProgramCourseLists] = []
+
+    raw_list = _parse_list_field(raw_list)
+    if not raw_list:
+        return []
+
+    # Track list_name -> list_id mapping to group courses by list_name
+    list_name_to_id: dict[str, int] = {}
+    next_list_id = 1
+
+    for raw_list_dict in raw_list:
+        if not isinstance(raw_list_dict, dict):
+            continue
+
+        list_name = str(raw_list_dict.get("list_name", "")).strip()
+        if not list_name:
+            continue
+
+        # Assign list_id if this is the first time seeing this list_name
+        if list_name not in list_name_to_id:
+            list_name_to_id[list_name] = next_list_id
+            next_list_id += 1
+
+        list_id = list_name_to_id[list_name]
+
+        courses = raw_list_dict.get("courses", [])
+        if not isinstance(courses, list):
+            courses = []
+
+        # Create one ProgramCourseLists row per course in this list
+        for raw_course in courses:
+            try:
+                code = normalize_code(str(raw_course))
+            except Exception:
+                continue
+
+            course_id = course_lookup.get(code)
+            if course_id is None:
+                continue
+
+            course_list_objects.append(
+                ProgramCourseLists(list_id=list_id, list_name=list_name, course_id=course_id)
+            )
+
+    return course_list_objects
+
 
 
 
@@ -249,7 +323,7 @@ def build_program(
     ----------
     program_data : dict
         One row from the scraper DataFrame converted to a dict.  Expected keys:
-            program_name, program_code, program_type, total_credits,
+            program_name, program_code, program_type, program_credits,
             num_subplans_required, sections, subplans
     course_lookup : dict[str, int]
         Normalised course_code → course_id mapping from the database.
@@ -276,7 +350,7 @@ def build_program(
         program_name=program_name,
         program_type=str(program_type) if program_type else "Unknown",
         program_link=program_link,
-        total_credits=0,
+        program_credits=0,
         num_subplans_required=num_subplans_required,
     )
 
@@ -310,6 +384,11 @@ def build_program(
         for section in subplan.sections:
             section.program = program
 
+    # Build course lists
+    raw_course_lists = _parse_list_field(program_data.get("course_lists"))
+    built_course_lists: list[ProgramCourseLists] = build_list(raw_course_lists, course_lookup)
+    program.course_lists = built_course_lists
+
     # A program is valid if it has at least one top-level section OR subplan
     if not built_sections and not built_subplans:
         print(
@@ -323,12 +402,12 @@ def build_program(
           f"{len(built_subplans)} subplan(s).")
 
     calculated_credits = calculate_program_credits(built_sections, course_credits_lookup)
-    if calculated_credits != program_data.get("total_credits", 0):
+    if calculated_credits != program_data.get("program_credits", 0):
         print(
             f"[program_builder]   Warning: calculated credits ({calculated_credits}) "
-            f"does not match scraper total_credits ({program_data.get('total_credits')})"
+            f"does not match scraper program_credits ({program_data.get('program_credits')})"
         )
-    program.total_credits = calculated_credits
+    program.program_credits = calculated_credits
     return program
 
 
@@ -342,7 +421,7 @@ def build_all_programs(
     Convert the full scraper DataFrame into a list of Program ORM objects.
 
     Expected DataFrame columns (at minimum):
-        program_name, program_code, program_type, total_credits,
+        program_name, program_code, program_type, program_credits,
         num_subplans_required, sections, subplans
 
     Parameters
@@ -360,7 +439,7 @@ def build_all_programs(
     if df is None or df.empty:
         return []
 
-    missing_cols = {"program_name", "program_code", "sections", "num_subplans_required"} - set(df.columns)
+    missing_cols = {"program_name", "program_code", "sections", "num_subplans_required", "program_credits"} - set(df.columns)
     if missing_cols:
         print(f"[program_builder] Missing required columns: {missing_cols}")
         return []

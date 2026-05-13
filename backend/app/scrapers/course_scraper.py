@@ -38,27 +38,21 @@ _SESSION_HEADERS = {
     ),
 }
 
+def build_session() -> requests.Session:
+    session = requests.Session()
+    session.headers.update(_SESSION_HEADERS)
 
-def verify_departments(session: requests.Session) -> tuple[list[str], list[str]]:
-    """
-    HEAD-request every department URL and return (valid, invalid) lists.
-    Run this once before scrape_artsci_courses() to catch bad slugs.
-    """
-    valid, invalid = [], []
-    for dept in DEPARTMENTS:
-        url = f"{BASE_XML}/{dept}/index.xml"
-        try:
-            r = session.head(url, timeout=10)
-            if r.status_code == 200:
-                valid.append(dept)
-            else:
-                print(f"[SKIP] {dept} → HTTP {r.status_code}")
-                invalid.append(dept)
-        except RequestException as e:
-            print(f"[SKIP] {dept} → {e}")
-            invalid.append(dept)
-        time.sleep(1)
-    return valid, invalid
+    print("Warming up session…")
+    try:
+        session.get(BASE_XML, timeout=10)
+        time.sleep(2)
+    except RequestException as exc:
+        print(f"  Warm-up failed (non-fatal): {exc}")
+
+    return session
+
+
+
 
 
 
@@ -97,7 +91,7 @@ def parse_course_block(block):
 
         credits_raw = clean_text(block.select_one(".detail-hours_html"))
         credits_match = re.search(r"[\d.]+", credits_raw)
-        credits = int(float(credits_match.group())) if credits_match else None
+        credits = float(credits_match.group()) if credits_match else None
 
         desc = clean_text(block.select_one(".courseblockextra"))
         clo = clean_text(block.select_one(".detail-cim_los"))
@@ -201,7 +195,7 @@ def parse_requirements(requirement_line):
 
     if not headers:
         result['prerequisites'] = extract_course_logic(text)
-        return result
+        return result['prerequisites']
 
     headers.sort(key=lambda x: x['start'])
 
@@ -270,26 +264,28 @@ def clean_dataframe(df: pd.DataFrame):
                 .str.strip()
             )
 
-    df["credits"] = pd.to_numeric(df["credits"], errors="coerce").astype("Int64")
+    df["credits"] = pd.to_numeric(df["credits"], errors="coerce").astype("Float32")
 
     return df
 
 
 
 def scrape_artsci_courses():
-    session = requests.Session()
-    session.headers.update(_SESSION_HEADERS)
-
-    valid_depts, _ = verify_departments(session)
+    session = build_session()
 
     all_courses = []
-    for i, dept in enumerate(valid_depts):
+    for i, dept in enumerate(DEPARTMENTS):
         if i > 0:
             time.sleep(10.2)
         courses = scrape_department(dept, session)
-        all_courses.extend(courses)
+        if courses:
+            print(f"Scraped {len(courses)} courses from {dept}")
+        dept_courses = clean_dataframe(pd.DataFrame(courses))
+        all_courses.append(dept_courses)
 
-    df = pd.DataFrame(all_courses)
-    df = clean_dataframe(df)
+    return all_courses
 
-    return df
+if __name__ == "__main__":
+    dfs = scrape_artsci_courses()
+    full_df = pd.concat(dfs, ignore_index=True)
+    full_df.to_csv("courses.csv", index=False)

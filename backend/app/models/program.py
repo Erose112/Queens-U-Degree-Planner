@@ -13,7 +13,7 @@ class Program(Base):
     program_name  = Column(Text, nullable=False)
     program_type  = Column(Text, nullable=False)
     program_link  = Column(Text, nullable=True)
-    total_credits = Column(Integer, nullable=False)
+    program_credits = Column(Integer, nullable=False)
     num_subplans_required  = Column(Integer, default=0, nullable=False)
 
     sections = relationship(
@@ -24,6 +24,11 @@ class Program(Base):
     )
     subplans = relationship(
         "Subplan",
+        back_populates="program",
+        cascade="all, delete-orphan",
+    )
+    course_lists = relationship(
+        "ProgramCourseLists",
         back_populates="program",
         cascade="all, delete-orphan",
     )
@@ -94,3 +99,19 @@ class Section_Courses(Base):
 
     section = relationship("Program_Section", back_populates="section_courses")
     course  = relationship("Course")
+
+class ProgramCourseLists(Base):
+    __tablename__ = "program_course_lists"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    program_id  = Column(Integer, ForeignKey("programs.program_id"), nullable=False)
+    list_id     = Column(Integer, nullable=False)
+    list_name   = Column(String(50), nullable=False)
+    course_id   = Column(Integer, ForeignKey("courses.course_id"), nullable=False)
+    
+    __table_args__ = (
+        UniqueConstraint("program_id", "list_id", "course_id", name="uq_program_list_course"),
+    )
+
+    program = relationship("Program", back_populates="course_lists")
+    courses = relationship("Course")

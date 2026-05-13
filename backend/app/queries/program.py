@@ -13,7 +13,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload, contains_eager
 
 from app.models.course import Course
-from app.models.program import Program, Program_Section, Section_Courses, Subplan
+from app.models.program import Program, Program_Section, Section_Courses, Subplan, ProgramCourseLists
 from app.models.prerequisite import PrerequisiteSet, PrerequisiteSetCourse
 
 from app.services.section_parser import LOGIC_REQUIRED
@@ -65,6 +65,10 @@ def get_program_structure(db: Session, program_id: int) -> Program | None:
             selectinload(Program.subplans)
             .selectinload(Subplan.sections)
             .options(_program_section_options()),
+
+            # Course lists with their related courses
+            selectinload(Program.course_lists)
+            .joinedload(ProgramCourseLists.courses),
         )
         .distinct()
     )

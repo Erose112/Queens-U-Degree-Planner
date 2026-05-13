@@ -23,6 +23,7 @@ from app.models.program import (
     Program_Section,
     Section_Courses,
     Subplan,
+    ProgramCourseLists,
 )
 from app.services.program_builder import build_all_programs
 from app.queries.course import load_course_lookup, load_course_credits_lookup
@@ -35,11 +36,12 @@ def _clear_program_tables(session: Session) -> None:
     children first), then reset AUTO_INCREMENT counters.
 
     Delete order:
-        section_courses  →  program_section  →  subplans  →  programs
+        program_course_lists  →  section_courses  →  program_section  →  subplans  →  programs
 
     Raises SQLAlchemyError and rolls back if any step fails.
     """
     try:
+        session.query(ProgramCourseLists).delete()
         session.query(Section_Courses).delete()
         session.query(Program_Section).delete()
         session.query(Subplan).delete()
@@ -47,6 +49,7 @@ def _clear_program_tables(session: Session) -> None:
         session.commit()
 
         for table in (
+            "program_course_lists",
             "section_courses",
             "program_section",
             "subplans",
@@ -72,7 +75,7 @@ def write_all_programs_to_mysql(df: pd.DataFrame) -> None:
     ----------
     df : pd.DataFrame
         Must contain the columns: program_name, program_code, program_type,
-        total_credits, num_subplans_required, sections, subplans.
+        program_credits, num_subplans_required, sections, subplans.
 
     Raises
     ------

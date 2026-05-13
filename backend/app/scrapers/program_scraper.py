@@ -15,7 +15,7 @@ Output shape per program
 {
     "program_name":  str,
     "program_type":  str,          # major | minor | specialization | general
-    "total_credits": int,
+    "program_credits": int,
     "program_code":  str,          # e.g. "ECON" (empty string if undetectable)
     "num_subplans_required": int,
     "sections": [                  # top-level sections (empty when num_subplans_required = 0)
@@ -360,6 +360,84 @@ def _find_existing_subplan(
     return None
 
 
+
+def _extract_course_lists(soup: BeautifulSoup) -> list[dict[str, Any]]:
+    """
+    Extract course lists after a "Course Lists" header.
+ 
+    Handles two h3 patterns found on Queen's calendar pages:
+      1. h3.toggle with a <button> child  (used for sub-plan toggles higher up)
+      2. Plain h3 with text               (used in the "Life Sciences Course Lists" section)
+ 
+    In both cases each h3 is followed by a table.sc_courselist (and optionally
+    a dl.sc_footnotes which is simply skipped).
+ 
+    Returns a list of dicts: [{"list_name": str, "courses": [course_codes]}]
+    """
+    course_lists: list[dict[str, Any]] = []
+
+    course_lists_header: Tag | None = None
+    for h_tag in soup.find_all(["h2", "h3", "h4"]):
+        if isinstance(h_tag, Tag):
+            if "course list" in h_tag.get_text(separator=" ", strip=True).lower():
+                course_lists_header = h_tag
+                break
+
+    if course_lists_header is None:
+        return []
+    current_list_name: str | None = None
+
+    for sibling in course_lists_header.find_next_siblings():
+        if not isinstance(sibling, Tag):
+            continue
+
+        tag = sibling.name
+
+        if tag == "h2":
+            break
+        if tag == "h4":
+            break
+        if tag == "h3":
+            # Pattern A: h3.toggle  →  list name is inside a <button>
+            if "toggle" in sibling.get("class", []):
+                button = sibling.find("button")
+                if isinstance(button, Tag):
+                    current_list_name = button.get_text(strip=True)
+                else:
+                    current_list_name = sibling.get_text(strip=True) or None
+            else:
+                # Pattern B: plain h3  →  the heading text IS the list name
+                text = sibling.get_text(strip=True)
+                current_list_name = text if text else None
+            continue
+
+        if tag == "dl" and "sc_footnotes" in sibling.get("class", []):
+            continue
+
+        if tag == "table" and "sc_courselist" in sibling.get("class", []):
+            if current_list_name is None:
+                # Table with no preceding list name — skip
+                continue
+
+            courses: list[str] = []
+            for link in sibling.find_all("a", class_="bubblelink code"):
+                if isinstance(link, Tag):
+                    raw = link.get_text(strip=True).replace("\xa0", "").replace(" ", "")
+                    if raw:
+                        courses.append(raw)
+
+            if courses:
+                course_lists.append(
+                    {
+                        "list_name": current_list_name,
+                        "courses": courses,
+                    }
+                )
+            current_list_name = None
+            continue
+ 
+    return course_lists
+
 def extract_data(
     url: str,
     stored_url: str,
@@ -411,10 +489,11 @@ def extract_data(
         "program_name":  program_name,
         "program_type":  get_degree_type(program_name),
         "program_link":  stored_url,
-        "total_credits": 0,
+        "program_credits": 0,
         "num_subplans_required": 0,
         "sections":      [],
         "subplans":      [],
+        "course_lists":  [],
     }
 
     # Total credits
@@ -424,7 +503,7 @@ def extract_data(
             if isinstance(sibling, NavigableString):
                 m = _CREDITS_RE.search(str(sibling))
                 if m:
-                    program_data["total_credits"] = int(float(m.group(1)))
+                    program_data["program_credits"] = int(float(m.group(1)))
                     break
 
     # Plan Code
@@ -449,6 +528,9 @@ def extract_data(
             if num is not None:
                 program_data["num_subplans_required"] = num
                 break
+
+    # Extract course lists (toggle-group course lists like GPHY_Physical, etc.)
+    program_data["course_lists"] = _extract_course_lists(soup)
 
     # Find content root
     content_root: Tag | None = (
@@ -726,4 +808,4 @@ def scrape_program_courses() -> pd.DataFrame:
 
 if __name__ == "__main__":
     df = scrape_program_courses()
-    df.to_csv("program_courses.csv", index=False)
+    df.to_csv("programs.csv", index=False)
