@@ -24,7 +24,7 @@ type NavbarProps = {
             style={{ background: COLOURS.blue }}
           >
             <div className="flex items-center gap-2.5">
-              <span className="font-playfair font-bold text-[25px] tracking-[0.01em]" style={{ color: COLOURS.white }}>
+              <span className="font-playfair text-[25px] tracking-[0.01em]" style={{ color: COLOURS.white }}>
                 Queen's Degree Planner
               </span>
             </div>
@@ -32,7 +32,7 @@ type NavbarProps = {
               {(["Home", "Plan", "About"] as const).map((l) => (
                 <button
                   key={l}
-                  className="text-[17px] font-bold tracking-[0.05em] cursor-pointer transition-colors bg-transparent border-none p-0"
+                  className="text-[17px] tracking-[0.05em] cursor-pointer transition-colors bg-transparent border-none p-0"
                   style={{ color: activePage === l ? COLOURS.white : `${COLOURS.white}b3` }}
                   onClick={handlers[l]}
                   onMouseEnter={(e) => {

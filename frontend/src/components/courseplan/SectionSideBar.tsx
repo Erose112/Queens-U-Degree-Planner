@@ -1,19 +1,22 @@
 // components/courseplan/SectionSideBar.tsx
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import type { ProgramStructure, SelectedCourse, NodeType } from '../../types/plan';
+import type { ProgramStructure, SelectedCourse, NodeType, Course, ProgramList } from '../../types/plan';
 import { COLOURS } from '../../utils/colours';
 import { LOGIC_REQUIRED, getSectionLabel, formatCourseName } from '../../utils/program';
+import { splitWildcards, filterCoursesByWildcards } from '../../utils/wildcard';
 
 // Types 
 interface Props {
   programs: ProgramStructure[];
   selectedCourses: SelectedCourse[];
-  allCourses: { course_id: number; course_code: string; title: string | null; credits: number | null }[];
+  allCourses: Course[];
   onAdd: (courseCode: string, courseId: number, nodeType: NodeType) => void;
   onRemove: (courseId: number) => void;
   onRedoSection: (courseIds: number[]) => void;
   courseErrors: Map<number, string>;
+  namedLists?: Record<string, string[]>;
+  programLists?: ProgramList[];
 }
 
 interface SideBarCourse {
@@ -32,6 +35,7 @@ interface SideBarSection {
   creditReq: number | null;
   courses: SideBarCourse[];
   wildcard: string | null;
+  wildcardCourses: SideBarCourse[];
 }
 
 // Helpers 
@@ -45,6 +49,9 @@ function buildSections(
   programs: ProgramStructure[],
   selectedCourses: SelectedCourse[],
   courseErrors: Map<number, string>,
+  allCourses: Course[],
+  namedLists: Record<string, string[]>,
+  programLists: ProgramList[]
 ): SideBarSection[] {
   const selectedIds = new Set(selectedCourses.map(c => c.courseId));
 
@@ -69,6 +76,16 @@ function buildSections(
           isSelected: selectedIds.has(c.course_id),
           error: courseErrors.get(c.course_id) ?? null,
         })),
+        wildcardCourses: section.wildcard
+          ? filterCoursesByWildcards(allCourses, splitWildcards(section.wildcard), namedLists, programLists).map(c => ({
+              courseId: c.course_id,
+              courseCode: formatCourseName(c.course_code),
+              title: c.title,
+              credits: c.credits,
+              isSelected: selectedIds.has(c.course_id),
+              error: courseErrors.get(c.course_id) ?? null,
+            }))
+          : [],
       });
     }
   }
@@ -91,14 +108,17 @@ function selectedCredits(courses: SideBarCourse[]): number {
 
 // Completion check (pure, no hooks) 
 function isSectionComplete(section: SideBarSection): boolean {
+  // Combine both explicit courses and wildcard courses for completion check
+  const allAvailableCourses = [...section.courses, ...section.wildcardCourses];
+  
   if (section.creditReq !== null && section.creditReq > 0) {
-    return selectedCredits(section.courses) >= section.creditReq;
+    return selectedCredits(allAvailableCourses) >= section.creditReq;
   }
-  return section.courses.every(c => c.isSelected);
+  return allAvailableCourses.every(c => c.isSelected);
 }
 
 // Main component 
-export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, onRemove, onRedoSection, courseErrors }: Props) {
+export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, onRemove, onRedoSection, courseErrors, namedLists = {}, programLists = [] }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const searchResults = useMemo(() => {
@@ -119,8 +139,8 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
   }, [searchQuery, allCourses]);
 
   const sections = useMemo(
-    () => buildSections(programs, selectedCourses, courseErrors),
-    [programs, selectedCourses, courseErrors],
+    () => buildSections(programs, selectedCourses, courseErrors, allCourses, namedLists, programLists),
+    [programs, selectedCourses, courseErrors, allCourses, namedLists, programLists],
   );
 
   const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set());
@@ -316,7 +336,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                     {section.sectionName}
                   </p>
                   <p className="text-[14px] text-gray-500 mt-0.5">
-                    {requirementLabel(section.creditReq, section.courses.length, section.wildcard)}
+                    {requirementLabel(section.creditReq, section.courses.length + section.wildcardCourses.length, section.wildcard)}
                   </p>
                 </div>
 
@@ -326,7 +346,10 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          const courseIds = section.courses.map(c => c.courseId);
+                          const courseIds = [
+                            ...section.courses.map(c => c.courseId),
+                            ...section.wildcardCourses.map(c => c.courseId),
+                          ];
                           prevCompleteRef.current.delete(section.key);
                           onRedoSection(courseIds);
                           setOpenKeys((prev) => { const next = new Set(prev); next.delete(section.key); return next; });
@@ -375,9 +398,9 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
             {isOpen && (
               <div
                 className="pb-1.5 bg-gray-50/40 overflow-y-auto"
-                style={{ maxHeight: section.courses.length >= 6 ? '265px' : undefined }}
+                style={{ maxHeight: section.courses.length >= 6 || section.wildcardCourses.length >= 6 ? '265px' : undefined }}
               >
-                {section.courses.length === 0 ? (
+                {section.courses.length === 0 && section.wildcardCourses.length === 0 ? (
                   <p className="px-4 py-2 text-[16px] text-gray-500 italic">
                     {section.wildcard ? section.wildcard : 'No courses listed'}
                   </p>
@@ -393,10 +416,24 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                         defaultNodeType="choice"
                       />
                     ))}
-                    {section.wildcard && (
-                      <p className="pr-4 pl-7 py-2 text-[16px] text-gray-500 italic border-t border-gray-200">
-                        {"or from " +section.wildcard}
-                      </p>
+                    {section.wildcardCourses.length > 0 && (
+                      <>
+                        {section.courses.length > 0 && (
+                          <p className="pr-4 pl-7 py-2 text-[16px] text-gray-500 italic border-t border-gray-200">
+                            or from {section.wildcard}
+                          </p>
+                        )}
+                        {section.wildcardCourses.map(course => (
+                          <CourseRow
+                            key={course.courseId}
+                            course={course}
+                            onAdd={onAdd}
+                            onRemove={onRemove}
+                            isLocked={isComplete}
+                            defaultNodeType="choice"
+                          />
+                        ))}
+                      </>
                     )}
                   </>
                 )}

@@ -35,14 +35,23 @@ export interface ProgramSection {
   wildcard: string | null;
 }
 
+export interface ProgramList {
+  list_id: number;
+  program_id: number;
+  list_name: string;
+  courses: Course[];
+}
+
+
 export interface ProgramStructure {
   program_id: number;
   program_name: string;
   program_type: string;
   program_link: string | null;
-  total_credits: number;
+  program_credits: number;
   num_subplans_required?: number;
   sections: ProgramSection[];
+  course_lists?: ProgramList[];
 }
 
 /**
@@ -110,3 +119,10 @@ export type SelectedPrograms = Record<string, ProgramStructure | null>;
  * Fetched once per program when the user selects it.
  */
 export type StructureCache = Record<number, ProgramStructure>;
+
+export type Wildcard = {
+  subject: string | null;       // e.g. "CISC"
+  level: number | null;  // e.g. 400, or null = any level
+  levelMin: boolean | null;
+  listName: string | null; // e.g. "CISC_Subs" → needs lookup
+};

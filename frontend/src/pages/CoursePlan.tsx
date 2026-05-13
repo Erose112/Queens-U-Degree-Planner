@@ -1,62 +1,26 @@
 // pages/CoursePlanPage.tsx
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  ReactFlow,
-  Background,
-  useNodes,
-  useUpdateNodeInternals,
-  useViewport,
-  type NodeTypes,
-  type EdgeTypes,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
 
 import { getCourses } from '../services/api';
-import { CourseNode } from '../components/courseplan/CourseNode';
-import { CourseEdge } from '../components/courseplan/CourseEdge';
+import { CoursePlanChart } from '../components/courseplan/CoursePlanChart';
 import { Legend } from '../components/courseplan/Legend';
-import { YearSideBar } from '../components/courseplan/YearSideBar';
 import { SectionSideBar } from '../components/courseplan/SectionSideBar';
 import CreditBar from '../components/CreditBar';
 import Footer from '../components/Footer';
 import ScrollToTop from '../components/ScrollToTop';
 import { usePlanLayout } from '../hooks/planLayout';
 import { usePlanStore } from '../store/planStore';
-import { YEAR_BAR_WIDTH, YEAR_BAR_COURSE_OFFSET } from '../utils/coursePlanLayout';
 import { COLOURS } from '../utils/colours';
 import { getPlanCredits, getCreditLimitForPrograms } from '../utils/credits';
-import type { Course, YearSection } from '../types/plan';
+import type { Course, ProgramList } from '../types/plan';
 import NavBar from '../components/NavBar';
-
-const nodeTypes: NodeTypes = { course: CourseNode };
-const edgeTypes: EdgeTypes = { courseEdge: CourseEdge };
-
-function NodeInternalsUpdater() {
-  const nodes = useNodes();
-  const updateNodeInternals = useUpdateNodeInternals();
-  const didUpdate = useRef(false);
-  useEffect(() => {
-    if (nodes.length > 0 && !didUpdate.current) {
-      didUpdate.current = true;
-      updateNodeInternals(nodes.map(n => n.id));
-    }
-  }, [nodes, updateNodeInternals]);
-  return null;
-}
-
-function ChartInner({ yearSections }: { yearSections: YearSection[] }) {
-  const { y, zoom } = useViewport();
-  return <YearSideBar yearSections={yearSections} translateY={y} scale={zoom} />;
-}
 
 export default function CoursePlanPage() {
   const navigate = useNavigate();
   const { programs, graph, selectedCourses, addCourse, removeCourse, courseErrors, redoSection } = usePlanStore();
   const { nodes, edges, yearSections, onNodesChange, onEdgesChange } = usePlanLayout();
 
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [lockedNodeId, setLockedNodeId]   = useState<string | null>(null);
   const [allCourses, setAllCourses]       = useState<Course[]>([]);
 
   useEffect(() => {
@@ -73,33 +37,13 @@ export default function CoursePlanPage() {
     return last.y + last.height;
   }, [yearSections]);
 
+  // Extract programLists from all programs
+  const programLists = useMemo((): ProgramList[] => {
+    return programs.flatMap(p => (p.course_lists || []));
+  }, [programs]);
+
   // The active node for highlight is the locked one if set, otherwise hovered.
   // While locked, hovering other nodes has no effect.
-  const activeNodeId = lockedNodeId ?? hoveredNodeId;
-
-  const visibleEdges = useMemo(() => {
-    if (!activeNodeId) return edges;
-    return edges.map(edge => ({
-      ...edge,
-      style: {
-        ...edge.style,
-        opacity:
-          edge.source === activeNodeId || edge.target === activeNodeId ? 1 : 0.05,
-      },
-      zIndex:
-        edge.source === activeNodeId || edge.target === activeNodeId ? 10 : 0,
-    }));
-  }, [edges, activeNodeId]);
-
-  const handleNodeClick = (_: React.MouseEvent, node: { id: string }) => {
-    // Clicking the already-locked node unlocks it; clicking another locks it.
-    setLockedNodeId(prev => prev === node.id ? null : node.id);
-  };
-
-  const handlePaneClick = () => {
-    setLockedNodeId(null);
-    setHoveredNodeId(null);
-  };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -184,45 +128,16 @@ export default function CoursePlanPage() {
         </div>
 
         <div className="flex gap-6 items-start w-full">
-          <div
-            className="w-[73%] border border-gray-300 bg-white rounded-lg overflow-hidden relative"
-            style={{ height: flowHeight }}
-            onDragOver={e => e.preventDefault()}
+          <CoursePlanChart
+            nodes={nodes}
+            edges={edges}
+            yearSections={yearSections}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
             onDrop={handleDrop}
-          >
-            <ReactFlow
-              nodes={nodes}
-              edges={visibleEdges}
-              nodeTypes={nodeTypes}
-              edgeTypes={edgeTypes}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onNodeMouseEnter={(_, node) => { if (!lockedNodeId) setHoveredNodeId(node.id); }}
-              onNodeMouseLeave={() => { if (!lockedNodeId) setHoveredNodeId(null); }}
-              onNodeClick={handleNodeClick}
-              onPaneClick={handlePaneClick}
-              defaultViewport={{
-                x: YEAR_BAR_WIDTH + YEAR_BAR_COURSE_OFFSET,
-                y: 0,
-                zoom: 1,
-              }}
-              nodesDraggable={false}
-              nodesConnectable={false}
-              elementsSelectable={true}
-              panOnDrag={false}
-              panOnScroll={false}
-              zoomOnScroll={false}
-              zoomOnPinch={false}
-              zoomOnDoubleClick={false}
-              preventScrolling={false}
-              minZoom={1}
-              maxZoom={1}
-            >
-              <NodeInternalsUpdater />
-              <Background color="#f3f4f6" gap={16} />
-              <ChartInner yearSections={yearSections} />
-            </ReactFlow>
-          </div>
+            flowHeight={flowHeight}
+            programNames={programNames}
+          />
 
           <div style={{ height: flowHeight }} className="w-[27%]">
             <SectionSideBar
@@ -233,6 +148,7 @@ export default function CoursePlanPage() {
               onRemove={removeCourse}
               allCourses={allCourses}
               onRedoSection={redoSection}
+              programLists={programLists}
             />
           </div>
         </div>

@@ -140,7 +140,7 @@ export default function HomePage() {
             },
             {
               title: "Fill out your Plan Requirements",
-              desc: "Select courses from the choice sections in your plan. Add any course outside of your plan using the \"Add Any Course\" feature. The planner will verify program/degree requirements and track credits and degree progress.",
+              desc: "Select courses from the choice sections in your plan. Add elective type courses using the \"Add Any Course\" feature. The planner will verify program/course requirements are met when adding courses.",
               color: COLOURS.yellow,
             },
           ].map((card, i) => (

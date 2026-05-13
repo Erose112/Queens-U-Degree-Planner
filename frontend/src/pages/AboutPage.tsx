@@ -37,7 +37,7 @@ export default function AboutPage() {
         activePage="About"
       />
 
-      <main className="flex-1 w-full max-w-[900px] mx-auto px-10 py-11 flex flex-col gap-14">
+      <main className="flex-1 w-full max-w-[900px] mx-auto px-10 py-11 flex flex-col gap-10">
 
         {/* Hero */}
         <div className="flex flex-col gap-6">
@@ -96,26 +96,20 @@ export default function AboutPage() {
           </p>
         </div>
 
+        {/* Divider */}
+        <div style={{ height: 1, background: COLOURS.grey }} />
+
         {/* Why I Built This */}
-        <div
-          className="flex gap-6 p-7 rounded-2xl"
-          style={{
-            background: COLOURS.white,
-            border: `1px solid ${COLOURS.grey}`,
-            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-          }}
-        >
-          <div className="flex flex-col gap-2">
-            <h2 className="font-playfair text-[25px] font-bold" style={{ color: COLOURS.blue }}>
-              Why I Built This
-            </h2>
-            <p className="text-[16px] leading-[1.75]" style={{ color: COLOURS.darkGrey }}>
-                I built this project out of my own frustration with the degree planning process at Queen's. 
-                I wanted a simple way to visualise my degree progress, experiment with different course combinations, 
-                and plan out my semesters without having to click through multiple pages on the university website. 
-                Have fun planning!
-            </p>
-          </div>
+        <div className="flex flex-col gap-2">
+          <h2 className="font-playfair text-[25px] font-bold" style={{ color: COLOURS.blue }}>
+            Why I Built This
+          </h2>
+          <p className="text-[16px] leading-[1.75]" style={{ color: COLOURS.darkGrey }}>
+              I built this project out of my own frustration with the degree planning process at Queen's. 
+              I wanted a simple way to visualise my degree progress, experiment with different course combinations, 
+              and plan out my semesters without having to click through multiple pages on the university website. 
+              Have fun planning!
+          </p>
         </div>
       </main>
 

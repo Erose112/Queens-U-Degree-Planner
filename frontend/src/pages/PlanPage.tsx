@@ -107,7 +107,7 @@ function ProgramDropdown({
 
       <div ref={containerRef} className="relative">
         <input
-          className="w-full px-3 py-2.5 pr-9 rounded-xl border-2 bg-white font-sans text-[14px] transition-colors focus:outline-none"
+          className="w-full px-3 py-2.5 pr-9 rounded-xl border-2 bg-white text-[14px] transition-colors focus:outline-none"
           style={{
             borderColor: error ? COLOURS.red : open ? COLOURS.blue : COLOURS.grey,
             color: selected ? COLOURS.blue : COLOURS.darkGrey,
@@ -237,7 +237,7 @@ function SubplanPicker({ subplans, selectedId, onSelect, loading, error }: Subpl
         <button
           onClick={() => !loading && setOpen((v) => !v)}
           disabled={loading}
-          className="w-full px-3 py-2.5 pr-9 rounded-xl border-2 bg-white font-sans text-[14px] font-medium text-left transition-colors focus:outline-none"
+          className="w-full px-3 py-2.5 pr-9 rounded-xl border-2 bg-white text-[14px] font-medium text-left transition-colors focus:outline-none"
           style={{
             borderColor: error ? COLOURS.red : open ? COLOURS.blue : COLOURS.grey,
             color: selectedSubplan ? COLOURS.blue : COLOURS.darkGrey,
@@ -316,7 +316,7 @@ function CombinationPicker({
       <div ref={containerRef} className="relative">
         <button
           onClick={() => setOpen((v) => !v)}
-          className="w-full px-3 py-2.5 pr-9 rounded-xl border-2 bg-white font-sans text-[14px] font-medium text-left transition-colors focus:outline-none cursor-pointer"
+          className="w-full px-3 py-2.5 pr-9 rounded-xl border-2 bg-white text-[14px] font-medium text-left transition-colors focus:outline-none cursor-pointer"
           style={{ borderColor: open ? COLOURS.blue : COLOURS.grey, color: COLOURS.blue }}
         >
           {selectedConfig.label}
@@ -473,7 +473,7 @@ export default function PlannerPage() {
     const programStructure: ProgramStructure = {
       ...program,
       program_link: null,
-      total_credits: 0,
+      program_credits: 0,
       num_subplans_required: 0,
       sections: [],
     };
@@ -508,7 +508,7 @@ export default function PlannerPage() {
                 [slotKey]: {
                   ...cur,
                   num_subplans_required: structure.num_subplans_required,
-                  total_credits: structure.total_credits,
+                  program_credits: structure.program_credits,
                 },
               };
             }

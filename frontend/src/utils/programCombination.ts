@@ -17,7 +17,7 @@
  *       no unit cap.
  *
  *   The effective total is:
- *     Σ(program.total_credits)
+ *     Σ(program.program_credits)
  *       − Rule 2b savings  (mandatory+supporting overlaps, uncapped)
  *       − Rule 2a savings  (mandatory+mandatory overlaps, capped at 12.0)
  *
@@ -226,7 +226,7 @@ function supportingCourses(structure: ProgramStructure): Course[] {
 
 
 export interface CreditSummary {
-  /** Naïve sum of total_credits across all selected programs (no deductions). */
+  /** Naïve sum of program_credits across all selected programs (no deductions). */
   rawTotal: number;
 
   /**
@@ -268,7 +268,7 @@ export interface CreditSummary {
  *   - Rule 2b: mandatory+supporting overlap, uncapped
  *
  * Programs whose structure hasn't been fetched yet still contribute
- * their total_credits to rawTotal but are excluded from double-count
+ * their program_credits to rawTotal but are excluded from double-count
  * analysis — a conservative choice that avoids showing inflated savings.
  *
  * @param selections        Slot key → Program | null
@@ -303,7 +303,7 @@ export function calculateCombinationCredits(
   }
 
   const rawTotal = programs.reduce((sum, p) => {
-    let credits = p.total_credits;
+    let credits = p.program_credits;
 
     const slotKey = Object.keys(selections).find(
       k => selections[k]?.program_id === p.program_id
