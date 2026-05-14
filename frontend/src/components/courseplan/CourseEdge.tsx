@@ -9,19 +9,17 @@ export interface CourseEdgeData extends Record<string, unknown> {
   totalEdges?: number;
 }
 
-// Tunable knobs 
+// Tunable knobs
 const CONFIG = {
   EXIT_SPACE: 20,
   ROW_GAP_THRESHOLD: 16,
   MIN_CORRIDOR_WIDTH: 8,
-  NODE_CLEARANCE: 8,
+  NODE_CLEARANCE: 5,
   CORNER_RADIUS: 20,
   SIBLING_SPREAD_PX: 12,
 };
 
 interface Box      { id: string; x: number; y: number; w: number; h: number; }
-// isFlanking = true for the outer left/right corridors added beyond all obstacles.
-// We prefer non-flanking (internal) corridors to keep paths compact and on-screen.
 interface Corridor { x: number; left: number; right: number; isFlanking: boolean; }
 interface Point    { x: number; y: number; }
 interface ChartBounds { minX: number; maxX: number; }
@@ -51,7 +49,6 @@ function findRowGapYs(boxes: Box[], minY: number, maxY: number): number[] {
   return gaps;
 }
 
-// Corridor detection 
 function findCorridorsInYRange(
   boxes: Box[],
   minY: number,
@@ -100,7 +97,6 @@ function findCorridorsInYRange(
       corridors.push({ x: (left + right) / 2, left, right, isFlanking: false });
     }
   }
-
   // Right flanking corridor — suppress if it would place the path outside the chart.
   const rightFlankX = merged[merged.length - 1].right + FLANK_DIST;
   if (!chartBounds || rightFlankX <= chartBounds.maxX) {
@@ -115,8 +111,6 @@ function findCorridorsInYRange(
   return corridors;
 }
 
-// Given a set of candidate corridors, return only the non-flanking (internal)
-// ones if any exist — otherwise fall back to all candidates.
 function preferInternal(corridors: Corridor[]): Corridor[] {
   const internal = corridors.filter(c => !c.isFlanking);
   return internal.length > 0 ? internal : corridors;
@@ -134,19 +128,13 @@ function pickCorridorX(
   corridors.sort((a, b) => Math.abs(a.x - preferredX) - Math.abs(b.x - preferredX));
   const best    = corridors[0];
 
-  // Only spread siblings within the same corridor when there are multiple edges.
-  // Keep the spread small so paths visually overlap rather than fan out.
-  const usable  = (best.right - best.left) * 0.5; // reduced from 0.8 to keep paths tighter
+  const usable  = (best.right - best.left) * 0.5;
   const step    = siblingCount <= 1 ? 0 : Math.min(CONFIG.SIBLING_SPREAD_PX, usable / siblingCount);
   const offset  = siblingCount <= 1 ? 0 : (siblingIndex - (siblingCount - 1) / 2) * step;
 
-  // Snap to corridor centre plus tiny offset — this is the key change.
-  // All edges that pick the same corridor will cluster around its centre
-  // rather than each computing an independent preferred X.
   return best.x + offset;
 }
 
-// Check if a vertical line at x is obstacle-free in [minY, maxY] 
 function isXClearInYRange(x: number, boxes: Box[], minY: number, maxY: number): boolean {
   return !boxes.some(
     b =>
@@ -157,15 +145,28 @@ function isXClearInYRange(x: number, boxes: Box[], minY: number, maxY: number): 
   );
 }
 
-//  Waypoint assembler 
+// Check whether the full vertical span source→target is clear at a
+// given x position, so we can short-circuit routing for straight-down edges.
+function isDirectPathClear(
+  x: number,
+  fromY: number,
+  toY: number,
+  boxes: Box[],
+): boolean {
+  return !boxes.some(
+    b =>
+      b.x - CONFIG.NODE_CLEARANCE < x &&
+      b.x + b.w + CONFIG.NODE_CLEARANCE > x &&
+      b.y - CONFIG.NODE_CLEARANCE < toY &&
+      b.y + b.h + CONFIG.NODE_CLEARANCE > fromY,
+  );
+}
 
 function buildWaypoints(
   sourceX:      number,
   sourceY:      number,
   targetX:      number,
   targetY:      number,
-  // boxes now excludes source but INCLUDES target for intermediate
-  // obstacle detection. The target is excluded only for the final entry segment.
   boxes:        Box[],
   targetBox:    Box | null,
   siblingIndex: number,
@@ -176,8 +177,21 @@ function buildWaypoints(
   const exitY  = sourceY + CONFIG.EXIT_SPACE;
   const entryY = targetY - CONFIG.EXIT_SPACE;
 
-  // Use boxes that include the target for row-gap detection so that
-  // the path never tries to route a horizontal segment through the target node.
+  // If source and target share (nearly) the same x and nothing blocks
+  // the straight vertical path, emit a direct two-point path and skip all
+  // corridor / gap logic.
+  const isSameColumn = Math.abs(sourceX - targetX) < 1;
+  if (isSameColumn) {
+    const boxesWithTarget = targetBox ? [...boxes, targetBox] : boxes;
+    // Check the span between exitY and entryY (the stub segments are always clear).
+    if (isDirectPathClear(sourceX, exitY, entryY, boxesWithTarget)) {
+      return [
+        { x: sourceX, y: sourceY },
+        { x: sourceX, y: targetY },
+      ];
+    }
+  }
+
   const boxesWithTarget = targetBox ? [...boxes, targetBox] : boxes;
 
   let gapYs = findRowGapYs(boxesWithTarget, exitY, entryY);
@@ -196,7 +210,6 @@ function buildWaypoints(
     const gapY    = gapYs[i];
     const segTopY = i === 0 ? exitY : gapYs[i - 1];
 
-    // Use boxesWithTarget for obstacle clearance checks in intermediate segments.
     if (isXClearInYRange(currentX, boxesWithTarget, segTopY, gapY)) {
       pts.push({ x: currentX, y: gapY });
       continue;
@@ -209,9 +222,6 @@ function buildWaypoints(
 
     const globallyPreferred = preferInternal(corridors);
 
-    // Among the globally preferred set, bias toward corridors in the source–target
-    // x-band. If none are in range, fall back to all preferred (pickCorridorX will
-    // choose the nearest one anyway).
     const inRange = globallyPreferred.filter(
       c => c.x >= xLo - CONFIG.NODE_CLEARANCE && c.x <= xHi + CONFIG.NODE_CLEARANCE,
     );
@@ -260,8 +270,6 @@ function buildWaypoints(
   );
 }
 
-// SVG path builder 
-
 function buildSVGPath(pts: Point[]): string {
   if (pts.length < 2) return '';
   if (pts.length === 2) {
@@ -301,8 +309,6 @@ function buildSVGPath(pts: Point[]): string {
   return d;
 }
 
-// Edge component 
-
 export function CourseEdge({
   id,
   source,
@@ -317,8 +323,6 @@ export function CourseEdge({
   const markerId = `arrow-${id}`;
   const allNodes = useNodes();
 
-  // Compute the bounding box of all nodes in the flow so corridor detection
-  // can suppress flanking routes that would go off-screen.
   const chartBounds = useMemo<ChartBounds>(() => {
     if (allNodes.length === 0) return { minX: 0, maxX: 1000 };
     let minX = Infinity;
