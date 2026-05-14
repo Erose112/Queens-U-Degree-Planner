@@ -12,11 +12,18 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload, contains_eager
 
-from app.models.course import Course
-from app.models.program import Program, Program_Section, Section_Courses, Subplan, ProgramCourseLists
-from app.models.prerequisite import PrerequisiteSet, PrerequisiteSetCourse
+from queens_db_models.models import (
+    Course,
+    Program,
+    Program_Section,
+    Section_Courses,
+    Subplan,
+    ProgramCourseLists,
+    PrerequisiteSet,
+    PrerequisiteSetCourse,
+)
 
-from app.services.section_parser import LOGIC_REQUIRED
+LOGIC_REQUIRED = 0
 
 
 def get_all_programs(db: Session) -> list[Program]:

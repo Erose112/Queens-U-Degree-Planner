@@ -3,11 +3,10 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-import app.models  # registers all SQLAlchemy models
+import queens_db_models.models  # registers all SQLAlchemy models
 
 from app.routers.course import router as course_router
 from app.routers.program import router as program_router
-from app.routers.recommendations import router as recommendations_router
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -24,7 +23,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(recommendations_router , prefix="/api")
 app.include_router(program_router, prefix="/api")
 app.include_router(course_router, prefix="/api")
 

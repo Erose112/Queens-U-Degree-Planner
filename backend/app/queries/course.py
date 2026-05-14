@@ -5,8 +5,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.course import Course
-from app.models.prerequisite import PrerequisiteSet, PrerequisiteSetCourse
+from queens_db_models.models import Course, PrerequisiteSet, PrerequisiteSetCourse
 from collections import deque
 from sqlalchemy import select
 
