@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback, useMemo, KeyboardEvent } from
 import { useNavigate } from "react-router-dom";
 import NavBar from "../components/NavBar";
 import Footer from "../components/Footer";
-import ScrollToTop from "../components/ScrollToTop";
 import NextPageButton from "../components/NextPageButton";
 import ChevronIcon from "../components/ChevronIcon";
 import CreditBar from "../components/CreditBar";
@@ -700,7 +699,6 @@ export default function PlannerPage() {
   // Render 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: COLOURS.warmWhite }}>
-      <ScrollToTop />
 
       <style>{`
         @keyframes fadeUp {

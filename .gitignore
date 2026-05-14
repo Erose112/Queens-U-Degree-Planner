@@ -1,5 +1,7 @@
 # Environment variables
 .env
+.env.*
+!.env.example
 .env.local
 .env.*.local
 
@@ -7,6 +9,9 @@
 node_modules/
 venv/
 __pycache__/
+**/__pycache__/
+*.py[cod]
+*.so
 *.pyc
 *.pyo
 *.pyd
@@ -53,7 +58,3 @@ coverage/
 .cache/
 temp/
 tmp/
-
-# Generated scraper data
-queens_programs.json
-backend/app/scrapers/queens_programs_test.json

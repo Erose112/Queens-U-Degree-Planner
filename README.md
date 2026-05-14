@@ -16,7 +16,7 @@ This project aggregates course and program data from multiple Queen's University
 
 ![Degree Planner Dashboard](./screenshots/degree-planner-ui.png)
 
-### Features
+**Features**
 - Interactive semester planner with drag-and-drop course scheduling
 - Real-time prerequisite validation and cascade removal
 - Visual degree progress tracking
@@ -70,6 +70,17 @@ Each degree is built from one or more modular plan types:
 
 Combinations like two specializations or two majors and a minor are not permitted — the plan selection UI enforces this structurally.
 
+### General Rules
+
+The calander enforces some general rules about your degree. While they are not necessarily true for every student or degree, they are typical for most Queen's students. 
+
+- Per-year credit cap: **30.0 units**
+- Total degree cap: **120.0 units**
+- The total units of courses taken in a section cannot excede the limit set for that section.
+- The calander will not schedule a course that has a prerequisite chain depth of two or greater in the same year. This represents how a dual semester year only allows for two courses to be taken if all courses have a prerequisite to the other.
+- The calander places courses in years based off their course code. i.e CISC-300, at it's earliest is placed in year 3.
+
+
 ### Credit Double-Counting Rules
 
 The planner implements Queen's two-part double-counting policy (Academic Calendar, Academic Programs section 2):
@@ -79,10 +90,12 @@ The planner implements Queen's two-part double-counting policy (Academic Calenda
 
 Rule 2b takes priority when a course qualifies under both rules.
 
-### Other Rules
+### Non-Enforced Rules/Design Choices
 
-- Per-year credit cap: **30.0 units**
 - The breadth requirement (18.0 units across three subjects within the first 30.0 units) is **not enforced** by this planner.
+- Option lists found in some plans are treated as subplans.
+- As courses must be taken on a per semester basis, and course semester data is not available for public use. The planner does not place courses into semesters.
+- Courses in required sections of your program will also count towards non-required sections.
 
 ---
 
@@ -104,7 +117,6 @@ A Python **FastAPI** application that serves the core academic and data layer:
 - **REST API** — Endpoints for courses, programs, and prerequisites
 - **Web scrapers** — Automated tools to pull and parse program structures and course descriptions from the Queen's Academic Calendar
 - **Database layer** — Stores and queries academic data (MySQL)
-- **Real-time validation** — Computes prerequisite chains and degree progress
 
 **Key files** (in `app/`):
 - `main.py` — FastAPI application entry point and route configuration
@@ -123,20 +135,20 @@ A **React + TypeScript** single-page application (SPA) built with **Vite** that 
 - **State management** — Zustand store (`planStore.ts`) for plan persistence
 - **Client-side validation** — Prerequisite checking, credit calculations, degree rules
 
-**Key utilities** (all in `src/utils/`):
+**Key utilities**
 
 *State & Storage:*
 - `planStore.ts` — Zustand store managing plan state and persistence
 
 *Degree & Prerequisite Logic:*
-- `program.ts` — Course placement rules, prerequisite validation, degree constraints
+- `program.ts` — Course placement rules and degree constraints
 - `programCombination.ts` — Plan combination selection and credit double-counting rules
 - `prerequisites.ts` — Prerequisite chain resolution and dependency checking
-- `graph.ts` — Prerequisite graph traversal, cycle detection, and path analysis
+- `graph.ts` — Prerequisite graph traversal, cycle detection, and topological sorting of nodes
 
 *Helpers:*
 - `credits.ts` — Credit calculations and per-year/section limit enforcement
-- `coursePlanLayout.ts` — Semester/year layout and node positioning
+- `coursePlanLayout.ts` — Preset values to control calander layout
 - `coursePlanConverter.ts` — Converts between API responses and UI course objects
 
 ---
@@ -153,7 +165,7 @@ A **React + TypeScript** single-page application (SPA) built with **Vite** that 
 
 ```bash
 # Clone the repository
-git clone https://github.com/ethanrose/queens-degree-planner.git
+git clone https://github.com/Erose112/Queens-U-Degree-Planner.git
 cd queens-degree-planner
 
 # Install frontend dependencies

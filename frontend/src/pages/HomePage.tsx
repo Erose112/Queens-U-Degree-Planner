@@ -3,7 +3,6 @@ import NavBar from "../components/NavBar";
 import Footer from "../components/Footer";
 import NextPageButton from "../components/NextPageButton";
 import { COLOURS } from "../utils/colours";
-import ScrollToTop from "../components/ScrollToTop";
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -12,7 +11,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: COLOURS.warmWhite }}>
-      <ScrollToTop />
       <style>{`
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(24px); }

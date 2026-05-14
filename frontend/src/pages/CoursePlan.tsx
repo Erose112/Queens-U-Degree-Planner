@@ -8,7 +8,6 @@ import { Legend } from '../components/courseplan/Legend';
 import { SectionSideBar } from '../components/courseplan/SectionSideBar';
 import CreditBar from '../components/CreditBar';
 import Footer from '../components/Footer';
-import ScrollToTop from '../components/ScrollToTop';
 import { usePlanLayout } from '../hooks/planLayout';
 import { usePlanStore } from '../store/planStore';
 import { COLOURS } from '../utils/colours';
@@ -65,8 +64,6 @@ export default function CoursePlanPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: COLOURS.warmWhite }}>
-      <ScrollToTop />
-
       <NavBar
         onHome={() => navigate("/")}
         onPlan={() => navigate("/planner")}
