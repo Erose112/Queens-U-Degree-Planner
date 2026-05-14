@@ -7,7 +7,7 @@ function parseWildcard(wildcard: string): Wildcard {
 
   const levelMatch = wildcard.match(/(\d)\d\d-level/);
   const level = levelMatch ? parseInt(levelMatch[1]) * 100 : null;
-  const levelMin = /and above/.test(wildcard);
+  const levelMin = /and above/.test(wildcard) || /or above/.test(wildcard);
 
   const isNamed = subjectRaw.includes("_");
 

@@ -93,10 +93,7 @@ function buildSections(
   return sections;
 }
 
-function requirementLabel(creditReq: number | null, totalCourses: number, wildcard: string | null = null): string {
-  if (wildcard && totalCourses === 0) {
-    return `Manually add ${creditReq} unit${creditReq !== 1 ? 's' : ''} from`;
-  }
+function requirementLabel(creditReq: number | null, totalCourses: number): string {
   return `Choose ${creditReq} unit${creditReq !== 1 ? 's' : ''} from ${totalCourses} course${totalCourses !== 1 ? 's' : ''}`;
 }
 
@@ -336,7 +333,7 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                     {section.sectionName}
                   </p>
                   <p className="text-[14px] text-gray-500 mt-0.5">
-                    {requirementLabel(section.creditReq, section.courses.length + section.wildcardCourses.length, section.wildcard)}
+                    {requirementLabel(section.creditReq, section.courses.length + section.wildcardCourses.length)}
                   </p>
                 </div>
 
@@ -418,6 +415,11 @@ export function SectionSideBar({ programs, selectedCourses, allCourses, onAdd, o
                     ))}
                     {section.wildcardCourses.length > 0 && (
                       <>
+                        {section.courses.length === 0 && (
+                          <p className="pr-4 pl-4 py-2 text-[16px] text-gray-500 italic">
+                            from {section.wildcard}
+                          </p>
+                        )}
                         {section.courses.length > 0 && (
                           <p className="pr-4 pl-7 py-2 text-[16px] text-gray-500 italic border-t border-gray-200">
                             or from {section.wildcard}
