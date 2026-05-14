@@ -278,7 +278,7 @@ export interface CreditSummary {
 export function calculateCombinationCredits(
   selections: SelectedPrograms,
   cache: StructureCache,
-  selectedSubplans: Record<string, number | null>,
+  selectedSubplans: Record<string, number[]>,
   subplanCache: Record<number, { subplan_id: number; subplan_credits: number | null }[]>,
   combinationId?: CombinationId
 ): CreditSummary {
@@ -308,11 +308,12 @@ export function calculateCombinationCredits(
     const slotKey = Object.keys(selections).find(
       k => selections[k]?.program_id === p.program_id
     );
-    const chosenSubplanId = slotKey ? (selectedSubplans[slotKey] ?? null) : null;
+    const chosenSubplanIds = slotKey ? (selectedSubplans[slotKey] ?? []) : [];
 
-    if (chosenSubplanId !== null) {
+    // Sum credits from all selected subplans
+    for (const subplanId of chosenSubplanIds) {
       const subplan = (subplanCache[p.program_id] ?? []).find(
-        s => s.subplan_id === chosenSubplanId
+        s => s.subplan_id === subplanId
       );
       const subplanCredits = subplan?.subplan_credits ?? 0;
       credits += subplanCredits;
@@ -416,7 +417,7 @@ export function validateCombination(
   combination: CombinationConfig,
   selections: SelectedPrograms,
   cache: StructureCache,
-  selectedSubplans: Record<string, number | null>,
+  selectedSubplans: Record<string, number[]>,
   subplanCache: Record<number, { subplan_id: number; subplan_credits: number | null }[]>
 ): CombinationErrors {
   const errors: CombinationErrors = {};
@@ -495,7 +496,7 @@ export function allStructuresLoaded(
 export function isFormComplete(
   combination: CombinationConfig,
   selections: SelectedPrograms,
-  selectedSubplans: Record<string, number | null>,
+  selectedSubplans: Record<string, number[]>,
   subplanCache: Record<number, { subplan_id: number; subplan_credits: number | null }[]>
 ): boolean {
   const allFilled = combination.slots.every((s) => selections[s.key] !== null);
@@ -508,7 +509,11 @@ export function isFormComplete(
     const subplans = subplanCache[prog.program_id];
     if (subplans === undefined) return false;
 
-    if (subplans.length > 0 && !selectedSubplans[slot.key]) return false;
+    const numRequired = prog.num_subplans_required ?? 0;
+    const numSelected = (selectedSubplans[slot.key] ?? []).length;
+    
+    // Only require subplans if there are available options
+    if (subplans.length > 0 && numSelected < numRequired) return false;
   }
 
   return true;

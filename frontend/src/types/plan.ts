@@ -120,6 +120,9 @@ export type SelectedPrograms = Record<string, ProgramStructure | null>;
  */
 export type StructureCache = Record<number, ProgramStructure>;
 
+/** Slot key → array of selected subplan IDs */
+export type SelectedSubplansArray = Record<string, number[]>;
+
 export type Wildcard = {
   subject: string | null;       // e.g. "CISC"
   level: number | null;  // e.g. 400, or null = any level

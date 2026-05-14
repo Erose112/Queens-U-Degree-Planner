@@ -6,9 +6,10 @@ import ScrollToTop from "../components/ScrollToTop";
 import NextPageButton from "../components/NextPageButton";
 import ChevronIcon from "../components/ChevronIcon";
 import CreditBar from "../components/CreditBar";
+import { MultiSubplanPicker } from "../components/MultiSubplanPicker";
 import { COLOURS } from "../utils/colours";
 import { getPrograms, getProgramStructure, getSubplans } from "../services/api";
-import { Program, ProgramStructure, SelectedPrograms, StructureCache, Subplan } from "../types/plan";
+import { Program, ProgramStructure, SelectedPrograms, StructureCache, Subplan, SelectedSubplansArray } from "../types/plan";
 import { usePlanStore } from "../store/planStore";
 import {
   COMBINATIONS,
@@ -25,12 +26,10 @@ import {
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useCachedFetch } from "../hooks/useCachedFetch";
 
-
-/** One selected subplan ID per slot key */
-type SelectedSubplans = Record<string, number | null>;
-
 /** Cache of subplan lists keyed by program_id */
 type SubplanCache = Record<number, Subplan[]>;
+
+const DEBUG_LOG = true;
 
 
 const dropdownStyle = (accentColor: string): React.CSSProperties => ({
@@ -202,18 +201,20 @@ function ProgramDropdown({
 
 interface SubplanPickerProps {
   subplans: Subplan[];
-  selectedId: number | null;
+  selectedIds: number[];
   onSelect: (id: number) => void;
+  onClear: () => void;
   loading: boolean; // true while structure is still being fetched
   error?: string;
 }
 
-function SubplanPicker({ subplans, selectedId, onSelect, loading, error }: SubplanPickerProps) {
+function SubplanPicker({ subplans, selectedIds, onSelect, onClear, loading, error }: SubplanPickerProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useOutsideClick(containerRef, () => setOpen(false));
 
+  const selectedId = selectedIds[0] ?? null;
   const selectedSubplan = subplans.find((s) => s.subplan_id === selectedId) ?? null;
 
   return (
@@ -254,6 +255,21 @@ function SubplanPicker({ subplans, selectedId, onSelect, loading, error }: Subpl
 
         {/* Chevron */}
         <ChevronIcon open={open} />
+
+        {/* Clear button */}
+        {selectedSubplan && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onClear();
+              setOpen(false);
+            }}
+            className="absolute right-10 top-2.5 text-[12px] font-semibold uppercase tracking-wider text-[#666]"
+            style={{ color: COLOURS.darkGrey }}
+          >
+            ×
+          </button>
+        )}
 
         {open && !loading && (
           <div style={dropdownStyle(COLOURS.blue)}>
@@ -384,11 +400,8 @@ export default function PlannerPage() {
   const [combinationId, setCombinationId] = useState<CombinationId>("major");
   const combination: CombinationConfig = COMBINATIONS.find((c) => c.id === combinationId)!;
 
-  // Debug logging flag — set to true to see detailed logs
-  const DEBUG_LOG = true;
-
   // Fetch subplans with caching and deduplication
-  const { fetch: fetchSubplansNow } = useCachedFetch(
+  const { fetch: fetchSubplansNow, isLoading: isSubplansLoading } = useCachedFetch(
     (id: string | number, subplans: Subplan[]) => {
       setSubplanCache((prev) => ({ ...prev, [id]: subplans }));
     }
@@ -398,7 +411,7 @@ export default function PlannerPage() {
   const [inputVals, setInputVals]         = useState<Record<string, string>>({});
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
 
-  const [selectedSubplans, setSelectedSubplans] = useState<SelectedSubplans>({});
+  const [selectedSubplans, setSelectedSubplans] = useState<SelectedSubplansArray>({});
 
   const containerRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({});
   for (const slot of combination.slots) {
@@ -414,11 +427,29 @@ export default function PlannerPage() {
 
   // ── Fetch all programs on mount ───────────────────────────────────────────
   useEffect(() => {
+    // Clear any stale programs from previous plan generation when arriving at planner
+    resetPrograms();
+    
+    // Clear all local state AND caches to force fresh fetches and UI reset
+    setSelections(emptySelections(combination));
+    setInputVals({});
+    setOpenDropdowns({});
+    setErrors({});
+    setSelectedSubplans({});
+    setStructureCache({});
+    setSubplanCache({});
+    fetchingIds.current.clear();
+    
     getPrograms()
       .then(setAllPrograms)
       .catch(() => setProgramsError("Failed to load programs. Is the backend running?"))
       .finally(() => setProgramsLoading(false));
-  }, []);
+    
+    // Cleanup: reset submitting state on unmount or when returning to page
+    return () => {
+      isSubmitting.current = false;
+    };
+  }, [resetPrograms]);
 
   // ── Reset slots when combination changes ──────────────────────────────────
   useEffect(() => {
@@ -427,6 +458,9 @@ export default function PlannerPage() {
     setOpenDropdowns({});
     setErrors({});
     setSelectedSubplans({});
+    setStructureCache({});
+    setSubplanCache({});
+    fetchingIds.current.clear();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [combinationId]);
 
@@ -454,11 +488,12 @@ export default function PlannerPage() {
   const fetchSubplans = useCallback(
     (program: ProgramStructure) => {
       const id = program.program_id;
-      if (subplanCache[id] !== undefined) return;
+      // If we already have subplans cached, or a fetch is already in-flight, skip
+      if (subplanCache[id] !== undefined || isSubplansLoading(id)) return;
 
       fetchSubplansNow(id, () => getSubplans(id).catch(() => []));
     },
-    [subplanCache, fetchSubplansNow]
+    [subplanCache, fetchSubplansNow, isSubplansLoading]
   );
 
   // Slot helpers 
@@ -482,15 +517,24 @@ export default function PlannerPage() {
     setInputVals((prev) => ({ ...prev, [slotKey]: program.program_name }));
     setOpenDropdowns((prev) => ({ ...prev, [slotKey]: false }));
     setErrors((prev) => { const e = { ...prev }; delete e[slotKey]; return e; });
-    // Clear any previously selected subplan for this slot
-    setSelectedSubplans((prev) => ({ ...prev, [slotKey]: null }));
+    // Clear any previously selected subplans for this slot
+    setSelectedSubplans((prev) => ({ ...prev, [slotKey]: [] }));
     
     // Fetch the full structure which will update structureCache
     const id = program.program_id;
     if (structureCache[id] !== undefined) {
       // Already cached
       const cached = structureCache[id];
-      if ((cached?.num_subplans_required ?? 0) > 0) fetchSubplans(cached);
+      setSelections((prev) => ({
+      ...prev,
+      [slotKey]: {
+        ...prev[slotKey]!,
+        num_subplans_required: cached.num_subplans_required,
+        program_credits: cached.program_credits,
+      },
+    }));
+    if ((cached?.num_subplans_required ?? 0) > 0) 
+      fetchSubplans(cached);
     } else if (!fetchingIds.current.has(id)) {
       // Fetch structure
       fetchingIds.current.add(id);
@@ -523,7 +567,7 @@ export default function PlannerPage() {
 
   const clearSlotSelection = (slotKey: string) => {
     setSelections((prev) => ({ ...prev, [slotKey]: null }));
-    setSelectedSubplans((prev) => ({ ...prev, [slotKey]: null }));
+    setSelectedSubplans((prev) => ({ ...prev, [slotKey]: [] }));
   };
 
   // Derived values
@@ -538,38 +582,50 @@ export default function PlannerPage() {
         const slot = combination.slots.find(
           (s) => safeSelections[s.key]?.program_id === programId
         );
-        const chosenSubplanId = slot ? (selectedSubplans[slot.key] ?? null) : null;
+        const chosenSubplanIds = slot ? (selectedSubplans[slot.key] ?? []) : [];
 
-        // No subplan chosen (or program has none) — keep all top-level sections only
-        // Subplan chosen — keep top-level + that subplan's sections
+        // No subplans chosen (or program has none) — keep all top-level sections only
+        // Subplans chosen — keep top-level + all selected subplans' sections
         const allSections   = structure.sections;
         const filteredSections = allSections.filter(
-          (s) => s.subplan_id === null || s.subplan_id === chosenSubplanId
+          (s) => s.subplan_id === null || chosenSubplanIds.includes(s.subplan_id)
         );
-
-        if (DEBUG_LOG) {
-          console.group(`filteredStructureCache: program_id=${programId} (${structure.program_name})`);
-          console.log("chosenSubplanId:", chosenSubplanId ?? "none");
-          console.log("total sections in cache:", allSections.length);
-          console.table(allSections.map(s => ({
-            section_id:  s.section_id,
-            subplan_id:  s.subplan_id ?? "null",
-            logic_type:  s.logic_type,
-            credit_req:  s.credit_req,
-            kept:        filteredSections.includes(s),
-            courses:     s.section_courses.map(c => c.course_code).join(", "),
-          })));
-          console.log(
-            `kept ${filteredSections.length}/${allSections.length} sections,`,
-            `credit_req sum = ${filteredSections.reduce((s, sec) => s + (sec.credit_req ?? 0), 0)}`
-          );
-          console.groupEnd();
-        }
 
         return [key, { ...structure, sections: filteredSections }];
       })
     );
-  }, [structureCache, safeSelections, selectedSubplans, DEBUG_LOG, combination.slots]);
+  }, [structureCache, safeSelections, selectedSubplans, combination.slots]);
+
+  useEffect(() => {
+    if (!DEBUG_LOG) return;
+
+    for (const [key, structure] of Object.entries(structureCache)) {
+      const programId = parseInt(key);
+      const slot = combination.slots.find(
+        (s) => safeSelections[s.key]?.program_id === programId
+      );
+      const chosenSubplanIds = slot ? (selectedSubplans[slot.key] ?? []) : [];
+      const allSections = structure.sections;
+      const filteredSections = filteredStructureCache[programId]?.sections ?? [];
+
+      console.group(`filteredStructureCache: program_id=${programId} (${structure.program_name})`);
+      console.log("chosenSubplanIds:", chosenSubplanIds.length > 0 ? chosenSubplanIds.join(", ") : "none");
+      console.log("total sections in cache:", allSections.length);
+      console.table(allSections.map((section) => ({
+        section_id: section.section_id,
+        subplan_id: section.subplan_id ?? "null",
+        logic_type: section.logic_type,
+        credit_req: section.credit_req,
+        kept: filteredSections.includes(section),
+        courses: section.section_courses.map((course) => course.course_code).join(", "),
+      })));
+      console.log(
+        `kept ${filteredSections.length}/${allSections.length} sections,`,
+        `credit_req sum = ${filteredSections.reduce<number>((sum, section) => sum + (section.credit_req ?? 0), 0)}`
+      );
+      console.groupEnd();
+    }
+  }, [structureCache, safeSelections, selectedSubplans, filteredStructureCache]);
 
   const creditSummary   = useMemo(() => 
     calculateCombinationCredits(safeSelections, filteredStructureCache, selectedSubplans, subplanCache),
@@ -588,7 +644,7 @@ export default function PlannerPage() {
   };
 
   /** Returns the fetched subplan list for the program in a given slot. */
-  const sublansForSlot = (slotKey: string): Subplan[] => {
+  const subplansForSlot = (slotKey: string): Subplan[] => {
     const prog = safeSelections[slotKey];
     if (!prog) return [];
     return subplanCache[prog.program_id] ?? [];
@@ -620,14 +676,14 @@ export default function PlannerPage() {
         .map((slot) => {
           const prog = safeSelections[slot.key];
           if (!prog) return null;
-          const subplanId = (prog.num_subplans_required ?? 0) > 0
-            ? (selectedSubplans[slot.key] ?? null)
-            : null;
-          return { programId: prog.program_id, subplanId };
+          const subplanIds = (prog.num_subplans_required ?? 0) > 0
+            ? (selectedSubplans[slot.key] ?? [])
+            : [];
+          return { programId: prog.program_id, subplanIds };
         })
-        .filter((x): x is { programId: number; subplanId: number | null } => x !== null);
+        .filter((x): x is { programId: number; subplanIds: number[] } => x !== null);
 
-      await Promise.all(loads.map(({ programId, subplanId }) => loadProgram(programId, subplanId)));
+      await Promise.all(loads.map(({ programId, subplanIds }) => loadProgram(programId, subplanIds)));
 
       // Pass selectedSubplans through navigate state so the visualizer can use them
       navigate("/visualizer", { state: { selectedSubplans } });
@@ -757,8 +813,11 @@ export default function PlannerPage() {
               >
                 {combination.slots.map((slot) => {
                   const prog = safeSelections[slot.key];
-                  const subplans = sublansForSlot(slot.key);
-                  const subplansLoading = !!prog && (prog.num_subplans_required ?? 0) > 0 && subplanCache[prog.program_id] === undefined;
+                  const subplans = subplansForSlot(slot.key);
+                  const cachedStructure = prog ? structureCache[prog.program_id] : undefined;
+                  const numSubplansRequired = cachedStructure?.num_subplans_required ?? 0;
+                  const subplansLoading = !!prog && numSubplansRequired > 0 
+                    && subplanCache[prog.program_id] === undefined;
 
                   return (
                     <div key={slot.key} className="flex flex-col gap-3">
@@ -778,18 +837,41 @@ export default function PlannerPage() {
                         fetchingStructure={slotFetching(slot.key)}
                       />
 
-                      {/* Subplan picker — shown when program requires subplans */}
-                      {(prog?.num_subplans_required ?? 0) > 0 && (
+                      {/* Subplan pickers — shown when program requires subplans */}
+                      {numSubplansRequired > 0 && (
                         <div className="pl-4 border-l-2" style={{ borderColor: COLOURS.grey }}>
-                          <SubplanPicker
-                            subplans={subplans}
-                            selectedId={selectedSubplans[slot.key] ?? null}
-                            onSelect={(id) =>
-                              setSelectedSubplans((prev) => ({ ...prev, [slot.key]: id }))
-                            }
-                            loading={subplansLoading}
-                            error={errors[`${slot.key}_subplan`]}
-                          />
+                          {numSubplansRequired === 1 ? (
+                            // Single subplan required
+                            <SubplanPicker
+                              subplans={subplans}
+                              selectedIds={selectedSubplans[slot.key] ?? []}
+                              onSelect={(id) =>
+                                setSelectedSubplans((prev) => ({ ...prev, [slot.key]: [id] }))
+                              }
+                              onClear={() =>
+                                setSelectedSubplans((prev) => ({ ...prev, [slot.key]: [] }))
+                              }
+                              loading={subplansLoading}
+                              error={errors[`${slot.key}_subplan`]}
+                            />
+                          ) : (
+                            // Multiple subplans required
+                            <MultiSubplanPicker
+                              numRequired={numSubplansRequired}
+                              allSubplans={subplans}
+                              selectedIds={selectedSubplans[slot.key] ?? []}
+                              onSelect={(index, id) => {
+                                setSelectedSubplans((prev) => {
+                                  const current = prev[slot.key] ?? [];
+                                  const updated = [...current];
+                                  updated[index] = id;
+                                  return { ...prev, [slot.key]: updated };
+                                });
+                              }}
+                              loading={subplansLoading}
+                              error={errors[`${slot.key}_subplan`]}
+                            />
+                          )}
                         </div>
                       )}
                     </div>

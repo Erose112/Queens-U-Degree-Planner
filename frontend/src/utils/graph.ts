@@ -88,3 +88,48 @@ export function mergeGraphs(
     prerequisite_sets: Array.from(setMap.values()),
   };
 }
+
+/**
+ * Topologically sorts a set of course IDs using Kahn's algorithm
+ * over the provided prerequisite graph edges.
+ * Courses with no ordering constraints come first.
+ * Any cycles are appended at the end in original order.
+ */
+export function topologicalSortCourses(
+  courseIds: Set<number>,
+  edges: PrerequisiteGraph['edges'],
+): number[] {
+  const inDegree   = new Map<number, number>();
+  const dependents = new Map<number, number[]>();
+
+  for (const id of courseIds) {
+    inDegree.set(id, 0);
+    dependents.set(id, []);
+  }
+
+  for (const edge of edges) {
+    if (!courseIds.has(edge.from_course_id) || !courseIds.has(edge.to_course_id)) continue;
+    inDegree.set(edge.to_course_id, (inDegree.get(edge.to_course_id) ?? 0) + 1);
+    dependents.get(edge.from_course_id)!.push(edge.to_course_id);
+  }
+
+  const queue = [...courseIds].filter(id => (inDegree.get(id) ?? 0) === 0);
+  const sorted: number[] = [];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    sorted.push(current);
+    for (const dep of dependents.get(current) ?? []) {
+      const newDegree = (inDegree.get(dep) ?? 1) - 1;
+      inDegree.set(dep, newDegree);
+      if (newDegree === 0) queue.push(dep);
+    }
+  }
+
+  // Append any courses in a cycle
+  for (const id of courseIds) {
+    if (!sorted.includes(id)) sorted.push(id);
+  }
+
+  return sorted;
+}
